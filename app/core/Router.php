@@ -1,27 +1,48 @@
 <?php
-class Router{
-    public function run():void{
-        $url=$_GET['url']??'home/index';
-        $url=explode('/',trim($url,'/'));
 
-        $controllerName=ucfirst($url[0]??'home').'Controller';
-        $method=$url[1]??'index';
-        $params=array_slice($url,2);
-        $controllerFile=BASE_PATH . "/app/controllers/{$controllerName}.php";
+require_once BASE_PATH . '/app/core/Auth.php';
 
-        if(!file_exists($controllerFile)){
-            http_response_code(404);
-            echo "Controller not found.";
-            exit;
+class Router
+{
+    public function run(): void
+    {
+        $url = $_GET['url'] ?? '';
+        $url = trim($url, '/');
+
+        // Si no hay URL → decidir según sesión
+        if ($url === '') {
+            if (Auth::check()) {
+                $url = 'home/index';
+            } else {
+                header('Location: ' . BASE_URL . '/auth/login');
+                exit;
+            }
+        }
+
+        $parts = explode('/', $url);
+        $controllerName = ucfirst($parts[0]) . 'Controller';
+        $method = $parts[1] ?? 'index';
+        $params = array_slice($parts, 2);
+
+        $controllerFile = BASE_PATH . '/app/controllers/' . $controllerName . '.php';
+
+        if (!file_exists($controllerFile)) {
+            die('Controlador no encontrado');
         }
 
         require_once $controllerFile;
-        $controller=new $controllerName();
-        if(!method_exists($controller,$method)){
-            http_response_code(404);
-            echo "Method not found.";
-            exit;
+
+        $controller = new $controllerName();
+
+        // Protección: todo menos Auth requiere login
+        if ($controllerName !== 'AuthController') {
+            Auth::requireLogin();
         }
-        call_user_func_array([$controller,$method],$params);
+
+        if (!method_exists($controller, $method)) {
+            die('Método no encontrado');
+        }
+
+        call_user_func_array([$controller, $method], $params);
     }
 }

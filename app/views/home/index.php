@@ -1,11 +1,15 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title><?= $title ?></title>
-</head>
-<body>
-    <h1><?= $title ?></h1>
-    <p>Base MVC cargada correctamente.</p>
-</body>
-</html>
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-body text-center">
+                <h1 class="card-title"><?= $title ?></h1>
+                <p class="card-text">
+                    Sistema ERP listo para gestión de compras, producción y ventas.
+                </p>
+                <span class="badge bg-success">MVC OK</span>
+                <span class="badge bg-primary">PDO OK</span>
+                <span class="badge bg-dark">Bootstrap OK</span>
+            </div>
+        </div>
+    </div>
+</div>

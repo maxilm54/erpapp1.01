@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('America/Argentina/Buenos_Aires');
 define('BASE_PATH', dirname(__DIR__,2));
 define('APP_NAME','app');
 define('BASE_URL','http://localhost/app/public');
