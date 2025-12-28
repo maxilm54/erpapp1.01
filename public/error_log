@@ -1,1 +1,45 @@
 
+[24-Dec-2025 11:59:24 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Controller" not found in C:\xampp\htdocs\app\app\controllers\MateriasPrimasController.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(33): require_once()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\MateriasPrimasController.php on line 2
+[24-Dec-2025 12:01:39 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Controller" not found in C:\xampp\htdocs\app\app\controllers\MateriasprimasController.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(33): require_once()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\MateriasprimasController.php on line 2
+[24-Dec-2025 12:02:01 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Controller" not found in C:\xampp\htdocs\app\app\controllers\MateriasprimasController.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(33): require_once()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\MateriasprimasController.php on line 2
+[24-Dec-2025 12:02:24 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Controller" not found in C:\xampp\htdocs\app\app\controllers\ProduccionController.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(33): require_once()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\ProduccionController.php on line 2
+[24-Dec-2025 12:05:38 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Model" not found in C:\xampp\htdocs\app\app\models\MateriaPrima.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\controllers\MateriasprimasController.php(3): require_once()
+#1 C:\xampp\htdocs\app\app\core\Router.php(33): require_once('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#3 {main}
+  thrown in C:\xampp\htdocs\app\app\models\MateriaPrima.php on line 2
+[24-Dec-2025 12:07:55 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Controller" not found in C:\xampp\htdocs\app\app\controllers\ProduccionController.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(33): require_once()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\ProduccionController.php on line 2
+[24-Dec-2025 12:08:42 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught Error: Class "Model" not found in C:\xampp\htdocs\app\app\models\Receta.php:2
+Stack trace:
+#0 C:\xampp\htdocs\app\app\controllers\ProduccionController.php(3): require_once()
+#1 C:\xampp\htdocs\app\app\core\Router.php(33): require_once('C:\\xampp\\htdocs...')
+#2 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#3 {main}
+  thrown in C:\xampp\htdocs\app\app\models\Receta.php on line 2
