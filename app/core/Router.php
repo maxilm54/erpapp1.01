@@ -1,6 +1,8 @@
 <?php
 
 require_once BASE_PATH . '/app/core/Auth.php';
+require_once BASE_PATH . '/app/core/Controller.php';
+require_once BASE_PATH . '/app/core/Model.php';
 
 class Router
 {

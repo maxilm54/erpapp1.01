@@ -11,23 +11,63 @@
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="<?= BASE_URL ?>">APP ERP</a>
+<div class="container-fluid">
 
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav ms-auto">
-                <?php if (isset($_SESSION['user_id'])): ?>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/auth/logout">Salir</a>
-                    </li>
-                <?php else: ?>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= BASE_URL ?>/auth/login">Login</a>
-                    </li>
-                <?php endif; ?>
-            </ul>
-        </div>
-    </div>
+<a class="navbar-brand" href="<?= BASE_URL ?>">APP ERP</a>
+
+<button class="navbar-toggler" type="button"
+ data-bs-toggle="collapse" data-bs-target="#menu">
+ <span class="navbar-toggler-icon"></span>
+</button>
+
+<div class="collapse navbar-collapse" id="menu">
+<ul class="navbar-nav me-auto">
+
+<!-- ABM -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+ABM
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/clientes">Clientes</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/proveedores">Proveedores</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/productos">Productos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/materiasprimas">Materias primas</a></li>
+</ul>
+</li>
+
+<!-- COMPRAS -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+Compras
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenescompra/create">Nueva OC</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenescompra">Ordenes</a></li>
+</ul>
+</li>
+
+<!-- PRODUCCIÓN -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+Producción
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/recetas">Recetas</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/produccion">Producción</a></li>
+</ul>
+</li>
+
+</ul>
+
+<ul class="navbar-nav">
+<li class="nav-item">
+<a class="nav-link" href="<?= BASE_URL ?>/auth/logout">Salir</a>
+</li>
+</ul>
+
+</div>
+</div>
 </nav>
 
 <div class="container mt-4">
