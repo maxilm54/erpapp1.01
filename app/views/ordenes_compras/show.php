@@ -3,7 +3,7 @@
 
     <span class="badge bg-<?= 
         $orden['estado'] === 'PENDIENTE' ? 'warning' :
-        ($orden['estado'] === 'APROBADA' ? 'success' : 'secondary')
+        ($orden['estado'] === 'APROBADA' ? 'secondary' : 'success')
     ?>">
         <?= $orden['estado'] ?>
     </span>
@@ -21,16 +21,22 @@
 <table class="table table-bordered table-striped">
 <thead class="table-dark">
 <tr>
+    <tr>
     <th>Materia Prima</th>
-    <th>Cantidad</th>
+    <th>Pedida</th>
+    <th>Recibida</th>
+    <th>Faltante</th>
     <th>Unidad</th>
+</tr>
 </tr>
 </thead>
 <tbody>
 <?php foreach ($orden['detalle'] as $d): ?>
 <tr>
     <td><?= htmlspecialchars($d['nombre']) ?></td>
-    <td><?= number_format($d['cantidad'], 3) ?></td>
+    <td><?= number_format($d['pedida'], 3) ?></td>
+    <td><?= number_format($d['recibida'], 3) ?></td>
+    <td><?= number_format($d['faltante'], 3) ?></td>
     <td><?= htmlspecialchars($d['unidad_medida']) ?></td>
 </tr>
 <?php endforeach; ?>

@@ -1,7 +1,9 @@
 <h3 class="mb-3"><?= $title ?></h3>
 
 <form method="POST" class="card p-4 col-md-8 mx-auto">
-
+<div class="mb-3">
+    <label class="form-label">Proveedor: <?= htmlspecialchars($proveedor) ?> #OC: <?= $orden_compra_id ?></label>
+</div>
 <div class="mb-3">
     <label class="form-label">Remito</label>
     <input type="text"
@@ -11,7 +13,6 @@
            pattern="\d{5}-\d{8}"
            required>
 </div>
-
 <table class="table table-bordered">
 <thead class="table-dark">
 <tr>
@@ -21,19 +22,29 @@
 </tr>
 </thead>
 <tbody>
-<?php foreach ($detalle as $i => $d): ?>
+<?php foreach ($detalle as $item): ?>
 <tr>
-    <td><?= htmlspecialchars($d['nombre']) ?></td>
-    <td><?= $d['cantidad'].' '.$d['unidad_medida'] ?></td>
-    <td>
-        <input type="hidden"
-               name="items[<?= $i ?>][materia_prima_id]"
-               value="<?= $d['materia_prima_id'] ?>">
+    <td><?= htmlspecialchars($item['nombre']) ?></td>
 
-        <input type="number" step="0.001" min="0"
-               name="items[<?= $i ?>][cantidad]"
-               class="form-control"
-               required>
+    <td>
+        <?= $item['pedida'] ?> <?= $item['unidad_medida'] ?><br>
+        <small class="text-muted">
+            Recibido: <?= $item['recibida'] ?> |
+            Faltante: <?= $item['faltante'] ?>
+        </small>
+    </td>
+
+    <td>
+        <?php if ($item['faltante'] > 0): ?>
+            <input type="number"
+                   name="items[<?= $item['materia_prima_id'] ?>]"
+                   class="form-control"
+                   step="0.01"
+                   max="<?= $item['faltante'] ?>"
+                   value="<?= $item['faltante'] ?>">
+        <?php else: ?>
+            <span class="badge bg-success">Completo</span>
+        <?php endif; ?>
     </td>
 </tr>
 <?php endforeach; ?>

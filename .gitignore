@@ -2,3 +2,4 @@
 /storage/logs/*
 /storage/pdf/*
 .env
+public/error_log

@@ -30,7 +30,7 @@
             </a>
         <?php endif; ?>
 
-        <?php if ($oc['estado'] === 'APROBADA'): ?>
+        <?php if ($oc['estado'] !== 'PENDIENTE' && $oc['estado'] !== 'RECIBIDA'): ?>
             <a href="<?= BASE_URL ?>/ingresosmercaderia/create/<?= $oc['id'] ?>"
                class="btn btn-sm btn-primary">
                Ingresar mercadería

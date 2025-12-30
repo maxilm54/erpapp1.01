@@ -25,7 +25,7 @@ class AuthController extends Controller{
 
             MailHelper::send(
                 $_POST['email'],
-                'Verificá tu cuenta',
+                'Confirmar cuenta Triba-APP',
                 "<p>Click para verificar:</p><a href='$link'>$link</a>"
             );
 
