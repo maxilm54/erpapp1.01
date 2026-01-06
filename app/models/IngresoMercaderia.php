@@ -1,5 +1,5 @@
 <?php
-
+require_once BASE_PATH.'/app/models/OrdenCompra.php';
 class IngresoMercaderia extends Model
 {
     public function all()
@@ -57,6 +57,7 @@ class IngresoMercaderia extends Model
 
     public function registrar(int $orden_id, int $proveedor_id, int $usuario_id, array $data): int
     {
+        
         try {
             $this->db->beginTransaction();
 
@@ -90,6 +91,16 @@ class IngresoMercaderia extends Model
             foreach ($data['items'] as $materiaPrimaId => $cantidad) {
                 $cantidad = (float)$cantidad;
                 if ($cantidad <= 0) continue;
+                $faltante = $this->faltantePorMateria( 
+                $orden_id,
+                $materiaPrimaId                
+                );
+
+            if ($cantidad > $faltante) {
+                throw new Exception(
+                    "No se puede ingresar $cantidad. Faltante: $faltante"
+                );
+            }
 
                 // Detalle ingreso
                 $this->db->prepare(
@@ -219,5 +230,44 @@ class IngresoMercaderia extends Model
         $faltantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         return $faltantes;
 
+    }
+    public function faltantePorMateria(int $ocId, int $mpId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                d.cantidad - COALESCE(SUM(idt.cantidad),0) AS faltante
+            FROM ordenes_compra_detalle d
+            LEFT JOIN ingresos_mercaderia i
+                ON i.orden_compra_id = d.orden_compra_id
+            LEFT JOIN ingresos_mercaderia_detalle idt
+                ON idt.ingreso_id = i.id
+                AND idt.materia_prima_id = d.materia_prima_id
+            WHERE d.orden_compra_id = ?
+            AND d.materia_prima_id = ?
+            GROUP BY d.cantidad
+        ");
+        $stmt->execute([$ocId, $mpId]);
+
+        return (float)($stmt->fetchColumn() ?? 0);
+    }
+
+    public function historialPorOrden(): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                i.id,
+                i.fecha,
+                i.remito,
+                u.nombre AS usuario,
+                mp.nombre AS materia_prima,
+                idt.cantidad
+            FROM ingresos_mercaderia i
+            JOIN ingresos_mercaderia_detalle idt ON idt.ingreso_id = i.id
+            JOIN materias_primas mp ON mp.id = idt.materia_prima_id
+            JOIN users u ON u.id = i.usuario_id
+            ORDER BY i.fecha DESC, i.id DESC
+        ");
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

@@ -9,3 +9,25 @@
 [06-Jan-2026 10:24:08 America/Argentina/Buenos_Aires] 2-orden 29: 123
 [06-Jan-2026 10:28:16 America/Argentina/Buenos_Aires] 2-orden 30: 120
 [06-Jan-2026 10:28:46 America/Argentina/Buenos_Aires] 2-orden 30: 120
+[06-Jan-2026 11:18:38 America/Argentina/Buenos_Aires] 2-orden 31: 600
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] ingreso a la funcion faltantepormercaderia ok - ocId: 31 , mpId: 1
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] 23
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] ingreso a la funcion faltantepormercaderia ok - ocId: 31 , mpId: 2
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] 48
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] ingreso a la funcion faltantepormercaderia ok - ocId: 31 , mpId: 3
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] 73
+[06-Jan-2026 11:24:41 America/Argentina/Buenos_Aires] 2-orden 31: 600
+[06-Jan-2026 11:28:10 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught ArgumentCountError: Too few arguments to function IngresosMercaderiaController::show(), 0 passed in C:\xampp\htdocs\app\app\core\Router.php on line 48 and exactly 1 expected in C:\xampp\htdocs\app\app\controllers\IngresosMercaderiaController.php:72
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Router.php(48): IngresosMercaderiaController->show()
+#1 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\controllers\IngresosMercaderiaController.php on line 72
+[06-Jan-2026 11:42:02 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S02]: Base table or view not found: 1146 Table 'app.usuarios' doesn't exist in C:\xampp\htdocs\app\app\models\IngresoMercaderia.php:256
+Stack trace:
+#0 C:\xampp\htdocs\app\app\models\IngresoMercaderia.php(256): PDO->prepare('\r\n            S...')
+#1 C:\xampp\htdocs\app\app\controllers\IngresosMercaderiaController.php(88): IngresoMercaderia->historialPorOrden()
+#2 C:\xampp\htdocs\app\app\core\Router.php(48): IngresosMercaderiaController->showhist()
+#3 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#4 {main}
+  thrown in C:\xampp\htdocs\app\app\models\IngresoMercaderia.php on line 256

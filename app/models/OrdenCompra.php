@@ -185,4 +185,6 @@ class OrdenCompra extends Model
              WHERE id = :id"
         )->execute(['id'=>$id]);
     }
+
+    
 }

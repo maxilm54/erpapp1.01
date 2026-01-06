@@ -45,6 +45,7 @@ Compras
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenescompra/create">Nueva OC</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenescompra">Ordenes</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia">Ingresos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia/showhist">Historial Ingresos</a></li>
 </ul>
 </li>
 
