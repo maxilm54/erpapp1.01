@@ -27,16 +27,18 @@ class OrdenCompra extends Model
         return (int)$this->db->lastInsertId();
     }
 
-    public function addDetalle(int $ocId, int $mpId, float $cantidad): void // chequear si agrego detalle individualmente o en lote -> respndido en el controlador
+    public function addDetalle(int $ocId, int $mpId, float $cantidad,float $precioUnitario,int $moneda): void // chequear si agrego detalle individualmente o en lote -> respndido en el controlador
     {
         $this->db->prepare(
             "INSERT INTO ordenes_compra_detalle
-             (orden_compra_id, materia_prima_id, cantidad)
-             VALUES (:o,:m,:c)"
+             (orden_compra_id, materia_prima_id, cantidad, precio_unitario, moneda)
+             VALUES (:o,:m,:c,:p,:mon)"
         )->execute([
             'o' => $ocId,
             'm' => $mpId,
-            'c' => $cantidad
+            'c' => $cantidad,
+            'p' => $precioUnitario,
+            'mon' => $moneda
         ]);
     }
 
@@ -91,7 +93,7 @@ class OrdenCompra extends Model
         // 2️⃣ DETALLE con recibidas / faltantes
         $stmt = $this->db->prepare(
             "SELECT 
-                d.materia_prima_id,
+                d.materia_prima_id,d.precio_unitario,mon.logo AS moneda,
                 mp.nombre,
                 mp.unidad_medida,
                 d.cantidad AS pedida,
@@ -105,6 +107,8 @@ class OrdenCompra extends Model
             LEFT JOIN ingresos_mercaderia_detalle idt
                 ON idt.ingreso_id = i.id
                 AND idt.materia_prima_id = d.materia_prima_id
+            LEFT JOIN monedas mon
+                ON mon.id_monedas = d.moneda
             WHERE d.orden_compra_id = ?
             GROUP BY d.materia_prima_id, mp.nombre, mp.unidad_medida, d.cantidad"
         );
@@ -140,12 +144,13 @@ class OrdenCompra extends Model
 
                 $this->db->prepare(
                     "INSERT INTO ordenes_compra_detalle
-                    (orden_compra_id, materia_prima_id, cantidad)
-                    VALUES (?, ?, ?)"
+                    (orden_compra_id, materia_prima_id, cantidad,precio_unitario)
+                    VALUES (?, ?, ?, ?)"
                 )->execute([
                     $id,
                     $item['materia_prima_id'],
-                    $item['cantidad']
+                    $item['cantidad'],
+                    $item['precio_unitario']
                 ]);
             }
 
@@ -170,5 +175,14 @@ class OrdenCompra extends Model
         return $this->db
             ->query("SELECT id, razon_social FROM proveedores ORDER BY razon_social")
             ->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function anular(int $id): void
+    {
+        $this->db->prepare(
+            "UPDATE ordenes_compra
+             SET estado = 'ANULADA'
+             WHERE id = :id"
+        )->execute(['id'=>$id]);
     }
 }

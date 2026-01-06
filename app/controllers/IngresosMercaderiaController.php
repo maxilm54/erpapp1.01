@@ -78,7 +78,8 @@ class IngresosMercaderiaController extends Controller
         }
 
         $this->view('ingresos/show', [
-            'ingreso' => $ingreso
+            'ingreso' => $ingreso,
+            'faltante' => $this->ingreso->historicoIngresosPorOrden($ingreso['orden_compra_id'], $ingreso['ing_num_indicador'])
         ]);
     }
 }

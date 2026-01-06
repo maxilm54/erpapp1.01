@@ -25,16 +25,24 @@
     <td>
         <?php if ($oc['estado'] === 'PENDIENTE'): ?>
             <a href="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $oc['id'] ?>"
-               class="btn btn-sm btn-success">
+               class="btn btn-sm btn-success"
+               onclick="return confirm('¿Aprobar esta orden?');">
                Aprobar
             </a>
         <?php endif; ?>
 
-        <?php if ($oc['estado'] !== 'PENDIENTE' && $oc['estado'] !== 'RECIBIDA'): ?>
+        <?php if (($oc['estado'] !== 'PENDIENTE' && $oc['estado'] !== 'RECIBIDA'&& $oc['estado'] !== 'ANULADA') || $oc['estado'] === 'PARCIAL'): ?>
             <a href="<?= BASE_URL ?>/ingresosmercaderia/create/<?= $oc['id'] ?>"
                class="btn btn-sm btn-primary">
                Ingresar mercadería
             </a>
+        <?php endif; ?>
+
+        <?php if (($oc['estado'] === 'RECIBIDA')): ?>
+            <span class="badge bg-success">COMPLETA</span>
+        <?php endif; ?>
+        <?php if (($oc['estado'] === 'ANULADA')): ?>
+            <span class="badge bg-danger">ANULADA</span>
         <?php endif; ?>
     </td>
     <td>
@@ -50,8 +58,14 @@
         </a>
 
         <a href="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $oc['id'] ?>"
-           class="btn btn-sm btn-success">
+           class="btn btn-sm btn-success"
+           onclick="return confirm('¿Aprobar esta orden?');">
            Aprobar
+        </a>
+        <a href="<?= BASE_URL ?>/ordenescompra/anular/<?= $oc['id'] ?>"
+           class="btn btn-sm btn-danger"
+           onclick="return confirm('¿Anular esta orden?');">
+           Anular
         </a>
     <?php endif; ?>
 </td>

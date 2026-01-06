@@ -22,6 +22,8 @@
 <tr>
     <th>Materia Prima</th>
     <th>Cantidad</th>
+    <th>Precio Unitario</th>
+    <th>Moneda</th>
 </tr>
 </thead>
 <tbody>
@@ -41,8 +43,21 @@
                name="items[<?= $i ?>][cantidad]"
                class="form-control" value="<?= $mp['cantidad'] ?? '' ?>">
     </td>
+    <td>
+        <input type="number" step="0.001" min="0"
+               name="items[<?= $i ?>][precio_unitario]"
+               class="form-control" value="<?= $mp['precio_unitario'] ?? '' ?>">
+    </td>
+    <td>
+        <select name="items[<?= $i ?>][moneda]" class="form-select">
+            <option value="1" <?= ($mp['moneda'] ?? '1') == '$' ? 'selected' : '' ?>>$</option>
+            <option value="2" <?= ($mp['moneda'] ?? '2') == 'USD' ? 'selected' : '' ?>>USD</option>
+            <option value="3" <?= ($mp['moneda'] ?? '3') == '€' ? 'selected' : '' ?>>€</option>
+        </select>
+    </td>
 </tr>
 <?php endforeach; ?>
+
 </tbody>
 </table>
 

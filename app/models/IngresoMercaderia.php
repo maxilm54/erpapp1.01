@@ -78,10 +78,12 @@ class IngresoMercaderia extends Model
             // 2️⃣ Insertar cabecera ingreso
             $stmt = $this->db->prepare(
                 "INSERT INTO ingresos_mercaderia
-                 (orden_compra_id, proveedor_id, usuario_id, remito)
-                 VALUES (?, ?, ?, ?)"
+                    (orden_compra_id, ing_num_indicador, proveedor_id, usuario_id, remito)
+                SELECT ?, COALESCE(MAX(ing_num_indicador), 0) + 1, ?, ?, ?
+                FROM ingresos_mercaderia
+                WHERE orden_compra_id = ?"
             );
-            $stmt->execute([$orden_id, $proveedor_id, $usuario_id, $data['remito']]);
+            $stmt->execute([$orden_id, $proveedor_id, $usuario_id, $data['remito'], $orden_id]);
             $ingreso_id = (int)$this->db->lastInsertId();
 
             // 3️⃣ Detalle + movimiento de stock
@@ -92,11 +94,12 @@ class IngresoMercaderia extends Model
                 // Detalle ingreso
                 $this->db->prepare(
                     "INSERT INTO ingresos_mercaderia_detalle
-                     (ingreso_id, materia_prima_id, cantidad)
-                     VALUES (?, ?, ?)"
+                     (ingreso_id, materia_prima_id, oc_id,cantidad)
+                     VALUES (?, ?, ?, ?)"
                 )->execute([
                     $ingreso_id,
                     $materiaPrimaId,
+                    $orden_id,
                     $cantidad
                 ]);
 
@@ -113,7 +116,7 @@ class IngresoMercaderia extends Model
 
             // 4️⃣ Commit
             $this->db->commit();
-            $this->actualizarEstadoOrden($orden_id);
+            $this->actualizarEstadoOrden($orden_id); // aca actiualizo para saber si la orden sigue parcial o se recibio completa
             return $ingreso_id;
 
         } catch (Exception $e) {
@@ -144,7 +147,7 @@ class IngresoMercaderia extends Model
         $stmt = $this->db->prepare("
             SELECT 
                 mp.nombre,
-                oc.cantidad AS pedida,
+                oc.cantidad AS pedida,idt.materia_prima_id,
                 SUM(idt.cantidad) AS ingresada,
                 (oc.cantidad - SUM(idt.cantidad)) AS faltante
             FROM ingresos_mercaderia_detalle idt
@@ -165,26 +168,31 @@ class IngresoMercaderia extends Model
         return $ingreso;
     }
 
-    private function actualizarEstadoOrden($orden_id)
+    private function actualizarEstadoOrden($orden_id) // con el numero de orden debo calcular lo recibido contra lo pedido para emitir el parcial o total
     {
         $stmt = $this->db->prepare("
-            SELECT SUM(faltante) AS total_faltante
-            FROM (
-                SELECT 
-                    d.cantidad - COALESCE(SUM(idt.cantidad),0) AS faltante
-                FROM ordenes_compra_detalle d
-                LEFT JOIN ingresos_mercaderia_detalle idt
-                    ON idt.materia_prima_id = d.materia_prima_id
-                LEFT JOIN ingresos_mercaderia i
-                    ON i.id = idt.ingreso_id
-                    AND i.orden_compra_id = d.orden_compra_id
-                WHERE d.orden_compra_id = ?
-                GROUP BY d.materia_prima_id
-            ) t      
+            SELECT SUM(ing_det.cantidad) AS cantidad
+            FROM ingresos_mercaderia_detalle ing_det
+            WHERE ing_det.oc_id=?
+            
         ");
         $stmt->execute([$orden_id]);
-        $faltante = (float)$stmt->fetchColumn();
-
+        $ingreso_oc_total = (float)$stmt->fetchColumn();
+        try{
+            $stmt = $this->db->prepare("
+            SELECT SUM(oc.cantidad) AS cantidad
+            FROM ordenes_compra_detalle oc
+            WHERE oc.orden_compra_id=?
+            
+            ");
+            $stmt->execute([$orden_id]);
+            $oc_total = (float)$stmt->fetchColumn();
+        }catch(Exception $e){
+            $oc_total = 0;
+        }
+        
+        error_log("2-orden $orden_id: $oc_total");
+        $faltante = $oc_total - $ingreso_oc_total;
         if ($faltante <= 0) {
             $this->db->prepare(
                 "UPDATE ordenes_compra SET estado = 'RECIBIDA' WHERE id = ?"
@@ -194,5 +202,22 @@ class IngresoMercaderia extends Model
                 "UPDATE ordenes_compra SET estado = 'PARCIAL' WHERE id = ?"
             )->execute([$orden_id]);
         }
+    }
+
+    public function historicoIngresosPorOrden(int $ordenCompraId, int $ingreso_num): array
+    { // en esta consulta traigo todos los ingresos anteriores a este numero de ingreso para mostrar en el detalle del ingreso actual
+        //error_log("historicoIngresosPorOrden - orden: $ordenCompraId , ingreso num: $ingreso_num");
+        $stmt = $this->db->prepare("
+            SELECT mp.id, COALESCE(SUM(ing_det.cantidad), 0) AS total_cantidad 
+            FROM materias_primas mp 
+            LEFT JOIN ingresos_mercaderia_detalle ing_det ON ing_det.materia_prima_id = mp.id AND ing_det.oc_id = ? 
+            LEFT JOIN ingresos_mercaderia ing_cab ON ing_cab.id = ing_det.ingreso_id  
+            WHERE ing_cab.ing_num_indicador < ?
+            GROUP BY mp.id,ing_det.materia_prima_id;
+        ");
+        $stmt->execute([$ordenCompraId, $ingreso_num]);
+        $faltantes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $faltantes;
+
     }
 }

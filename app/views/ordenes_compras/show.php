@@ -3,7 +3,7 @@
 
     <span class="badge bg-<?= 
         $orden['estado'] === 'PENDIENTE' ? 'warning' :
-        ($orden['estado'] === 'APROBADA' ? 'secondary' : 'success')
+        ($orden['estado'] === 'APROBADA' ? 'secondary' : ($orden['estado'] === 'ANULADA' ? 'danger' : 'success'))
     ?>">
         <?= $orden['estado'] ?>
     </span>
@@ -27,6 +27,8 @@
     <th>Recibida</th>
     <th>Faltante</th>
     <th>Unidad</th>
+    <th>Precio Unitario</th>
+    <th>Moneda</th>
 </tr>
 </tr>
 </thead>
@@ -38,6 +40,8 @@
     <td><?= number_format($d['recibida'], 3) ?></td>
     <td><?= number_format($d['faltante'], 3) ?></td>
     <td><?= htmlspecialchars($d['unidad_medida']) ?></td>
+    <td><?= number_format($d['precio_unitario'], 3) ?></td>
+    <td><?= htmlspecialchars($d['moneda']) ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
@@ -59,6 +63,11 @@
            class="btn btn-success"
            onclick="return confirm('¿Aprobar esta orden?');">
            Aprobar
+        </a>
+        <a href="<?= BASE_URL ?>/ordenescompra/anular/<?= $orden['id'] ?>"
+           class="btn btn-danger"
+           onclick="return confirm('¿Anular esta orden?');">
+           Anular
         </a>
     <?php endif; ?>
 </div>

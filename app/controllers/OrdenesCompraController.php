@@ -21,7 +21,11 @@ class OrdenesCompraController extends Controller
             'items'=>$this->oc->all()
         ]);
     }
-
+    public function anular($id)
+    {
+        $this->oc->anular($id);
+        header('Location: '.BASE_URL.'/ordenescompra');
+    }
     public function create()
     {
         if ($_POST) {
@@ -38,8 +42,10 @@ class OrdenesCompraController extends Controller
                     if ($item['cantidad'] > 0) {
                         $this->oc->addDetalle(  // aca esta la respuesta! lo llama tantas veces existan lineas en detalle
                             $ocId,
-                            $item['materia_prima_id'],
-                            $item['cantidad']
+                            $item['materia_prima_id'],                            
+                            $item['cantidad'],
+                            $item['precio_unitario'],
+                            $item['moneda'] ?? '$'
                         );
                     }
                 }
