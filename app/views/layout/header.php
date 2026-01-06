@@ -13,7 +13,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
 <div class="container-fluid">
 
-<a class="navbar-brand" href="<?= BASE_URL ?>">APP ERP</a>
+<a class="navbar-brand" href="<?= BASE_URL ?>">TRIBA APP</a>
 
 <button class="navbar-toggler" type="button"
  data-bs-toggle="collapse" data-bs-target="#menu">
@@ -35,7 +35,18 @@ ABM
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/materiasprimas">Materias primas</a></li>
 </ul>
 </li>
-
+<!-- VENTAS -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">
+VENTAS
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/presupuestos/create">Nuevo PR</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/presupuestos">Presupuestos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia">Ingresos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia/showhist">Historial Ingresos</a></li>
+</ul>
+</li>
 <!-- COMPRAS -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">

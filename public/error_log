@@ -31,3 +31,23 @@ Stack trace:
 #3 C:\xampp\htdocs\app\public\index.php(8): Router->run()
 #4 {main}
   thrown in C:\xampp\htdocs\app\app\models\IngresoMercaderia.php on line 256
+[06-Jan-2026 15:23:00 America/Argentina/Buenos_Aires] PHP Warning:  Undefined array key "cantidad" in C:\xampp\htdocs\app\app\models\Presupuesto.php on line 63
+[06-Jan-2026 15:23:00 America/Argentina/Buenos_Aires] PHP Warning:  Undefined array key "producto_id" in C:\xampp\htdocs\app\app\models\Presupuesto.php on line 71
+[06-Jan-2026 15:23:00 America/Argentina/Buenos_Aires] PHP Warning:  Undefined array key "precio" in C:\xampp\htdocs\app\app\models\Presupuesto.php on line 73
+[06-Jan-2026 15:23:00 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught PDOException: SQLSTATE[23000]: Integrity constraint violation: 1048 Column 'producto_id' cannot be null in C:\xampp\htdocs\app\app\models\Presupuesto.php:69
+Stack trace:
+#0 C:\xampp\htdocs\app\app\models\Presupuesto.php(69): PDOStatement->execute(Array)
+#1 C:\xampp\htdocs\app\app\controllers\PresupuestosController.php(34): Presupuesto->create(Array)
+#2 C:\xampp\htdocs\app\app\core\Router.php(48): PresupuestosController->store()
+#3 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#4 {main}
+  thrown in C:\xampp\htdocs\app\app\models\Presupuesto.php on line 69
+[06-Jan-2026 15:34:07 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'p.unidad_medida' in 'field list' in C:\xampp\htdocs\app\app\models\Presupuesto.php:36
+Stack trace:
+#0 C:\xampp\htdocs\app\app\models\Presupuesto.php(36): PDO->prepare('SELECT d.*, p.n...')
+#1 C:\xampp\htdocs\app\app\models\Presupuesto.php(30): Presupuesto->detalle(2)
+#2 C:\xampp\htdocs\app\app\controllers\PresupuestosController.php(72): Presupuesto->find(2)
+#3 C:\xampp\htdocs\app\app\core\Router.php(48): PresupuestosController->show('2')
+#4 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#5 {main}
+  thrown in C:\xampp\htdocs\app\app\models\Presupuesto.php on line 36
