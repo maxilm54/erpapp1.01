@@ -1,3 +1,7 @@
+
+<?php
+error_log($_SESSION['error'] ?? 'No error set');
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -43,8 +47,8 @@ VENTAS
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/presupuestos/create">Nuevo PR</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/presupuestos">Presupuestos</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia">Ingresos</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia/showhist">Historial Ingresos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/notaspedido/create">Nueva NP</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/notaspedido">Notas de Pedidos</a></li>
 </ul>
 </li>
 <!-- COMPRAS -->

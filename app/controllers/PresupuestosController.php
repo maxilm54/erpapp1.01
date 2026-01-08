@@ -83,4 +83,37 @@ class PresupuestosController extends Controller
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
         exit;
     }
+
+        public function porCliente($clienteId)
+    {
+        $model = new Presupuesto();
+        echo json_encode($model->getByCliente($clienteId));
+    }
+
+    public function showAjax($id)
+    {
+        header('Content-Type: application/json');
+
+        $presupuesto = $this->pr->findWithDetalle((int)$id);
+
+        if (!$presupuesto) {
+            http_response_code(404);
+            echo json_encode(['error' => 'Presupuesto no encontrado']);
+            return;
+        }
+
+        echo json_encode($presupuesto);
+    }
+
+    public function volvernp($presupuestoId)
+    {
+        $np = $this->pr->getNotaPedidoByPresupuesto($presupuestoId);
+        if (!$np){
+            $_SESSION['error'] = 'No existe una Nota de Pedido asociada a este Presupuesto';
+            header('Location: ' . BASE_URL. '/presupuestos/show/' . $presupuestoId);
+            exit;
+        } 
+        header('Location: ' . BASE_URL. '/notaspedido/show/' . $np);
+        exit;
+    }
 }

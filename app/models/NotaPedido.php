@@ -1,0 +1,158 @@
+<?php
+
+class NotaPedido extends Model
+{
+    protected string $table = 'notas_pedido';
+
+    // 📄 Listado
+    public function all(): array
+    {
+        return $this->db->query("
+            SELECT np.*, c.razon_social
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            ORDER BY np.created_at DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ➕ Crear NP
+    public function create(array $data): int
+    {
+        if (empty($data['items'])) {
+            throw new Exception('La nota de pedido no tiene items');
+        }
+        if (empty($data['presupuesto_id'])) {
+            $presupuestoId = null;
+        }else{
+            $presupuestoId = $data['presupuesto_id'];
+        }
+        $this->db->beginTransaction();
+
+        $stmt = $this->db->prepare("
+            INSERT INTO notas_pedido
+            (cliente_id, presupuesto_id, usuario_id, observaciones)
+            VALUES (:c, :p, :u, :o)
+        ");
+
+        $stmt->execute([
+            'c' => $data['cliente_id'],
+            'p' => $presupuestoId,
+            'u' => $data['usuario_id'],
+            'o' => $data['observaciones']
+        ]);
+
+        $id = (int)$this->db->lastInsertId();
+
+        foreach ($data['items'] as $item) {
+            if (
+                empty($item['producto_id']) ||
+                empty($item['cantidad']) ||
+                empty($item['precio'])
+            ) continue;
+
+            $this->db->prepare("
+                INSERT INTO notas_pedido_detalle
+                (nota_pedido_id, producto_id, cantidad, precio)
+                VALUES (?, ?, ?, ?)
+            ")->execute([
+                $id,
+                $item['producto_id'],
+                $item['cantidad'],
+                $item['precio']
+            ]);
+        }
+
+        $this->db->commit();
+        return $id;
+    }
+
+    // 👁 NP con detalle
+    public function findWithDetalle(int $id): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT np.*, c.razon_social,
+            p.id AS presupuesto_id,
+            p.created_at AS presupuesto_fecha
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            LEFT JOIN presupuestos p ON p.id = np.presupuesto_id
+            WHERE np.id = ?
+        ");
+        $stmt->execute([$id]);
+        $np = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$np) return null;
+
+        $stmt = $this->db->prepare("
+            SELECT d.*, p.nombre
+            FROM notas_pedido_detalle d
+            JOIN productos p ON p.id = d.producto_id
+            WHERE d.nota_pedido_id = ?
+        ");
+        $stmt->execute([$id]);
+        $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $np;
+    }
+
+    // ✅ Aprobar
+    public function aprobar(int $id): void
+    {
+        $this->db->prepare("
+            UPDATE notas_pedido
+            SET estado = 'APROBADA'
+            WHERE id = :id AND estado = 'BORRADOR'
+        ")->execute(['id' => $id]);
+    }
+
+    // ❌ Anular
+    public function anular(int $id, string $motivo): void
+    {
+        $this->db->beginTransaction();
+        if (trim($motivo) === '') {
+            throw new Exception('Debe indicar el motivo de anulación');
+        }
+        // 1️⃣ Obtener NP para controlar que exista
+        $stmt = $this->db->prepare("
+            SELECT presupuesto_id
+            FROM notas_pedido
+            WHERE id = ?
+        ");
+        $stmt->execute([$id]);
+        $np = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$np) {
+            throw new Exception('NP no encontrada');
+        }
+
+        $this->db->prepare("
+            UPDATE notas_pedido
+            SET estado = 'ANULADA',
+                motivo_anulacion = :m,
+                presupuesto_id = NULL,
+                anulado_at = NOW()
+            WHERE id = :id
+        ")->execute([
+            'm' => $motivo,
+            'id' => $id
+        ]);
+        // 3️⃣ Liberar presupuesto si existe
+        if (!empty($np['presupuesto_id'])) {
+            $this->db->prepare("
+                UPDATE presupuestos
+                SET pre_asign = 'LIBRE'
+                WHERE id = ?
+            ")->execute([$np['presupuesto_id']]);
+        }
+
+        $this->db->commit();
+    }
+
+    // 🔽 Combos
+    public function clientes(): array
+    {
+        return $this->db->query("
+            SELECT id, razon_social FROM clientes ORDER BY razon_social
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+}

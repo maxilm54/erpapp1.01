@@ -3,3 +3,4 @@
 /storage/pdf/*
 .env
 public/error_log
+/helpers/*

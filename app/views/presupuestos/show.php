@@ -15,6 +15,7 @@
             <?php endif; ?>
 
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Volver</a>
+            <a href="<?= BASE_URL ?>/presupuestos/volvernp/<?= $presupuesto['id'] ?>" class="btn btn-secondary">NP</a>
         </div>
     </div>
 

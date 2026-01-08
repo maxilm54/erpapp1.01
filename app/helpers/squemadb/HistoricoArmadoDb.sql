@@ -221,3 +221,67 @@ CREATE TABLE notas_pedido (
     FOREIGN KEY (presupuesto_id) REFERENCES presupuestos(id),
     FOREIGN KEY (usuario_id) REFERENCES users(id)
 );
+
+
+CREATE TABLE notas_pedido_detalle (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nota_pedido_id INT NOT NULL,
+    producto_id INT NOT NULL,
+    cantidad DECIMAL(10,3) NOT NULL,
+    precio DECIMAL(10,2) NOT NULL,
+
+    FOREIGN KEY (nota_pedido_id) REFERENCES notas_pedido(id),
+    FOREIGN KEY (producto_id) REFERENCES productos(id)
+);
+
+/*
+Se agrega estas opciones al campo estado 'LIBRE','ASIGNADO','ANULADO'
+ALTER TABLE presupuestos
+ADD COLUMN estado ENUM('LIBRE','ASIGNADO','ANULADO') NOT NULL DEFAULT 'LIBRE';
+ALTER TABLE notas_pedido
+ADD COLUMN estado ENUM('ACTIVA','ANULADA') NOT NULL DEFAULT 'ACTIVA',
+*/
+ALTER TABLE presupuestos
+ADD COLUMN pre_asign ENUM('LIBRE','ASIGNADO','ANULADO') NOT NULL DEFAULT 'LIBRE';
+ALTER TABLE notas_pedido
+ADD COLUMN anulado_at DATETIME NULL;
+
+
+CREATE TABLE movimientos_stock (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipo ENUM('ENTRADA','SALIDA','AJUSTE') NOT NULL,
+    origen VARCHAR(50) NOT NULL, 
+    referencia_id INT NULL,
+    producto_id INT NULL,
+    materia_prima_id INT NULL,
+    cantidad DECIMAL(12,3) NOT NULL,
+    observaciones TEXT NULL,
+    usuario_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE productos
+ADD stock DECIMAL(12,3) NOT NULL DEFAULT 0;
+
+CREATE TABLE remitos_salida (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nota_pedido_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    estado ENUM('CONFIRMADO') DEFAULT 'CONFIRMADO',
+    observaciones TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (nota_pedido_id) REFERENCES notas_pedido(id)
+);
+
+CREATE TABLE remitos_salida_detalle (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    remito_id INT NOT NULL,
+    producto_id INT NOT NULL,
+    cantidad DECIMAL(12,3) NOT NULL,
+    FOREIGN KEY (remito_id) REFERENCES remitos_salida(id),
+    FOREIGN KEY (producto_id) REFERENCES productos(id)
+);
+
+
+

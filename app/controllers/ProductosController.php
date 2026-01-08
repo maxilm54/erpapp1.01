@@ -60,4 +60,22 @@ class ProductosController extends Controller
         move_uploaded_file($_FILES['imagen']['tmp_name'], $path);
         return 'uploads/productos/' . $name;
     }
+
+    // 🔍 BUSCADOR AJAX
+    public function search()
+    {
+        // Seguridad mínima
+        header('Content-Type: application/json');
+
+        $q = trim($_GET['q'] ?? '');
+
+        if (strlen($q) < 2) {
+            echo json_encode([]);
+            return;
+        }
+
+        $productos = $this->producto->search($q);
+
+        echo json_encode($productos);
+    }
 }

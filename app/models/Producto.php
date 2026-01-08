@@ -75,4 +75,27 @@ class Producto extends Model
             "UPDATE productos SET activo = 0 WHERE id = :id"
         )->execute(['id' => $id]);
     }
+
+    /**
+     * 🔍 Buscar productos para presupuestos / NP
+     */
+    public function search(string $q): array
+    {
+        $sql = "
+            SELECT id, nombre, sku, precio_venta
+            FROM productos
+            WHERE activo = 1
+              AND ( nombre LIKE :q OR sku LIKE :q2)
+            ORDER BY nombre
+            LIMIT 20
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'q' => "%$q%",
+            'q2' => "%$q%"
+        ]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

@@ -145,4 +145,67 @@ class Presupuesto extends Model
              WHERE id = ? AND estado = 'BORRADOR'"
         )->execute([$id]);
     }
-}
+
+    public function getByCliente($clienteId)
+    {
+        $sql = "SELECT id, DATE(created_at) AS fecha 
+                FROM presupuestos 
+                WHERE cliente_id = ? 
+                AND estado = 'APROBADO'
+                AND pre_asign = 'LIBRE'";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$clienteId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    public function findWithDetalle(int $id): ?array
+    {
+        // Cabecera
+        $stmt = $this->db->prepare("
+            SELECT p.id, p.cliente_id, p.created_at
+            FROM presupuestos p
+            WHERE p.id = ?
+        ");
+        $stmt->execute([$id]);
+        $presupuesto = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$presupuesto) {
+            return null;
+        }
+
+        // Detalle
+        $stmt = $this->db->prepare("
+            SELECT 
+                d.producto_id,
+                pr.nombre,
+                d.cantidad,
+                d.precio
+            FROM presupuestos_detalle d
+            JOIN productos pr ON pr.id = d.producto_id
+            WHERE d.presupuesto_id = ?
+        ");
+        $stmt->execute([$id]);
+        $presupuesto['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $presupuesto;
+    }
+
+    public function marcarAsignado(int $id): void
+    {
+        $this->db->prepare("
+            UPDATE presupuestos
+            SET pre_asign = 'ASIGNADO'
+            WHERE id = ?
+        ")->execute([$id]);
+    }
+
+    public function getNotaPedidoByPresupuesto(int $id)
+    {
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM notas_pedido
+            WHERE presupuesto_id = ?
+        ");
+        $stmt->execute([$id]);
+        return $stmt->fetchColumn();
+    }
+}    
