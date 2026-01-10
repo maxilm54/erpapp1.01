@@ -1,0 +1,47 @@
+<h1>Nuevo Remito</h1>
+
+<p><strong>Cliente:</strong> <?= htmlspecialchars($np['cliente_nombre']) ?></p>
+
+<form method="post">
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Producto</th>
+            <th>Pedida</th>
+            <th>Remitida</th>
+            <th>Pendiente</th>
+            <th width="140">Remitir ahora</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($np['detalle'] as $item): ?>
+            <?php if ($item['pendiente'] <= 0) continue; ?>
+            <tr>
+                <td><?= htmlspecialchars($item['nombre']) ?></td>
+                <td><?= number_format($item['pedida'], 2) ?></td>
+                <td><?= number_format($item['remitida'], 2) ?></td>
+                <td><?= number_format($item['pendiente'], 2) ?></td>
+                <td>
+                    <input type="number"
+                           step="0.01"
+                           min="0"
+                           max="<?= $item['pendiente'] ?>"
+                           name="items[<?= $item['producto_id'] ?>]"
+                           class="form-control"
+                           value="<?= $item['pendiente'] ?>">
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+
+<div class="mb-3">
+    <label>Observaciones</label>
+    <textarea name="observaciones" class="form-control"></textarea>
+</div>
+
+<button class="btn btn-success">Confirmar Remito</button>
+<a href="<?= BASE_URL ?>/notaspedido/show/<?= $np['id'] ?>" class="btn btn-secondary">Ver NP</a>
+
+</form>

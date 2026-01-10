@@ -155,4 +155,42 @@ class NotaPedido extends Model
             SELECT id, razon_social FROM clientes ORDER BY razon_social
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function findWithPendientes(int $id): ?array
+    {
+        // Cabecera
+        $stmt = $this->db->prepare("
+            SELECT np.*, c.razon_social AS cliente_nombre
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            WHERE np.id = ?
+        ");
+        $stmt->execute([$id]);
+        $np = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$np) return null;
+
+        // Detalle con pendientes
+        $stmt = $this->db->prepare("
+            SELECT
+                d.producto_id,
+                p.nombre,
+                d.cantidad AS pedida,
+                COALESCE(SUM(rsd.cantidad), 0) AS remitida,
+                (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente
+            FROM notas_pedido_detalle d
+            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN remitos_salida rs
+                ON rs.nota_pedido_id = d.nota_pedido_id
+            LEFT JOIN remitos_salida_detalle rsd
+                ON rsd.remito_id = rs.id
+                AND rsd.producto_id = d.producto_id
+            WHERE d.nota_pedido_id = ?
+            GROUP BY d.producto_id
+        ");
+        $stmt->execute([$id]);
+        $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $np;
+    }
 }

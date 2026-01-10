@@ -9,7 +9,7 @@
             <th>Cliente</th>
             <th>Estado</th>
             <th>Fecha</th>
-            <th></th>
+            <th>Ver/Remitar</th>
         </tr>
     </thead>
     <tbody>
@@ -21,6 +21,11 @@
             <td><?= date('d/m/Y', strtotime($n['created_at'])) ?></td>
             <td>
                 <a href="<?= BASE_URL ?>/notaspedido/show/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Ver</a>
+                <?php if ($n['remitido'] !== 'RemitidoCompleto'): ?>
+                <a href="<?= BASE_URL ?>/remitossalida/create/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Crear Remito</a>
+                <?php else: ?>
+                <span class="text-success">Remitido Completo</span>
+                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach ?>

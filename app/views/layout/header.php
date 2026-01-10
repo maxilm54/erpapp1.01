@@ -1,6 +1,7 @@
 
 <?php
 error_log($_SESSION['error'] ?? 'No error set');
+$_SESSION['error'] = null;
 ?>
 <!DOCTYPE html>
 <html lang="es">
