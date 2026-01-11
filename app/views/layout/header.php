@@ -1,8 +1,3 @@
-
-<?php
-error_log($_SESSION['error'] ?? 'No error set');
-$_SESSION['error'] = null;
-?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -12,7 +7,7 @@ $_SESSION['error'] = null;
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">

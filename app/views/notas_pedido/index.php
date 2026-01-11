@@ -22,7 +22,10 @@
             <td>
                 <a href="<?= BASE_URL ?>/notaspedido/show/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Ver</a>
                 <?php if ($n['remitido'] !== 'RemitidoCompleto'): ?>
-                <a href="<?= BASE_URL ?>/remitossalida/create/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Crear Remito</a>
+                    <button class="btn btn-primary"
+                        onclick="confirmarRemito(<?= $np['id'] ?>)">
+                        Remitir
+                    </button>
                 <?php else: ?>
                 <span class="text-success">Remitido Completo</span>
                 <?php endif; ?>
@@ -31,3 +34,22 @@
         <?php endforeach ?>
     </tbody>
 </table>
+
+<script>
+function confirmarRemito(id) {
+    Swal.fire({
+        title: 'Generar Remito',
+        text: 'Se descontará stock de los productos',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '<?= BASE_URL ?>/remitossalida/create/' + id;
+        }
+    });
+}
+</script>

@@ -63,8 +63,50 @@
 </table>
 
 <?php if ($np['estado'] === 'BORRADOR'): ?>
-    <a href="<?= BASE_URL ?>/notaspedido/approve/<?= $np['id'] ?>" class="btn btn-success">Aprobar</a>
-    <a href="<?= BASE_URL ?>/notaspedido/anular/<?= $np['id'] ?>" class="btn btn-danger">Anular</a>
+    <button class="btn btn-success"
+        onclick="confirmarAprobacionNP(<?= $np['id'] ?>)">
+        Aprobar
+    </button>
+    <button class="btn btn-danger"
+        onclick="confirmarAnulacionNP(<?= $np['id'] ?>)">
+        Anular
+    </button>
 <?php endif ?>
 
 <a href="<?= BASE_URL ?>/notaspedido" class="btn btn-secondary">Volver</a>
+<script>
+function confirmarAnulacionNP(id) {
+    Swal.fire({
+        title: '¿Anular Nota de Pedido?',
+        text: 'La nota quedará anulada y no podrá utilizarse',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, anular',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '<?= BASE_URL ?>/notaspedido/anular/' + id;
+        }
+    });
+}
+</script>
+<script>
+function confirmarAprobacionNP(id) {
+    Swal.fire({
+        title: '¿Aprobar Nota de Pedido?',
+        text: 'Una vez aprobada podrá remitirse',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#198754',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, aprobar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '<?= BASE_URL ?>/notaspedido/approve/' + id;
+        }
+    });
+}
+</script>

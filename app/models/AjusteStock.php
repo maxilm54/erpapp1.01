@@ -5,11 +5,19 @@ class AjusteStock extends Model
     public function all(): array
     {
         $stmt = $this->db->query("
-            SELECT ms.*, u.nombre AS usuario
-            FROM movimientos_stock ms
-            JOIN users u ON u.id = ms.usuario_id
-            WHERE ms.origen = 'AJUSTE_STOCK'
-            ORDER BY ms.created_at DESC
+            SELECT 
+            m.created_at,
+            m.tipo,
+            m.cantidad,
+            m.observaciones,
+            u.nombre AS usuario,
+            p.nombre AS producto,
+            mp.nombre AS materia_prima
+            FROM movimientos_stock m
+            JOIN users u ON u.id = m.usuario_id
+            LEFT JOIN productos p ON p.id = m.producto_id
+            LEFT JOIN materias_primas mp ON mp.id = m.materia_prima_id
+            ORDER BY m.created_at DESC
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

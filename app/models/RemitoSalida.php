@@ -72,6 +72,22 @@ class RemitoSalida extends Model
         return $remito;
     }
 
+    private function stockDisponibleProducto(int $productoId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                    WHEN tipo = 'SALIDA' THEN -cantidad
+                END
+            ),0) AS stock
+            FROM movimientos_stock
+            WHERE producto_id = ?
+        ");
+        $stmt->execute([$productoId]);
+        return (float)$stmt->fetchColumn();
+    }
+
     /**
      * ➕ Crear remito (impacta stock)
      * (lo usará create/store)
@@ -97,6 +113,13 @@ class RemitoSalida extends Model
 
             // 2️⃣ Detalle + impacto stock
             foreach ($items as $productoId => $cantidad) {
+                $stock = $this->stockDisponibleProducto($productoId);
+                if ($stock < $cantidad) {
+                    throw new Exception(
+                        "Stock insuficiente para el producto ID $productoId. Disponible: $stock"
+                    );
+                }
+
                 if (!is_numeric($productoId) || !is_numeric($cantidad)) {
                     $_SESSION['error'] = 'Datos inválidos en el remito, para NP ID '.$notaPedidoId;
                     throw new Exception('Datos inválidos en el remito');                    
@@ -157,6 +180,7 @@ class RemitoSalida extends Model
         } catch (Exception $e) {
             $this->db->rollBack();
             throw new Exception('Error al generar remito: ' . $e->getMessage());
+            $_SESSION['error'] = 'Error al generar remito: ' . $e->getMessage();
         }
     }
 
