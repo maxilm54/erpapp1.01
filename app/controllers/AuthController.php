@@ -63,7 +63,7 @@ class AuthController extends Controller{
             exit;
         }
 
-        $this->view('auth/login', [
+        $this->login2('auth/login', [
             'title' => 'Login'
         ]);
     }

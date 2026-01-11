@@ -30,4 +30,17 @@ class MateriasprimasController extends Controller
             'title'=>'Nueva Materia Prima'
         ]);
     }
+
+    public function search()
+    {
+        $q = trim($_GET['q'] ?? '');
+
+        if (strlen($q) < 2) {
+            echo json_encode([]);
+            return;
+        }
+
+        $model = new MateriaPrima();
+        echo json_encode($model->search($q));
+    }
 }

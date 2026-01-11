@@ -39,4 +39,17 @@ class MateriaPrima extends Model
              WHERE id = :id"
         )->execute(['c'=>$cantidad,'id'=>$id]);
     }
+
+    public function search(string $q): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, nombre
+            FROM materias_primas
+            WHERE nombre LIKE :q
+            ORDER BY nombre
+            LIMIT 10
+        ");
+        $stmt->execute(['q' => "%$q%"]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

@@ -2,6 +2,17 @@
 
 class AjusteStock extends Model
 {
+    public function all(): array
+    {
+        $stmt = $this->db->query("
+            SELECT ms.*, u.nombre AS usuario
+            FROM movimientos_stock ms
+            JOIN users u ON u.id = ms.usuario_id
+            WHERE ms.origen = 'AJUSTE_STOCK'
+            ORDER BY ms.created_at DESC
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
     public function ajustarProducto(
         int $productoId,
         float $cantidad,
@@ -11,6 +22,9 @@ class AjusteStock extends Model
         $this->db->beginTransaction();
 
         try {
+            if ($cantidad == 0) {
+            throw new Exception('La cantidad no puede ser 0');
+            }
             $this->db->prepare("
                 UPDATE productos
                 SET stock = stock + ?
@@ -31,6 +45,7 @@ class AjusteStock extends Model
             $this->db->commit();
 
         } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al ajustar stock: ' . $e->getMessage();
             $this->db->rollBack();
             throw $e;
         }
@@ -45,9 +60,12 @@ class AjusteStock extends Model
         $this->db->beginTransaction();
 
         try {
+            if ($cantidad == 0) {
+            throw new Exception('La cantidad no puede ser 0');
+            }
             $this->db->prepare("
                 UPDATE materias_primas
-                SET stock = stock + ?
+                SET stock_actual = stock_actual + ?
                 WHERE id = ?
             ")->execute([$cantidad, $mpId]);
 
@@ -65,6 +83,7 @@ class AjusteStock extends Model
             $this->db->commit();
 
         } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al ajustar stock: ' . $e->getMessage();
             $this->db->rollBack();
             throw $e;
         }
