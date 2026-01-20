@@ -22,8 +22,8 @@ class Cliente extends Model
     public function create(array $data): bool
     {
         $sql = "INSERT INTO clientes 
-                (razon_social, cuit, email, telefono, direccion) 
-                VALUES (:razon, :cuit, :email, :telefono, :direccion)";
+                (razon_social, cuit, email, telefono, localidad, direccion, contacto, es_distribuidor) 
+                VALUES (:razon, :cuit, :email, :telefono, :localidad, :direccion, :contacto, :es_distribuidor)";
 
         $stmt = $this->db->prepare($sql);
 
@@ -32,7 +32,10 @@ class Cliente extends Model
             'cuit' => $data['cuit'],
             'email' => $data['email'],
             'telefono' => $data['telefono'],
+            'localidad' => $data['localidad'],
             'direccion' => $data['direccion'],
+            'contacto' => $data['contacto'],
+            'es_distribuidor' => $data['es_distribuidor'],
         ]);
     }
 
@@ -43,7 +46,10 @@ class Cliente extends Model
                 cuit = :cuit,
                 email = :email,
                 telefono = :telefono,
-                direccion = :direccion
+                direccion = :direccion,
+                localidad = :localidad,
+                contacto = :contacto,
+                es_distribuidor = :es_distribuidor
                 WHERE id = :id";
 
         $stmt = $this->db->prepare($sql);
@@ -55,6 +61,9 @@ class Cliente extends Model
             'email' => $data['email'],
             'telefono' => $data['telefono'],
             'direccion' => $data['direccion'],
+            'localidad' => $data['localidad'],
+            'contacto' => $data['contacto'],
+            'es_distribuidor' => $data['es_distribuidor'],
         ]);
     }
 

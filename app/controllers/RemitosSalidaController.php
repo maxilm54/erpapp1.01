@@ -24,11 +24,17 @@ class RemitosSalidaController extends Controller
     {
         $np = $this->np->findWithPendientes((int)$notaPedidoId);
         error_log(print_r($np, true));
-
+        if (!$np ) {
+            $_SESSION['error'] = 'Nota de Pedido, inexistente';
+            error_log('Nota de Pedido, inexistente');
+            header("Location: " . BASE_URL . "/notaspedido");
+            exit;
+        }
         if (!$np || $np['estado'] !== 'APROBADA') {
-            $_SESSION['error'] = 'La Nota de Pedido no está aprobada o no existe.';
-            error_log('Nota de Pedido inválida o no aprobada: ID '.$notaPedidoId);
-            die('Nota de Pedido no válida');
+            $_SESSION['error'] = 'Nota de Pedido # '.$notaPedidoId .' no aprobada.';
+            error_log('Nota de Pedido, no aprobada: ID '.$notaPedidoId);
+            header("Location: " . BASE_URL . "/notaspedido");
+            exit;
         }
 
         if ($_POST) {

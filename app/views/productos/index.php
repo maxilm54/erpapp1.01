@@ -10,6 +10,7 @@
     <th>Nombre</th>
     <th>SKU</th>
     <th>Precio</th>
+    <th>Acciones</th>
 </tr>
 </thead>
 <tbody>
@@ -23,6 +24,11 @@
     <td><?= $p['nombre'] ?></td>
     <td><?= $p['sku'] ?></td>
     <td>$<?= $p['precio_venta'] ?></td>
+    <td>
+        <a href="<?= BASE_URL ?>/productos/update/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-pencil-square"></i></a>
+        <a href="<?= BASE_URL ?>/productos/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-upc-scan"></i></a>
+        <a href="<?= BASE_URL ?>/productos/updateimage/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a>
+    </td>
 </tr>
 <?php endforeach; ?>
 </tbody>

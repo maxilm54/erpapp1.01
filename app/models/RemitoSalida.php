@@ -104,10 +104,10 @@ class RemitoSalida extends Model
             // 1️⃣ Cabecera
             $stmt = $this->db->prepare("
                 INSERT INTO remitos_salida
-                (nota_pedido_id, usuario_id)
-                VALUES (?, ?)
+                (nota_pedido_id, usuario_id, observaciones)
+                VALUES (?, ?, ?)
             ");
-            $stmt->execute([$notaPedidoId, $usuarioId]);
+            $stmt->execute([$notaPedidoId, $usuarioId, $observaciones]);
 
             $remitoId = (int)$this->db->lastInsertId();
 
@@ -158,15 +158,15 @@ class RemitoSalida extends Model
                 FROM remitos_salida_detalle rsd
                 LEFT JOIN remitos_salida rs ON rs.id=rsd.remito_id
                 LEFT JOIN notas_pedido np ON np.id=rs.nota_pedido_id
-                WHERE rs.nota_pedido_id= ?)
+                WHERE rs.nota_pedido_id= ?) AS RemTotal
                 FROM notas_pedido_detalle d
                 WHERE d.nota_pedido_id = ?
             ");
             $stmt->execute([$notaPedidoId, $notaPedidoId]);
             $totales = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $estado = ($totales['remitida'] >= $totales['pedida']) ? 'RemitidoCompleto' : 'RemitidoParcial';
-            error_log('Remitando y Actualizando estado NP ID '.$notaPedidoId.' a '.$estado.' (Pedida: '.$totales['pedida'].' - Remitida: '.$totales['remitida'].')');
+            $estado = ($totales['RemTotal'] >= $totales['pedidoTotal']) ? 'RemitidoCompleto' : 'RemitidoParcial';
+            error_log('Remitando y Actualizando estado NP ID '.$notaPedidoId.' a '.$estado.' (Pedida: '.$totales['pedidoTotal'].' - Remitida: '.$totales['RemTotal'].')');
 
             $this->db->prepare("
                 UPDATE notas_pedido

@@ -29,7 +29,10 @@ class Router
         $controllerFile = BASE_PATH . '/app/controllers/' . $controllerName . '.php';
 
         if (!file_exists($controllerFile)) {
-            die('Controlador no encontrado');
+            $_SESSION['error'] = 'El Menu Seleccionado No Existe.';
+            error_log('El controlador no existe: ' . $controllerName);
+            header('Location: ' . BASE_URL);
+            exit();
         }
 
         require_once $controllerFile;
@@ -42,7 +45,10 @@ class Router
         }
 
         if (!method_exists($controller, $method)) {
-            die('Método no encontrado');
+            $_SESSION['error'] = 'El Menu Seleccionado No Funciona.';
+            error_log('El metodo no funciona: ' . $method);
+            header('Location: ' . BASE_URL);
+            exit();
         }
 
         call_user_func_array([$controller, $method], $params);

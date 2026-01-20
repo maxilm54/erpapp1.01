@@ -66,12 +66,16 @@
     <button class="btn btn-success"
         onclick="confirmarAprobacionNP(<?= $np['id'] ?>)">
         Aprobar
-    </button>
+    </button>    
     <button class="btn btn-danger"
         onclick="confirmarAnulacionNP(<?= $np['id'] ?>)">
         Anular
     </button>
 <?php endif ?>
+<button class="btn btn-primary"
+        onclick="confirmarRemito(<?= $np['id'] ?>)">
+        Remitir
+    </button>
 
 <a href="<?= BASE_URL ?>/notaspedido" class="btn btn-secondary">Volver</a>
 <script>
@@ -88,6 +92,24 @@ function confirmarAnulacionNP(id) {
     }).then((result) => {
         if (result.isConfirmed) {
             window.location.href = '<?= BASE_URL ?>/notaspedido/anular/' + id;
+        }
+    });
+}
+</script>
+<script>
+function confirmarRemito(id) {
+    Swal.fire({
+        title: 'Generar Remito',
+        text: 'Se descontará stock de los productos',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#0d6efd',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = '<?= BASE_URL ?>/remitossalida/create/' + id;
         }
     });
 }

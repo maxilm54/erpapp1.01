@@ -7,6 +7,7 @@
     <input class="form-control mb-2" name="sku" placeholder="SKU" required>
     <textarea class="form-control mb-2" name="descripcion"></textarea>
     <input class="form-control mb-2" name="precio_venta" type="number" step="0.01" required>
+    <input class="form-control mb-2" name="unidad_medida" placeholder="Unidad de Medida (UNIDAD - KG - PACK)" required>
 
     <label>Imagen</label>
     <input class="form-control mb-3" type="file" name="imagen">

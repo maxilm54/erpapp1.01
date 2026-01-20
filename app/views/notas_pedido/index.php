@@ -22,8 +22,8 @@
             <td>
                 <a href="<?= BASE_URL ?>/notaspedido/show/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Ver</a>
                 <?php if ($n['remitido'] !== 'RemitidoCompleto'): ?>
-                    <button class="btn btn-primary"
-                        onclick="confirmarRemito(<?= $np['id'] ?>)">
+                    <button class="btn btn-primary btn-sm"
+                        onclick="confirmarRemito(<?= $n['id'] ?>)">
                         Remitir
                     </button>
                 <?php else: ?>

@@ -20,12 +20,28 @@ class Producto extends Model
         return $stmt->fetch();
     }
 
+    public function getBarcodeByProductoId($id_prod): array
+    {
+        try{
+            $stmt = $this->db->prepare(
+                "SELECT * FROM producto_codigos WHERE producto_id = :id_prod"
+            );
+            $stmt->execute(['id_prod' => $id_prod]);
+            return $stmt->fetchAll();
+        } catch (Exception $e) {
+            error_log('Error fetching barcodes for product ID '.$id_prod.': '.$e->getMessage());
+            $_SESSION['error'] = "Error al obtener los códigos de barra: " . $e->getMessage();
+            return [];
+        }
+
+    }
+
     public function create(array $data, ?string $imagen): int
     {
         $stmt = $this->db->prepare(
             "INSERT INTO productos 
-            (nombre, sku, descripcion, precio_venta, imagen)
-            VALUES (:nombre, :sku, :descripcion, :precio, :imagen)"
+            (nombre, sku, descripcion, precio_venta, imagen,user_create,unidad_medida)
+            VALUES (:nombre, :sku, :descripcion, :precio, :imagen,:user_create,:unidad_medida)"
         );
 
         $stmt->execute([
@@ -33,40 +49,52 @@ class Producto extends Model
             'sku' => $data['sku'],
             'descripcion' => $data['descripcion'],
             'precio' => $data['precio_venta'],
-            'imagen' => $imagen
+            'imagen' => $imagen,
+            'user_create' => $_SESSION['user_id'],
+            'unidad_medida' => $data['unidad_medida']
         ]);
-
+        $_SESSION['success'] = "Producto creado correctamente.";
         return (int)$this->db->lastInsertId();
     }
 
-    public function update(int $id, array $data, ?string $imagen = null): bool
+    public function update(int $id, array $data, ?string $imagen = null): bool //sin imagen y sin barcode
     {
-        $sql = "UPDATE productos SET
-                nombre = :nombre,
-                sku = :sku,
-                descripcion = :descripcion,
-                precio_venta = :precio";
+        try {
+            $sql = "UPDATE productos SET
+                        nombre = :nombre,
+                        sku = :sku,
+                        descripcion = :descripcion,
+                        precio_venta = :precio,
+                        unidad_medida = :unidad_medida,
+                        last_user_updated = :user_update
+                    WHERE id = :id";
 
-        if ($imagen) {
-            $sql .= ", imagen = :imagen";
+            /*if ($imagen) {
+                $sql .= ", imagen = :imagen";
+            }*/
+
+            $params = [
+                'id' => $id,
+                'nombre' => $data['nombre'],
+                'sku' => $data['sku'],
+                'descripcion' => $data['descripcion'],
+                'precio' => $data['precio_venta'],
+                'unidad_medida' => $data['unidad_medida'],
+                'user_update' => $_SESSION['user_id']
+            ];
+
+            /*if ($imagen) {
+                $params['imagen'] = $imagen;
+            }*/
+            $_SESSION['success'] = "Producto actualizado correctamente.";
+            error_log('Updating product ID '.$id.' with data: '.print_r($params, true));
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute($params);
+        } catch (Exception $e) {
+            $_SESSION['error'] = "Error al actualizar el producto: " . $e->getMessage();
+            error_log('Error updating product: ' . $e->getMessage());
+            return false;
         }
-
-        $sql .= " WHERE id = :id";
-
-        $params = [
-            'id' => $id,
-            'nombre' => $data['nombre'],
-            'sku' => $data['sku'],
-            'descripcion' => $data['descripcion'],
-            'precio' => $data['precio_venta']
-        ];
-
-        if ($imagen) {
-            $params['imagen'] = $imagen;
-        }
-
-        $stmt = $this->db->prepare($sql);
-        return $stmt->execute($params);
     }
 
     public function delete(int $id): bool
