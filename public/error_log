@@ -28,3 +28,129 @@
 [20-Jan-2026 08:48:19 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
 [20-Jan-2026 08:48:19 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
 [20-Jan-2026 09:56:47 America/Argentina/Buenos_Aires] No error set
+[20-Jan-2026 10:05:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:05:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:15:30 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:15:30 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:17:10 America/Argentina/Buenos_Aires] Error fetching client: Cliente no encontrado con ID: 99
+[20-Jan-2026 10:17:10 America/Argentina/Buenos_Aires] [ERROR] No se pudo encontrar el cliente.Cliente no encontrado con ID: 99
+[20-Jan-2026 10:21:56 America/Argentina/Buenos_Aires] Error fetching client: Cliente no encontrado con ID: 99
+[20-Jan-2026 10:21:56 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:21:56 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:21:56 America/Argentina/Buenos_Aires] [ERROR] No se pudo encontrar el cliente.Cliente no encontrado con ID: 99
+[20-Jan-2026 10:22:04 America/Argentina/Buenos_Aires] Error fetching client: Cliente no encontrado con ID: 999999
+[20-Jan-2026 10:22:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:22:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:22:04 America/Argentina/Buenos_Aires] [ERROR] No se pudo encontrar el cliente.Cliente no encontrado con ID: 999999
+[20-Jan-2026 10:23:12 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:23:12 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:23:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:23:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:23:37 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:23:37 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:52 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:52 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:54 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:54 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:56 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:56 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:59 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:25:59 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:38 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:38 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:45 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:45 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:51 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:26:51 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:44:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:44:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:44:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:44:04 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:45:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:45:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:54:51 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:54:51 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:02 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:26 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:26 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:31 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:31 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:33 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:55:33 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:57:17 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:57:17 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:57:28 America/Argentina/Buenos_Aires] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'observaciones_gral = ?,
+                obs_financieras = ?
+               ...' at line 10 in C:\xampp\htdocs\app\app\models\Cliente.php:71
+Stack trace:
+#0 C:\xampp\htdocs\app\app\models\Cliente.php(71): PDO->prepare('UPDATE clientes...')
+#1 C:\xampp\htdocs\app\app\controllers\ClientesController.php(29): Cliente->update(4, Array)
+#2 C:\xampp\htdocs\app\app\core\Router.php(54): ClientesController->edit(4)
+#3 C:\xampp\htdocs\app\public\index.php(8): Router->run()
+#4 {main}
+  thrown in C:\xampp\htdocs\app\app\models\Cliente.php on line 71
+[20-Jan-2026 10:58:07 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:58:07 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:25 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:25 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:29 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:34 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:34 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:59 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 10:59:59 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 11:00:40 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 11:00:40 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 29
+[20-Jan-2026 11:01:40 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:01:40 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:02:42 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:02:42 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:20 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:20 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:24 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:24 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:24 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.
+[20-Jan-2026 11:07:29 America/Argentina/Buenos_Aires] El metodo no funciona: delete
+[20-Jan-2026 11:07:29 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Funciona.
+[20-Jan-2026 11:07:34 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:34 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:07:41 America/Argentina/Buenos_Aires] El metodo no funciona: delete
+[20-Jan-2026 11:07:41 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Funciona.
+[20-Jan-2026 11:09:08 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:08 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:10 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:10 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:12 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:12 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:09:12 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.
+[20-Jan-2026 11:11:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:26 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:26 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:26 America/Argentina/Buenos_Aires] [SUCCESS] Cliente inactivado correctamente.
+[20-Jan-2026 11:11:31 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:31 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:11:31 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.
+[20-Jan-2026 11:14:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:14:22 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:14:28 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:14:28 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:14:28 America/Argentina/Buenos_Aires] [SUCCESS] Cliente inactivado correctamente.
+[20-Jan-2026 11:22:49 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:22:49 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:07 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:07 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:10 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:10 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:10 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.
+[20-Jan-2026 11:23:16 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:16 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:16 America/Argentina/Buenos_Aires] [SUCCESS] Cliente inactivado correctamente.
+[20-Jan-2026 11:23:23 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:23 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[20-Jan-2026 11:23:23 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.

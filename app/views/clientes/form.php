@@ -33,5 +33,10 @@
               <option value="Si">Es Distruibuidor</option>
               <option value="No">No Es Distruibuidor</option>
        </Select>
-    <button class="btn btn-success w-100">Guardar</button>
+       <textarea name="observaciones_gral" class="form-control mb-3" placeholder="Observaciones Generales del cliente"><?= $cliente['observaciones_gral'] ?? '' ?></textarea>
+       <textarea name="obs_financieras" class="form-control mb-3" placeholder="Obersvaciones Financieras del clente"><?= $cliente['obs_financieras'] ?? '' ?></textarea>
+       <div class="col d-flex justify-content-end">
+              <a class="btn btn-secondary me-2" href="<?= BASE_URL ?>/clientes">Volver</a>
+              <button class="btn btn-success me-2">Guardar</button>
+       </div>
 </form>

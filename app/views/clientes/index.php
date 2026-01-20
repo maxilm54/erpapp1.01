@@ -15,6 +15,7 @@
             <th>Telefono</th>
             <th>chat</th>
             <th>Acciones</th>
+            <th>Estado</th>
         </tr>
     </thead>
     <tbody>
@@ -32,13 +33,21 @@
                     </a>
                 </td>
             <td>
-                <a class="btn btn-sm btn-warning"
-                   href="<?= BASE_URL ?>/clientes/edit/<?= $c['id'] ?>">Editar</a>
-
-                <a class="btn btn-sm btn-danger"
-                   href="<?= BASE_URL ?>/clientes/delete/<?= $c['id'] ?>"
-                   onclick="return confirm('¿Eliminar cliente?')">Eliminar</a>
+                <?php if($c['activo']): ?>
+                    <a class="btn btn-sm btn-secondary"
+                    href="<?= BASE_URL ?>/clientes/show/<?= $c['id'] ?>">Ver</a>
+                    <a class="btn btn-sm btn-warning"
+                    href="<?= BASE_URL ?>/clientes/edit/<?= $c['id'] ?>">Editar</a>
+                    <a class="btn btn-sm btn-danger"
+                    href="<?= BASE_URL ?>/clientes/delete/<?= $c['id'] ?>"
+                    onclick="return confirm('¿Eliminar cliente?')">Inactivar</a>
+                <?php else: ?>
+                    <a class="btn btn-sm btn-success"
+                    href="<?= BASE_URL ?>/clientes/activar/<?= $c['id'] ?>"
+                    onclick="return confirm('¿Activar cliente?')">Activar</a>
+                <?php endif; ?>
             </td>
+            <td><?= $c['activo'] ? '<i class="bi bi-check-circle-fill"></i>' : '<i class="bi bi-ban"></i>' ?></td>
             
         </tr>
         <?php endforeach; ?>

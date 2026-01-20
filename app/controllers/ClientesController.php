@@ -37,11 +37,23 @@ class ClientesController extends Controller{
         ]);
     }
 
-    public function delete(int $id): void
+     public function delete(int $id): void
     {
         $this->cliente->delete($id);
         header('Location: ' . BASE_URL . '/clientes');
     }
+    public function activar(int $id): void
+    {
+        $this->cliente->activar($id);
+        header('Location: ' . BASE_URL . '/clientes');
+    }
 
+    public function show(int $id): void
+    {
+        $this->view('clientes/show', [
+            'title' => 'Detalle del Cliente',
+            'cliente' => $this->cliente->find($id)
+        ]);
+    }
 
 }
