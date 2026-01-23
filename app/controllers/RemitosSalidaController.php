@@ -2,6 +2,7 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/RemitoSalida.php';
 require_once BASE_PATH.'/app/models/NotaPedido.php';
+require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller
 {
     private RemitoSalida $model;
@@ -20,36 +21,55 @@ class RemitosSalidaController extends Controller
             'remitos' => $remitos
         ]);
     }
-        public function create($notaPedidoId)
+        public function pdf($id) // funcion para descargar los pdf remitados
     {
-        $np = $this->np->findWithPendientes((int)$notaPedidoId);
-        error_log(print_r($np, true));
-        if (!$np ) {
+        $remito = $this->model->find($id);
+
+        if (!$remito || !$remito['pdf_path']) {
+            die('PDF no disponible');
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($remito['pdf_path']) . '"');
+        readfile($remito['pdf_path']);
+        exit;
+    }
+
+        public function create($notaPedidoId) // llamo al form para remitar una NP
+    {
+        $np = $this->np->findWithPendientes((int)$notaPedidoId); // obtengo la np con los pendientes de remito desde el modelo notas pedido
+        error_log(print_r($np, true)); // guardo un registro de la infoque me devuelve el modelo
+        if (!$np ) { // si no existe o hay alguna error en la variable devuelvo el error, dejo un log y redirijo
             $_SESSION['error'] = 'Nota de Pedido, inexistente';
             error_log('Nota de Pedido, inexistente');
             header("Location: " . BASE_URL . "/notaspedido");
             exit;
         }
-        if (!$np || $np['estado'] !== 'APROBADA') {
-            $_SESSION['error'] = 'Nota de Pedido # '.$notaPedidoId .' no aprobada.';
+        if (!$np || $np['estado'] !== 'APROBADA') { //si np es nulo o no esta aprobada alerto redirijo y dejo el log
+            $_SESSION['error'] = 'Nota de Pedido # '.$notaPedidoId .' No Aprobada o Anulada';
             error_log('Nota de Pedido, no aprobada: ID '.$notaPedidoId);
             header("Location: " . BASE_URL . "/notaspedido");
             exit;
         }
+        //hasta aqui si no hay errores sigo con el form
 
-        if ($_POST) {
+        if ($_POST) { //cuando desde el form envio el post inicio el proceso de generacion del remito
             try {
-                if (empty($_POST['items'])) {
+                if (empty($_POST['items'])) { //si items esta vacio no puedo generar el remito y genero la excepcion, esto no deberia pasar pero por control se deja el bloqueo
                     throw new Exception('No hay productos para remitar');
                 }
-                error_log('Creando Remito de Salida '.print_r($_POST['items'], true));
+                error_log('Creando Remito de Salida '.print_r($_POST['items'], true)); //se ascienta un log de los items a remitir
                 $id = $this->model->create(
                     (int)$notaPedidoId,
                     (int)$_SESSION['user_id'],
                     $_POST['items'],
                     $_POST['observaciones'] ?? null
                 );
-
+                // GENERAR Y GUARDA PDF AUTOMÁTICO (antes descargaba auto ahora no por seguridad)
+                //$this->model->generarPdf($id); -> obsoleto, ahora lo hago y lo guardo en la db
+                $this->model->generarYGuardarPdf($id);
+                $_SESSION['success'] = 'Remito de Salida creado correctamente.';
+                $this->reenviar($id); //llamo a la funcion de reenviar mail automaticamente al crear el remito
                 header("Location: " . BASE_URL . "/remitossalida/show/$id");
                 exit;
 
@@ -59,7 +79,7 @@ class RemitosSalidaController extends Controller
             }
         }
 
-        $this->view('remitos_salida/form', [
+        $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
             'np' => $np
         ]);
     }
@@ -76,4 +96,35 @@ class RemitosSalidaController extends Controller
             'remito' => $remito
         ]);
     }
+
+    public function reenviar($id) //numero de remito a reenviar
+    {
+        $remito = $this->model->findCompleto((int)$id); //traigo el array de datos del remito completo
+
+        if (!$remito || empty($remito['pdf_path'])) {
+            $_SESSION['error'] = 'Remito inválido o sin PDF.';
+            header("Location: " . BASE_URL . "/remitossalida/show/$id");
+            exit;
+        }
+
+        try {
+            $mail = new MailService(); //instancio el servicio de mail
+            $mail->enviarRemito(    //llamo al metodo para enviar el remito por mail
+                $remito['cliente'],
+                $remito,
+                $_SESSION['user_id']
+            );
+
+            $_SESSION['success'] = 'Remito reenviado correctamente.';
+
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al reenviar remito.' . $e->getMessage();
+            error_log('Error al reenviar remito: ' . $e->getMessage());
+        }
+
+        header("Location: " . BASE_URL . "/remitossalida/show/$id");
+        exit;
+    }
+
+
 }

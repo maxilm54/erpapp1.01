@@ -9,6 +9,8 @@
         <tr>
             <th>Producto</th>
             <th>Pedida</th>
+            <th>Precio U</th>
+            <th>Precio Subtotal</th>
             <th>Remitida</th>
             <th>Pendiente</th>
             <th width="140">Remitir ahora</th>
@@ -20,16 +22,18 @@
             <tr>
                 <td><?= htmlspecialchars($item['nombre']) ?></td>
                 <td><?= number_format($item['pedida'], 2) ?></td>
+                <td>$ <?= number_format($item['precio'], 2) ?></td>
+                <td>$ <?= number_format($item['total_linea'], 2) ?></td>
                 <td><?= number_format($item['remitida'], 2) ?></td>
                 <td><?= number_format($item['pendiente'], 2) ?></td>
                 <td>
                     <input type="number"
-                           step="0.01"
+                           step="1"
                            min="0"
                            max="<?= $item['pendiente'] ?>"
                            name="items[<?= $item['producto_id'] ?>]"
                            class="form-control"
-                           value="<?= $item['pendiente'] ?>">
+                           value="0"> <?php // $item['pendiente'] ?>
                 </td>
             </tr>
         <?php endforeach; ?>

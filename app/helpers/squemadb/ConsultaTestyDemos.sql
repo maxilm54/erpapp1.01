@@ -124,9 +124,97 @@ LEFT JOIN notas_pedido np ON np.id=rs.nota_pedido_id
 WHERE rs.nota_pedido_id= 29
 
 
+SELECT SUM(d.cantidad) AS pedidoTotal , (SELECT SUM(cantidad) AS RemTotal
+                FROM remitos_salida_detalle rsd
+                LEFT JOIN remitos_salida rs ON rs.id=rsd.remito_id
+                LEFT JOIN notas_pedido np ON np.id=rs.nota_pedido_id
+                WHERE rs.nota_pedido_id= 44)
+                FROM notas_pedido_detalle d
+                WHERE d.nota_pedido_id = 44
 
 
 
 
+SELECT r.*,c.razon_social AS cliente,u.nombre AS usuario, c.id AS cliente_id
+            FROM remitos_salida r
+            JOIN notas_pedido np ON np.id = r.nota_pedido_id
+            JOIN clientes c      ON c.id = np.cliente_id
+            JOIN users u      ON u.id = r.usuario_id
+            WHERE r.id = 50
+SELECT np.*, c.razon_social AS cliente_nombre, SUM(npd.precio*npd.cantidad) AS total_precio
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = np.id
+            WHERE np.id = 46
+            
+SELECT
+                d.producto_id,
+                p.nombre,
+                d.cantidad AS pedida,
+                COALESCE(SUM(rsd.cantidad), 0) AS remitida,
+                (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente,
+                d.precio AS precio,
+                SUM(d.cantidad * d.precio) AS total_linea
+            FROM notas_pedido_detalle d
+            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN remitos_salida rs
+                ON rs.nota_pedido_id = d.nota_pedido_id
+            LEFT JOIN remitos_salida_detalle rsd
+                ON rsd.remito_id = rs.id
+                AND rsd.producto_id = d.producto_id
+            WHERE d.nota_pedido_id = 46
+            GROUP BY d.producto_id  
+				
+				
+				
+SELECT npd.*,np.*, SUM(npd.cantidad*npd.precio) AS subtotal
+FROM notas_pedido_detalle npd
+LEFT JOIN notas_pedido np ON np.id=npd.nota_pedido_id
+WHERE npd.nota_pedido_id = 46
+GROUP BY npd.producto_id				          
+            
+SELECT npd.*,np.*, SUM(npd.cantidad*npd.precio) AS subtotal
+FROM notas_pedido_detalle npd
+LEFT JOIN notas_pedido np ON np.id=npd.nota_pedido_id
+WHERE npd.nota_pedido_id = 46 AND npd.producto_id=3
+                
+SELECT COALESCE(MAX(saldo),0)
+
+SELECT SUM(cta.monto)
+FROM cuentas_corriente_clientes cta
+WHERE cliente_id = 1
 
 
+SELECT COALESCE(MAX(saldo),0)
+FROM cuentas_corriente_clientes
+WHERE cliente_id = 4
+               
+SELECT SUM(cta.monto)
+FROM cuentas_corriente_clientes cta
+WHERE cliente_id = 4
+GROUP BY tipo
+                
+SELECT SUM(monto)
+FROM cuentas_corriente_clientes
+WHERE cliente_id = 1 AND tipo = 'DEBITO'
+ORDER BY fecha DESC
+LIMIT 1;
+
+SELECT SUM(monto)
+FROM cuentas_corriente_clientes
+WHERE cliente_id = 1 AND tipo = 'CREDITO'
+ORDER BY fecha DESC
+LIMIT 1;
+
+
+SELECT
+	(SELECT SUM(monto) FROM cuentas_corriente_clientes WHERE cliente_id=1 AND tipo='DEBITO') AS Debito, 
+	(SELECT SUM(monto) FROM cuentas_corriente_clientes WHERE cliente_id=1 AND tipo='CREDITO') AS Credito,
+	saldo
+FROM cuentas_corriente_clientes
+WHERE cliente_id = 1
+ORDER BY id DESC
+LIMIT 1
+
+            
+            

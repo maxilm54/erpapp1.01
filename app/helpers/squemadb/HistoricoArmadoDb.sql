@@ -284,4 +284,62 @@ CREATE TABLE remitos_salida_detalle (
 );
 
 
+CREATE TABLE cuentas_corriente_clientes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    tipo ENUM('DEBITO','CREDITO') NOT NULL,
+    origen VARCHAR(50) NOT NULL,
+    referencia_id INT NOT NULL,
+    monto DECIMAL(14,2) NOT NULL,
+    saldo DECIMAL(14,2) NOT NULL,
+    observaciones TEXT NULL,
+    usuario_id INT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE numeradores (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipo VARCHAR(30) UNIQUE,
+    ultimo_numero INT NOT NULL
+);
+INSERT INTO numeradores (tipo, ultimo_numero) VALUES ('REMITO', 0);
+
+ALTER TABLE remitos_salida
+ADD numero INT NOT NULL UNIQUE;
+
+
+ALTER TABLE remitos_salida
+ADD pdf_path VARCHAR(255) NULL,
+ADD pdf_hash CHAR(64) NULL,
+ADD firmado TINYINT(1) DEFAULT 0;
+
+ALTER TABLE remitos_salida
+ADD firmado_por INT NULL,
+ADD firmado_at DATETIME NULL;
+
+CREATE TABLE mails_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tipo ENUM('REMITO','PAGO') NOT NULL,
+    referencia_id INT NOT NULL,
+    email_destino VARCHAR(255) NOT NULL,
+    asunto VARCHAR(255),
+    enviado_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    estado ENUM('ENVIADO','ERROR') NOT NULL,
+    error TEXT NULL,
+    usuario_id INT NULL
+);
+
+CREATE TABLE pagos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    monto DECIMAL(12,2) NOT NULL,
+    medio_pago VARCHAR(50),
+    observaciones TEXT,
+    pdf_path VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 

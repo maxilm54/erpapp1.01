@@ -8,7 +8,7 @@
     <?php endforeach ?>
 </select>
 <label class="mt-3">Presupuesto (opcional)</label>
-<select name="presupuesto_id" id="presupuesto_id" class="form-control">
+<select name="presupuesto_id" id="presupuesto_id" class="form-control mb-3">
     <option value="">Sin presupuesto</option>
 </select>
 <input type="text" id="buscador-producto" class="form-control" placeholder="Buscar producto...">

@@ -156,19 +156,24 @@ class NotaPedido extends Model
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function findWithPendientes(int $id): ?array
+    public function findWithPendientes(int $id): ?array //lo uso en remito salida para el detalle de los pedidos con sus pendientes
     {
         // Cabecera
         $stmt = $this->db->prepare("
-            SELECT np.*, c.razon_social AS cliente_nombre
+            SELECT np.*, c.razon_social AS cliente_nombre, SUM(npd.precio*npd.cantidad) AS total_precio
             FROM notas_pedido np
             JOIN clientes c ON c.id = np.cliente_id
+            LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = np.id
             WHERE np.id = ?
         ");
         $stmt->execute([$id]);
         $np = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$np) return null;
+        if (!$np) return null; //si no existe la cabecera retorno null y no puedo remitar, deberia redirigir.
+        if($np['remitido'] === 'RemitidoCompleto'){ //si la np esta totalmente remitada devuelvo el sussces para avisar, es solo control
+            $_SESSION['success'] = 'La Nota de Pedido # '.$id.' ya fue totalmente remitida.';   
+            return null;
+        }
 
         // Detalle con pendientes
         $stmt = $this->db->prepare("
@@ -177,7 +182,9 @@ class NotaPedido extends Model
                 p.nombre,
                 d.cantidad AS pedida,
                 COALESCE(SUM(rsd.cantidad), 0) AS remitida,
-                (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente
+                (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente,
+                d.precio AS precio,
+                SUM(d.cantidad * d.precio) AS total_linea
             FROM notas_pedido_detalle d
             JOIN productos p ON p.id = d.producto_id
             LEFT JOIN remitos_salida rs
@@ -190,6 +197,7 @@ class NotaPedido extends Model
         ");
         $stmt->execute([$id]);
         $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        //aca deberia hacer el control de stock para determinar si la np la puedo remitar o no  
 
         return $np;
     }

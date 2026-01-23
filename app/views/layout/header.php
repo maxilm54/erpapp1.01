@@ -83,6 +83,16 @@ Producción
 </ul>
 </li>
 
+<!-- CtaCte -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+CtaCte
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte">Movimientos</a></li>
+</ul>
+</li>
+
 </ul>
 
 <ul class="navbar-nav">

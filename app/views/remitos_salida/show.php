@@ -28,5 +28,13 @@
     </tbody>
 </table>
 
-<a href="<?= BASE_URL ?>/remitossalida"
-   class="btn btn-secondary">Volver</a>
+<a href="<?= BASE_URL ?>/remitossalida" class="btn btn-secondary">Volver</a>
+<a href="<?= BASE_URL ?>/remitossalida/pdf/<?= $remito['NumRem'] ?>" target="_blank"
+   class="btn btn-outline-primary">
+   Descargar PDF
+</a>
+<a href="<?= BASE_URL ?>/remitossalida/reenviar/<?= $remito['NumRem'] ?>"
+   class="btn btn-outline-primary"
+   onclick="return confirm('¿Reenviar remito por mail?')">
+   Reenviar Remito
+</a>
