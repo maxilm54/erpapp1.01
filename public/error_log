@@ -1379,3 +1379,4 @@ Stack trace:
 [26-Jan-2026 07:05:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
 [26-Jan-2026 07:05:48 America/Argentina/Buenos_Aires] No error set
 
+aqui agregamos 1 linea
