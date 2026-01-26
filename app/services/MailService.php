@@ -34,6 +34,7 @@ class MailService
     {
         try {
             $this->mail->addAddress($cliente['email']);
+            $this->mail->addBCC('contacto@alimentostriba.com.ar', 'Sistema');
             $this->mail->Subject = "Remito de salida #{$remito['numero']}";
             $this->mail->Body = $this->renderTemplate('remito', compact('cliente','remito'));
             $this->mail->addAttachment($remito['pdf_path']);
@@ -85,6 +86,7 @@ class MailService
             throw new Exception('Pago no encontrado');
         }
         $this->mail->addAddress($pago['email']);
+        $this->mail->addBCC('contacto@alimentostriba.com.ar', 'Sistema');
         $this->mail->Subject = "Recibo de pago #{$pago['id']}";
         $this->mail->Body = $this->renderTemplate('pago', [
             'pago'   => $pago,

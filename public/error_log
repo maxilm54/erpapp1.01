@@ -522,3 +522,859 @@ Stack trace:
 [23-Jan-2026 07:58:30 America/Argentina/Buenos_Aires] [SUCCESS] Pago registrado correctamente
 [23-Jan-2026 08:22:54 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
 [23-Jan-2026 08:22:54 America/Argentina/Buenos_Aires] PHP Deprecated:  urlencode(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\app\app\views\clientes\index.php on line 30
+[23-Jan-2026 08:55:57 America/Argentina/Buenos_Aires] No error set
+[23-Jan-2026 08:58:01 America/Argentina/Buenos_Aires] [SUCCESS] Cliente inactivado correctamente.
+[23-Jan-2026 08:58:05 America/Argentina/Buenos_Aires] [SUCCESS] Cliente activado correctamente.
+[23-Jan-2026 08:59:30 America/Argentina/Buenos_Aires] Código de barra agregado correctamente.
+[23-Jan-2026 08:59:30 America/Argentina/Buenos_Aires] [SUCCESS] Código de barra agregado correctamente.
+[23-Jan-2026 08:59:41 America/Argentina/Buenos_Aires] Updating product ID 6 with data: Array
+(
+    [id] => 6
+    [nombre] => Producto123
+    [sku] => 1234
+    [descripcion] => Producto Test inicial
+    [precio] => 100.00
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 08:59:41 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 08:59:57 America/Argentina/Buenos_Aires] Código de barra agregado correctamente.
+[23-Jan-2026 08:59:57 America/Argentina/Buenos_Aires] [SUCCESS] Código de barra agregado correctamente.
+[23-Jan-2026 09:00:30 America/Argentina/Buenos_Aires] [SUCCESS] Nota de Pedido creada correctamente
+[23-Jan-2026 09:00:37 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => BORRADOR
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:00:37 America/Argentina/Buenos_Aires] Nota de Pedido, no aprobada: ID 54
+[23-Jan-2026 09:00:37 America/Argentina/Buenos_Aires] [ERROR] Nota de Pedido # 54 No Aprobada o Anulada
+[23-Jan-2026 09:00:48 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:01:01 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:01:17 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:01:17 America/Argentina/Buenos_Aires] Creando Remito de Salida Array
+(
+    [6] => 5
+)
+
+[23-Jan-2026 09:01:17 America/Argentina/Buenos_Aires] Error al crear Remito de Salida: Error al generar remito: Stock insuficiente para el producto ID 6. Disponible: 0
+[23-Jan-2026 09:01:17 America/Argentina/Buenos_Aires] [ERROR] Error al generar remito: Stock insuficiente para el producto ID 6. Disponible: 0
+[23-Jan-2026 09:01:41 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:01:52 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 0.000
+                    [pendiente] => 10.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:01:52 America/Argentina/Buenos_Aires] Creando Remito de Salida Array
+(
+    [6] => 7
+)
+
+[23-Jan-2026 09:01:52 America/Argentina/Buenos_Aires] Remitando y Actualizando estado NP ID 54 a RemitidoParcial (Pedida: 10.000 - Remitida: 7.000)
+[23-Jan-2026 09:01:59 America/Argentina/Buenos_Aires] [SUCCESS] Remito reenviado correctamente.
+[23-Jan-2026 09:05:45 America/Argentina/Buenos_Aires] [SUCCESS] Pago registrado correctamente
+[23-Jan-2026 09:06:32 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => RemitidoParcial
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 7.000
+                    [pendiente] => 3.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:06:37 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 54
+    [cliente_id] => 1
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => RemitidoParcial
+    [observaciones] => tEST DE NP
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 09:00:30
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => DMTECH SA
+    [total_precio] => 1000.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 6
+                    [nombre] => Producto123
+                    [pedida] => 10.000
+                    [remitida] => 7.000
+                    [pendiente] => 3.000
+                    [precio] => 100.00
+                    [total_linea] => 1000.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 09:06:37 America/Argentina/Buenos_Aires] Creando Remito de Salida Array
+(
+    [6] => 3
+)
+
+[23-Jan-2026 09:06:37 America/Argentina/Buenos_Aires] Remitando y Actualizando estado NP ID 54 a RemitidoCompleto (Pedida: 10.000 - Remitida: 10.000)
+[23-Jan-2026 09:06:44 America/Argentina/Buenos_Aires] [SUCCESS] Remito reenviado correctamente.
+[23-Jan-2026 09:07:37 America/Argentina/Buenos_Aires] [SUCCESS] Pago registrado correctamente
+[23-Jan-2026 10:31:31 America/Argentina/Buenos_Aires] No error set
+[23-Jan-2026 10:33:46 America/Argentina/Buenos_Aires] No error set
+[23-Jan-2026 11:15:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:15:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:16:22 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:16:22 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:19:57 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:19:57 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:20:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:20:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:20:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:20:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:20:04 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:20:04 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:20:09 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:20:09 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:20:13 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:20:13 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:28:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:28:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:28:25 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:29:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:29:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] Código de barra agregado correctamente.
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] [SUCCESS] Código de barra agregado correctamente.
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:31:55 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:32:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:32:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] Código de barra agregado correctamente.
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] [SUCCESS] Código de barra agregado correctamente.
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:10 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:33:17 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:17 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:17 America/Argentina/Buenos_Aires] PHP Warning:  Undefined variable $codigo in C:\xampp\htdocs\app\app\views\productos\formedit.php on line 27
+[23-Jan-2026 11:33:17 America/Argentina/Buenos_Aires] PHP Warning:  Trying to access array offset on value of type null in C:\xampp\htdocs\app\app\views\productos\formedit.php on line 27
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:33:19 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:33:21 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:33:21 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] Código de barra agregado correctamente.
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] [SUCCESS] Código de barra agregado correctamente.
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:34:43 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:37:56 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:37:56 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] Updating product ID 8 with data: Array
+(
+    [id] => 8
+    [nombre] => Pasta de Mani 450gr
+    [sku] => PM450-1
+    [descripcion] => Pasta de Mani natural, 100% mani.
+    [precio] => 3600
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:01 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:38:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:43 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] Updating product ID 7 with data: Array
+(
+    [id] => 7
+    [nombre] => Pasta de Mani 230gr
+    [sku] => PM230-1
+    [descripcion] => Pasta de Mani Natural 100% mani
+    [precio] => 2900
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:48 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:38:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] Updating product ID 9 with data: Array
+(
+    [id] => 9
+    [nombre] => Mini Fuel
+    [sku] => BPCB-1
+    [descripcion] => Bombones proteicos, en pack. Proteina, Pasta de Mani y chocolate neutro.
+    [precio] => 2150
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:38:59 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:39:17 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:17 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] Updating product ID 7 with data: Array
+(
+    [id] => 7
+    [nombre] => Pasta de Mani 230gr
+    [sku] => PM230-1
+    [descripcion] => Pasta de Mani Natural 100% mani
+    [precio] => 2150
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:24 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:39:27 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:27 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] Updating product ID 9 with data: Array
+(
+    [id] => 9
+    [nombre] => Mini Fuel
+    [sku] => BPCB-1
+    [descripcion] => Bombones proteicos, en pack. Proteina, Pasta de Mani y chocolate neutro.
+    [precio] => 2900
+    [unidad_medida] => UNIDAD
+    [user_update] => 1
+)
+
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] [SUCCESS] Producto actualizado correctamente.
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] El controlador no existe: UploadsController
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:39:30 America/Argentina/Buenos_Aires] [ERROR] El Menu Seleccionado No Existe.
+[23-Jan-2026 11:43:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:20 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:20 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:23 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:23 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:23 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:23 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:30 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:43:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:43:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:44:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:44:25 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:25 America/Argentina/Buenos_Aires] [SUCCESS] Nota de Pedido creada correctamente
+[23-Jan-2026 11:44:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:44:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:44:37 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:40 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:44:40 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:44:41 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 55
+    [cliente_id] => 7
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => Pedido para entregar e bellville.
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 11:44:25
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => Distribuidora La Estrellita
+    [total_precio] => 34600.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 7
+                    [nombre] => Pasta de Mani 230gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2150.00
+                    [total_linea] => 8600.00000
+                )
+
+            [1] => Array
+                (
+                    [producto_id] => 8
+                    [nombre] => Pasta de Mani 450gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 3600.00
+                    [total_linea] => 14400.00000
+                )
+
+            [2] => Array
+                (
+                    [producto_id] => 9
+                    [nombre] => Mini Fuel
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2900.00
+                    [total_linea] => 11600.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 55
+    [cliente_id] => 7
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => Pedido para entregar e bellville.
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 11:44:25
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => Distribuidora La Estrellita
+    [total_precio] => 34600.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 7
+                    [nombre] => Pasta de Mani 230gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2150.00
+                    [total_linea] => 8600.00000
+                )
+
+            [1] => Array
+                (
+                    [producto_id] => 8
+                    [nombre] => Pasta de Mani 450gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 3600.00
+                    [total_linea] => 14400.00000
+                )
+
+            [2] => Array
+                (
+                    [producto_id] => 9
+                    [nombre] => Mini Fuel
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2900.00
+                    [total_linea] => 11600.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] Creando Remito de Salida Array
+(
+    [7] => 4
+    [8] => 4
+    [9] => 4
+)
+
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] Error al crear Remito de Salida: Error al generar remito: Stock insuficiente para el producto ID 7. Disponible: 0
+[23-Jan-2026 11:48:28 America/Argentina/Buenos_Aires] [ERROR] Error al generar remito: Stock insuficiente para el producto ID 7. Disponible: 0
+[23-Jan-2026 11:48:35 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:35 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:36 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:36 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:38 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:38 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:38 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:38 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:51 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:52 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:52 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:53 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:53 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:48:54 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:48:54 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:14 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:14 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:14 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:14 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:16 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:16 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:18 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 55
+    [cliente_id] => 7
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => Pedido para entregar e bellville.
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 11:44:25
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => Distribuidora La Estrellita
+    [total_precio] => 34600.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 7
+                    [nombre] => Pasta de Mani 230gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2150.00
+                    [total_linea] => 8600.00000
+                )
+
+            [1] => Array
+                (
+                    [producto_id] => 8
+                    [nombre] => Pasta de Mani 450gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 3600.00
+                    [total_linea] => 14400.00000
+                )
+
+            [2] => Array
+                (
+                    [producto_id] => 9
+                    [nombre] => Mini Fuel
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2900.00
+                    [total_linea] => 11600.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 11:49:42 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:42 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:42 America/Argentina/Buenos_Aires] Array
+(
+    [id] => 55
+    [cliente_id] => 7
+    [presupuesto_id] => 
+    [usuario_id] => 1
+    [estado] => APROBADA
+    [remitido] => SinRemitir
+    [observaciones] => Pedido para entregar e bellville.
+    [motivo_anulacion] => 
+    [created_at] => 2026-01-23 11:44:25
+    [updated_at] => 
+    [anulado_at] => 
+    [cliente_nombre] => Distribuidora La Estrellita
+    [total_precio] => 34600.00000
+    [detalle] => Array
+        (
+            [0] => Array
+                (
+                    [producto_id] => 7
+                    [nombre] => Pasta de Mani 230gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2150.00
+                    [total_linea] => 8600.00000
+                )
+
+            [1] => Array
+                (
+                    [producto_id] => 8
+                    [nombre] => Pasta de Mani 450gr
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 3600.00
+                    [total_linea] => 14400.00000
+                )
+
+            [2] => Array
+                (
+                    [producto_id] => 9
+                    [nombre] => Mini Fuel
+                    [pedida] => 4.000
+                    [remitida] => 0.000
+                    [pendiente] => 4.000
+                    [precio] => 2900.00
+                    [total_linea] => 11600.00000
+                )
+
+        )
+
+)
+
+[23-Jan-2026 11:49:42 America/Argentina/Buenos_Aires] Creando Remito de Salida Array
+(
+    [7] => 4
+    [8] => 4
+    [9] => 4
+)
+
+[23-Jan-2026 11:49:42 America/Argentina/Buenos_Aires] Remitando y Actualizando estado NP ID 55 a RemitidoCompleto (Pedida: 12.000 - Remitida: 12.000)
+[23-Jan-2026 11:49:47 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:49:47 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:49:47 America/Argentina/Buenos_Aires] [SUCCESS] Remito reenviado correctamente.
+[23-Jan-2026 11:50:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:50:18 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 11:59:46 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 11:59:46 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 12:05:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 12:05:00 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 12:05:00 America/Argentina/Buenos_Aires] No error set
+[23-Jan-2026 12:05:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 12:05:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 12:05:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 12:05:03 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 12:05:05 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 12:05:05 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 12:05:16 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 12:05:16 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:31:11 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:31:11 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:33:09 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:33:09 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:33:09 America/Argentina/Buenos_Aires] No error set
+[23-Jan-2026 14:35:31 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:35:31 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:35:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:35:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:35:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:35:34 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:35:41 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:35:41 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:35:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:35:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:36:01 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:36:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:36:02 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:20 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:36:20 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:26 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[23-Jan-2026 14:36:26 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[23-Jan-2026 14:36:26 America/Argentina/Buenos_Aires] [SUCCESS] Pago registrado correctamente
+[26-Jan-2026 07:05:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[26-Jan-2026 07:05:45 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[26-Jan-2026 07:05:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_PATH already defined in C:\xampp\htdocs\app\app\config\config.php on line 3
+[26-Jan-2026 07:05:48 America/Argentina/Buenos_Aires] PHP Warning:  Constant BASE_URL already defined in C:\xampp\htdocs\app\app\config\config.php on line 6
+[26-Jan-2026 07:05:48 America/Argentina/Buenos_Aires] No error set
