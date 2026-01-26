@@ -4,3 +4,4 @@
 .env
 public/error_log
 /helpers/*
+public/error_log
