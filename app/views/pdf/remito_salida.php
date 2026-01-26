@@ -38,6 +38,7 @@
     <thead>
         <tr>
             <th>Producto</th>
+            <th>precio ind</th>
             <th width="120">Cantidad</th>
         </tr>
     </thead>
@@ -45,6 +46,7 @@
         <?php foreach ($remito['detalle'] as $d): ?>
         <tr>
             <td><?= htmlspecialchars($d['nombre']) ?></td>
+            <td class="right"><?= number_format($d['precioremitado'], 3) ?></td>
             <td class="right"><?= number_format($d['cantidad'], 3) ?></td>
         </tr>
         <?php endforeach ?>

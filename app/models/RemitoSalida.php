@@ -86,10 +86,13 @@ class RemitoSalida extends Model
 
         // Detalle
         $stmt = $this->db->prepare("
-            SELECT d.cantidad, p.nombre
+            SELECT d.cantidad, p.nombre,(SELECT precio FROM notas_pedido_detalle npdd WHERE npdd.nota_pedido_id=rs.nota_pedido_id AND npdd.producto_id=d.producto_id) AS precioremitado
             FROM remitos_salida_detalle d
             JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN remitos_salida rs ON rs.id=d.remito_id
+            LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = rs.nota_pedido_id
             WHERE d.remito_id = ?
+            GROUP BY d.producto_id
         ");
         $stmt->execute([$remitoId]);
         $detalle = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -97,7 +100,7 @@ class RemitoSalida extends Model
         $logoBase64 = 'data:image/png;base64,' . base64_encode(
             file_get_contents($logoPath)
         );
-        $remito['detalle'] = $detalle;
+        $remito['detalle'] = $detalle; //precioporproductoenremito=precioremitado
         $logo = $logoBase64;
         // Variables disponibles en la vista
         ob_start();
@@ -387,9 +390,10 @@ class RemitoSalida extends Model
     {
         // Cabecera + cliente
         $stmt = $this->db->prepare("
-            SELECT r.*, c.razon_social, c.email, c.direccion
+            SELECT r.*, c.razon_social, c.email, c.direccion, npd.precio AS precio_produto, npd.cantidad AS prod_cantidad
             FROM remitos_salida r
             JOIN notas_pedido np ON np.id = r.nota_pedido_id
+            LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = r.nota_pedido_id
             JOIN clientes c ON c.id = np.cliente_id
             WHERE r.id = ?
         ");
