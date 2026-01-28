@@ -1,9 +1,9 @@
 <?php
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-define('BASE_PATH', dirname(__DIR__,2));
+//define('BASE_PATH', dirname(__DIR__,2));
 require_once BASE_PATH . '/app/config/env.php';
 define('APP_NAME','app');
-define('BASE_URL','http://localhost/app/public');
+//define('BASE_URL','http://localhost/app/public');
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 define('SMTP_HOST', env('SMTP_HOST'));
