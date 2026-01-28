@@ -24,7 +24,7 @@ class PresupuestosController extends Controller
     public function create()
     {
         $this->view('presupuestos/form', [
-            'clientes'  => (new Cliente())->all(),
+            'clientes'  => (new Cliente())->allactive(),
             'productos' => (new Producto())->all()
         ]);
     }

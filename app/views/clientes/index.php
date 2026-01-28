@@ -40,7 +40,7 @@
                     href="<?= BASE_URL ?>/clientes/edit/<?= $c['id'] ?>">Editar</a>
                     <a class="btn btn-sm btn-danger"
                     href="<?= BASE_URL ?>/clientes/delete/<?= $c['id'] ?>"
-                    onclick="return confirm('¿Eliminar cliente?')">Inactivar</a>
+                    onclick="return confirm('¿Inactivar cliente?')">Inactivar</a>
                 <?php else: ?>
                     <a class="btn btn-sm btn-success"
                     href="<?= BASE_URL ?>/clientes/activar/<?= $c['id'] ?>"

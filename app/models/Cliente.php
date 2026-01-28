@@ -10,6 +10,14 @@ class Cliente extends Model
         return $stmt->fetchAll();
     }
 
+    public function allactive(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT * FROM clientes WHERE activo=1 ORDER BY razon_social"
+        );
+        return $stmt->fetchAll();
+    }
+
     public function find(int $id)
     {
         try{

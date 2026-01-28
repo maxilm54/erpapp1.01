@@ -149,10 +149,10 @@ class NotaPedido extends Model
     }
 
     // 🔽 Combos
-    public function clientes(): array
+    public function clientes(): array // clientes solo activos para realizar np
     {
         return $this->db->query("
-            SELECT id, razon_social FROM clientes ORDER BY razon_social
+            SELECT id, razon_social FROM clientes WHERE activo=1 ORDER BY razon_social
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
