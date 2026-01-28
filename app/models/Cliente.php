@@ -17,6 +17,15 @@ class Cliente extends Model
         );
         return $stmt->fetchAll();
     }
+    public function cliactive($id)
+    {
+        $stmt = $this->db->prepare(
+            "SELECT * FROM clientes WHERE id=:id LIMIT 1"
+        );
+        $stmt->execute(['id' => $id]);
+        $datocli=$stmt->fetch();
+        return $datocli;
+    }
 
     public function find(int $id)
     {
@@ -27,7 +36,7 @@ class Cliente extends Model
             $stmt->execute(['id' => $id]);
             $cliente=$stmt->fetch();
             if (!$cliente) {
-                throw new Exception("Cliente no encontrado con ID: " . $id);
+                throw new Exception("Cliente no encontrado, o inactivo con ID: " . $id);
             }
             return $cliente;
         }catch(Exception $e){

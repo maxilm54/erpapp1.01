@@ -160,7 +160,7 @@ class NotaPedido extends Model
     {
         // Cabecera
         $stmt = $this->db->prepare("
-            SELECT np.*, c.razon_social AS cliente_nombre, SUM(npd.precio*npd.cantidad) AS total_precio
+            SELECT np.*, c.razon_social AS cliente_nombre,c.id AS id_cliente, SUM(npd.precio*npd.cantidad) AS total_precio
             FROM notas_pedido np
             JOIN clientes c ON c.id = np.cliente_id
             LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = np.id

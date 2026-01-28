@@ -2,16 +2,19 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/RemitoSalida.php';
 require_once BASE_PATH.'/app/models/NotaPedido.php';
+require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller
 {
     private RemitoSalida $model;
     private NotaPedido $np;
+    private Cliente $cli;
 
     public function __construct()
     {
         $this->model = new RemitoSalida();
         $this->np = new NotaPedido();
+        $this->cli = new Cliente();
     }
     public function index()
     {
@@ -38,6 +41,14 @@ class RemitosSalidaController extends Controller
         public function create($notaPedidoId) // llamo al form para remitar una NP
     {
         $np = $this->np->findWithPendientes((int)$notaPedidoId); // obtengo la np con los pendientes de remito desde el modelo notas pedido
+        $cli_act = $this->cli->cliactive((int)$np['id_cliente']);
+        if($cli_act['activo']===0){
+            $_SESSION['error'] = 'Cliente Inactivo, No se puede remitar';
+            error_log('Cliente Inactivo, No se puede remitar');
+            header("Location: " . BASE_URL . "/notaspedido");
+            exit;
+
+        }
         error_log(print_r($np, true)); // guardo un registro de la infoque me devuelve el modelo
         if (!$np ) { // si no existe o hay alguna error en la variable devuelvo el error, dejo un log y redirijo
             $_SESSION['error'] = 'Nota de Pedido, inexistente';
