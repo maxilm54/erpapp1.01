@@ -32,8 +32,7 @@
                            min="0"
                            max="<?= $item['pendiente'] ?>"
                            name="items[<?= $item['producto_id'] ?>]"
-                           class="form-control"
-                           value="0"> <?php // $item['pendiente'] ?>
+                           class="form-control" required> <?php // $item['pendiente'] ?>
                 </td>
             </tr>
         <?php endforeach; ?>
