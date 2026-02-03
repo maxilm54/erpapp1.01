@@ -25,7 +25,8 @@ class AjusteStock extends Model
         int $productoId,
         float $cantidad,
         string $motivo,
-        int $usuarioId
+        int $usuarioId,
+        string $tipo
     ): void {
         $this->db->beginTransaction();
 
@@ -42,8 +43,9 @@ class AjusteStock extends Model
             $this->db->prepare("
                 INSERT INTO movimientos_stock
                 (tipo, origen, producto_id, cantidad, observaciones, usuario_id)
-                VALUES ('AJUSTE','AJUSTE_STOCK', ?, ?, ?, ?)
+                VALUES (?, 'AJUSTE_STOCK', ?, ?, ?, ?)
             ")->execute([
+                $tipo,
                 $productoId,
                 $cantidad,
                 $motivo,
@@ -63,7 +65,8 @@ class AjusteStock extends Model
         int $mpId,
         float $cantidad,
         string $motivo,
-        int $usuarioId
+        int $usuarioId,
+        string $tipo
     ): void {
         $this->db->beginTransaction();
 
@@ -80,8 +83,10 @@ class AjusteStock extends Model
             $this->db->prepare("
                 INSERT INTO movimientos_stock
                 (tipo, origen, materia_prima_id, cantidad, observaciones, usuario_id)
-                VALUES ('AJUSTE','AJUSTE_STOCK', ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
             ")->execute([
+                $tipo,
+                'AJUSTE_STOCK',
                 $mpId,
                 $cantidad,
                 $motivo,

@@ -216,5 +216,40 @@ WHERE cliente_id = 1
 ORDER BY id DESC
 LIMIT 1
 
-            
-            
+SELECT d.cantidad, p.nombre,
+	npd.precio AS precio_prod,npd.cantidad AS pedida, d.producto_id AS prod_id_a,
+	rs.nota_pedido_id,d.producto_id AS id_prodnp, (SELECT precio FROM notas_pedido_detalle npdd WHERE npdd.nota_pedido_id=rs.nota_pedido_id AND npdd.producto_id=d.producto_id) AS preciocalculado
+FROM remitos_salida_detalle d
+LEFT JOIN remitos_salida rs ON rs.id=d.remito_id
+LEFT JOIN notas_pedido_detalle npd ON npd.nota_pedido_id = rs.nota_pedido_id
+JOIN productos p ON p.id = d.producto_id
+WHERE d.remito_id = 139
+GROUP BY d.producto_id
+
+SELECT 
+    r.id,
+    r.nombre,  -- o los campos que quieras mostrar de la cabecera
+    GROUP_CONCAT(rd.materia_prima_id SEPARATOR ' - ') AS id_mat_prim,
+    GROUP_CONCAT(mp.nombre SEPARATOR ' - ') AS mat_prim
+FROM recetas r
+LEFT JOIN recetas_detalle rd 
+    ON r.id = rd.receta_id
+LEFT JOIN materias_primas mp ON mp.id=rd.materia_prima_id
+GROUP BY r.id, r.nombre;
+
+SELECT
+              SUM(CASE WHEN tipo='ENTRADA' THEN cantidad ELSE 0 END) -
+              SUM(CASE WHEN tipo='SALIDA' THEN cantidad ELSE 0 END) -
+              IFNULL((SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=12),0)
+            FROM movimientos_stock
+            WHERE materia_prima_id=12
+
+SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                        WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                    END
+                ),0) AS stock
+FROM materias_primas mp
+LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
+WHERE mp.id=12 LIMIT 1

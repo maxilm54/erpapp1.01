@@ -344,10 +344,53 @@ CREATE TABLE pagos (
 /*
 * HASTA AQUI SE DESAROLLA LA PRIMER VERSION DEL SOFT, DE AHORA EN ADELANTE ES TOMAR AGREGADOS DE LA BASE Y MANIPULAR LA CREACION DE TABLAS DIRECTO EN PRODUCCION, SIEMPRE TENIENDO RESPALDOS DE SEGUIRDAD
  */
+ /*29-1-26 modulos de recetas y produccion */
+ CREATE TABLE recetas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    producto_id INT NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    activo TINYINT(1) DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+); 
+/*RELACION ENTRE PRODUCTO ID Y TABLA PRODUCTO, ESTE ES EL PRODUCTO A PRODUCIR*/
  
- 
- 
- 
- 
+ CREATE TABLE recetas_detalle (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    receta_id INT NOT NULL,
+    materia_prima_id INT NOT NULL,
+    cantidad DECIMAL(12,3) NOT NULL,
+    unidad VARCHAR(20),
+    UNIQUE (receta_id, materia_prima_id)
+);
+/*RElACION ENTRE MATERIA PRIMA ID Y TABLA MATERIA PRIMA, ES LA MATIERA QUE SE USA PARA PRODUCIR UN PRODUCTO*/ 
+
+CREATE TABLE reservas_materia_prima (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    orden_produccion_id INT NOT NULL,
+    materia_prima_id INT NOT NULL,
+    cantidad DECIMAL(12,3) NOT NULL,
+    estado ENUM('RESERVADO','CONSUMIDO','LIBERADO') DEFAULT 'RESERVADO',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+/*se le agrega la relacion con materia prima y orden de prod con sus repsectivas tablas*/
+/*se reqalizan cambios a la tabla de produccion
+*CREATE TABLE ordenes_produccion ( //cambio de nombre prncipalmente
+*    id INT AUTO_INCREMENT PRIMARY KEY,
+*    producto_id INT NOT NULL, //relacionado al prducto
+*    receta_id INT NOT NULL, //relacionado a la receta
+*    cantidad DECIMAL(12,3) NOT NULL,
+*    estado ENUM('BORRADOR','RESERVADA','EN_PRODUCCION','FINALIZADA','CANCELADA') DEFAULT 'BORRADOR',
+*    observaciones TEXT,
+*    usuario_id INT NOT NULL, //relacionado al usuario
+*    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+*/
+
+
+
+
+
+
+
  
 

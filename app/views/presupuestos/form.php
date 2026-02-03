@@ -62,6 +62,8 @@ $action = $isEdit
                 </tbody>
             </table>
         </div>
+        <label>Proceso u Observaciones de Fabricacion</label>
+        <textarea name="procedimiento" class="form-control" rows="4"></textarea>
         <div class="mt-3">
             <button class="btn btn-success">Guardar</button>
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Cancelar</a>

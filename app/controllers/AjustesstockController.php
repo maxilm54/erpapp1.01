@@ -30,8 +30,10 @@ class AjustesstockController extends Controller
                 $this->model->ajustarProducto(
                     (int)$_POST['producto_id'],
                     (float)$_POST['cantidad'],
-                    $motivo,
-                    (int)$_SESSION['user_id']
+                    htmlspecialchars($motivo),
+                    (int)$_SESSION['user_id'],
+                    htmlspecialchars($_POST['tipo'])
+
                 );
 
                 header('Location: ' . BASE_URL . '/ajustesstock');
@@ -58,8 +60,9 @@ class AjustesstockController extends Controller
                 $this->model->ajustarMateriaPrima(
                     (int)$_POST['materia_prima_id'],
                     (float)$_POST['cantidad'],
-                    $motivo,
-                    (int)$_SESSION['user_id']
+                    htmlspecialchars($motivo),
+                    (int)$_SESSION['user_id'],
+                    htmlspecialchars($_POST['tipo'])
                 );
 
                 header('Location: ' . BASE_URL . '/ajustesstock');

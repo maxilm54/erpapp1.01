@@ -13,4 +13,9 @@ class Controller{
         require BASE_PATH . "/app/views/{$view}.php";
         require BASE_PATH . "/app/views/layout/footer.php";
     }
+
+    protected function modal(string $view, array $data = []):void{
+         extract($data);
+        require BASE_PATH . "/app/views/{$view}.php";
+    }
 }
