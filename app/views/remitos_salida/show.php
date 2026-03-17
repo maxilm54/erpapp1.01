@@ -10,24 +10,24 @@
         <?= nl2br(htmlspecialchars($remito['obsRemRem'])) ?>
     </div>
 <?php endif; ?>
-
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Producto</th>
-            <th width="120">Cantidad</th>
-        </tr>
-    </thead>
-    <tbody> 
-    <?php foreach ($remito['detalle'] as $item):?>
-        <tr>
-            <td><?= htmlspecialchars($item['ProdRem']) ?></td>
-            <td><?= number_format($item['CantRem'], 2) ?></td>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-</table>
-
+<div class="table-scroll mt-3">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th width="120">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody> 
+        <?php foreach ($remito['detalle'] as $item):?>
+            <tr>
+                <td><?= htmlspecialchars($item['ProdRem']) ?></td>
+                <td><?= number_format($item['CantRem'], 2) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
 <a href="<?= BASE_URL ?>/remitossalida" class="btn btn-secondary">Volver</a>
 <a href="<?= BASE_URL ?>/remitossalida/pdf/<?= $remito['NumRem'] ?>" target="_blank"
    class="btn btn-outline-primary">

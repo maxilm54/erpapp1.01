@@ -6,7 +6,7 @@
         </a>
     </div>
 
-    <div class="table-responsive">
+    <div class="table-scroll mt-3 table-responsive">
         <table class="table table-bordered table-hover align-middle">
             <thead class="table-light">
                 <tr>

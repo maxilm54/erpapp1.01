@@ -19,27 +19,28 @@
 </tbody>
 </table>
 <hr>
-<table class="table table-bordered">
-<thead>
-<tr>
-    <th>Fecha</th>
-    <th>Origen</th>
-    <th>Referencia</th>
-    <th>Monto</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($deudas as $d): ?>
-<tr>
-    <td><?= $d['fecha'] ?></td>
-    <td><?= $d['origen'] ?></td>
-    <td>#<?= $d['referencia_id'] ?></td>
-    <td><?= number_format($d['monto'],2) ?></td>
-</tr>
-<?php endforeach ?>
-</tbody>
-</table>
-
+<div class="table-scroll mt-3">
+    <table class="table table-bordered">
+    <thead>
+    <tr>
+        <th>Fecha</th>
+        <th>Origen</th>
+        <th>Referencia</th>
+        <th>Monto</th>
+    </tr>
+    </thead>
+    <tbody>
+    <?php foreach ($deudas as $d): ?>
+    <tr>
+        <td><?= $d['fecha'] ?></td>
+        <td><?= $d['origen'] ?></td>
+        <td>#<?= $d['referencia_id'] ?></td>
+        <td><?= number_format($d['monto'],2) ?></td>
+    </tr>
+    <?php endforeach ?>
+    </tbody>
+    </table>
+</div>
 <hr>
 
 <form method="POST"> <!-- /ctacte/registrarpago -->

@@ -216,7 +216,7 @@ class RemitoSalida extends Model
     {
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(
-                CASE 
+                CASE
                     WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
                     WHEN tipo = 'SALIDA' THEN -cantidad
                 END

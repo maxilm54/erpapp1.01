@@ -385,9 +385,96 @@ CREATE TABLE reservas_materia_prima (
 *    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 */
+/*
+3/2/26 edtitar tabla materia prima para agregar precio actual:
+*/
+ALTER TABLE `materias_primas`
+ADD COLUMN `precio_actual` DECIMAL(10,3) NOT NULL AFTER `created_at`;
+/*5/2/2026 EDITAR COLUMNAS EN TABLA ORDENES PRODUCCION*/
+ALTER TABLE `ordenes_produccion`
+CHANGE COLUMN `estado` `estado` ENUM('PENDIENTE','EN_PRODUCCION','FINALIZADA','CANCELADA') 
+NOT NULL DEFAULT 'PENDIENTE' COLLATE 'utf8mb4_unicode_ci' AFTER `fecha_entrega`;
+/*
+cambio en base proveedores, creacion del proveedor particular id 0
+cambio en base orden compra, default id proveedor 0 para cuando se hacen oc automaticas
+*/
+/*14/2/26 cambios para control de niveles de stock*/
+/*tabla prductos*/
+ALTER TABLE productos
+ADD stock_minimo DECIMAL(10,2) DEFAULT 0,
+ADD stock_maximo DECIMAL(10,2) DEFAULT 0,
+ADD stock_critico DECIMAL(10,2) DEFAULT 0;
+
+/*tabla materias primas*/
+ALTER TABLE materias_primas
+ADD stock_minimo DECIMAL(10,2) DEFAULT 0,
+ADD stock_maximo DECIMAL(10,2) DEFAULT 0,
+ADD stock_critico DECIMAL(10,2) DEFAULT 0;
+
+/*1-3-26 creacio de tabla para registro del hisotrial de stock de reserva de mp*/
+CREATE TABLE `tbl_historico_reserva_mp` (
+	`id` INT(11) NOT NULL,
+	`orden_produccion_id` INT(11) NOT NULL,
+	`materia_prima_id` INT(11) NOT NULL,
+	`cantidad` DECIMAL(12,3) NOT NULL,
+	`estado` ENUM('RESERVADO','CONSUMIDO','LIBERADO') NULL DEFAULT 'RESERVADO' COLLATE 'utf8mb4_unicode_ci',
+	`created_at` DATETIME NULL DEFAULT current_timestamp(),
+	PRIMARY KEY (`id`) USING BTREE,
+	INDEX `orden_vs_tblordenid_FK12` (`orden_produccion_id`) USING BTREE,
+	INDEX `materiprima_vs_tblmateria_FK22` (`materia_prima_id`) USING BTREE,
+	CONSTRAINT `materiprima_vs_tblmateria_FK22` FOREIGN KEY (`materia_prima_id`) REFERENCES `materias_primas` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT,
+	CONSTRAINT `orden_vs_tblordenid_FK12` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON UPDATE CASCADE ON DELETE RESTRICT
+)
+COLLATE='utf8mb4_unicode_ci'
+ENGINE=InnoDB
+AUTO_INCREMENT=0
+;
+/*trigger para pasar de materia prima reservada a historica*/
+DELIMITER $$
+
+CREATE TRIGGER hitorico_reserva_mp_trig
+AFTER DELETE ON reservas_materia_prima
+FOR EACH ROW
+BEGIN
+    INSERT INTO tbl_historico_reserva_mp (
+        id,
+        orden_produccion_id,
+        materia_prima_id,
+        cantidad,
+        estado,
+        created_at
+    )
+    VALUES (
+        OLD.id,
+        OLD.orden_produccion_id,
+        OLD.materia_prima_id,
+        OLD.cantidad,
+        OLD.estado,
+        OLD.created_at
+    );
+END$$
+
+DELIMITER ;
+
+/*4/3/2026 agregado de columna fecha de finalizacion e ordenes_produccion*/
+ALTER TABLE `ordenes_produccion`
+	ADD COLUMN `finalizada_at` DATETIME NULL AFTER `receta_id`;
+ /*cambiamos el estado por default para que si producimos podemos crear un trigger de foirma automatica after update*/	
+ALTER TABLE `tbl_historico_reserva_mp`
+	CHANGE COLUMN `estado` `estado` ENUM('RESERVADO','CONSUMIDO','LIBERADO') NULL DEFAULT 'CONSUMIDO' COLLATE 'utf8mb4_unicode_ci' AFTER `cantidad`;
 
 
-
+/*17-3-26 cambios para ñps moduloso de produccion y reserva de MP*/
+ALTER TABLE `ordenes_compra_detalle`
+	ADD COLUMN `referencia_oc` ENUM('STOCKLEVEL','STOCK_OP') NULL DEFAULT 'STOCKLEVEL';
+ALTER TABLE `ordenes_compra_detalle`
+	ADD COLUMN `referencia_id` INT NULL AFTER `referencia_oc`;
+RENAME TABLE `stock_materias_primas` TO `stock_mp_transito`;
+ALTER TABLE `orden_produccion_detalle`
+	ADD COLUMN `confirma_produccion` DATETIME NULL AFTER `observaciones`;
+ALTER TABLE `orden_produccion_detalle`
+	ADD COLUMN `id_tbl_ordendetalle` INT NOT NULL AUTO_INCREMENT FIRST,
+	ADD PRIMARY KEY (`id_tbl_ordendetalle`);
 
 
 

@@ -4,8 +4,7 @@
         Nuevo Cliente
     </a>
 </div>
-
-<div class="table-responsive">
+<div class="table-scroll mt-3 table-responsive">
 <table class="table table-striped table-hover">
     <thead class="table-dark">
         <tr>

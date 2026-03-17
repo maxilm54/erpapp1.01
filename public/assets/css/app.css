@@ -1,0 +1,61 @@
+/* ===== FONDO GENERAL ===== */
+body {
+    background-color: #f4f6f9;
+}
+
+/* ===== CONTENEDOR GENERAL DE VISTAS ===== */
+.page-container {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.392);
+    margin-top: 25px;
+    margin-bottom: 40px;
+    transition: all 0.2s ease-in-out;
+}
+
+/* ===== TITULOS ===== */
+.page-container h1 {
+    font-weight: 600;
+    margin-bottom: 25px;
+}
+p {
+    margin-bottom: 0.02rem;
+}
+/* ===== TABLAS ===== */
+.table {
+    background: white;
+}
+
+.table thead {
+    background-color: #f1f3f5;
+}
+
+/* ===== BOTONES ===== */
+.btn {
+    border-radius: 8px;
+}
+
+/* ===== CARDS INTERNAS ===== */
+.card {
+    border-radius: 12px;
+    border: none;
+}
+/* ==============================
+   Tablas con scroll vertical
+   ============================== */
+.table-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* Opcional: header fijo */
+.table-scroll thead th {
+    position: sticky;
+    top: 0;
+    color: black;
+    background: #fff;
+    z-index: 2;
+}
+/* ===== */

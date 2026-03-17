@@ -17,36 +17,36 @@
 </div>
 
 <h5>Detalle</h5>
-
-<table class="table table-bordered table-striped">
-<thead class="table-dark">
-<tr>
-    <tr>
-    <th>Materia Prima</th>
-    <th>Pedida</th>
-    <th>Recibida</th>
-    <th>Faltante</th>
-    <th>Unidad</th>
-    <th>Precio Unitario</th>
-    <th>Moneda</th>
-</tr>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($orden['detalle'] as $d): ?>
-<tr>
-    <td><?= htmlspecialchars($d['nombre']) ?></td>
-    <td><?= number_format($d['pedida'], 3) ?></td>
-    <td><?= number_format($d['recibida'], 3) ?></td>
-    <td><?= number_format($d['faltante'], 3) ?></td>
-    <td><?= htmlspecialchars($d['unidad_medida']) ?></td>
-    <td><?= number_format($d['precio_unitario'], 3) ?></td>
-    <td><?= htmlspecialchars($d['moneda']) ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-
+<div class="table-scroll mt-3">
+    <table class="table table-bordered table-striped">
+        <thead class="table-dark">
+            <tr>
+                <tr>
+                    <th>Materia Prima</th>
+                    <th>Pedida</th>
+                    <th>Recibida</th>
+                    <th>Faltante</th>
+                    <th>Unidad</th>
+                    <th>Precio Unitario</th>
+                    <th>Moneda</th>
+                </tr>
+            </tr>
+        </thead>
+        <tbody>
+        <?php foreach ($orden['detalle'] as $d): ?>
+        <tr>
+            <td><?= htmlspecialchars($d['nombre']) ?></td>
+            <td><?= number_format($d['pedida'], 3,',','.') ?></td>
+            <td><?= number_format($d['recibida'], 3,',','.') ?></td>
+            <td><?= number_format($d['faltante'], 3,',','.') ?></td>
+            <td><?= htmlspecialchars($d['unidad_medida']) ?></td>
+            <td><?= number_format($d['precio_unitario'], 3,',','.') ?></td>
+            <td><?= htmlspecialchars($d['moneda']) ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
 <div class="mt-4 d-flex gap-2">
     <a href="<?= BASE_URL ?>/ordenescompra"
        class="btn btn-secondary">

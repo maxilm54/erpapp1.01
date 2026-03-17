@@ -47,6 +47,7 @@ class Receta extends Model
             return $recetaId;
 
         } catch (Exception $e) {
+            error_log('Error en la funcion de crear una receta: '.$e->getMessage());
             $this->db->rollBack();
             throw $e;
         }

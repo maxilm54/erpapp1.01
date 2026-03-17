@@ -14,18 +14,18 @@
     <hr>
 
     <h5>Insumos</h5>
-
-    <table class="table" id="detalle">
-        <thead>
-            <tr>
-                <th>Materia Prima</th>
-                <th width="150">Cantidad</th>
-                <th width="50"></th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-
+    <div class="table-scroll mt-3">
+        <table class="table" id="detalle">
+            <thead>
+                <tr>
+                    <th>Materia Prima</th>
+                    <th width="150">Cantidad</th>
+                    <th width="50"></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
     <button type="button" class="btn btn-secondary" onclick="agregarLinea()">
         + Agregar Insumo
     </button>

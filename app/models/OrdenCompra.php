@@ -186,5 +186,113 @@ class OrdenCompra extends Model
         )->execute(['id'=>$id]);
     }
 
+    public function calcularStockProyectado(int $materiaId) {
+        try {
+            $stmt = $this->db->prepare("
+                    SELECT
+                        mp.stock_actual,
+
+                        IFNULL((
+                            SELECT SUM(r.cantidad)
+                            FROM reservas_materia_prima r
+                            WHERE r.materia_prima_id = mp.id
+                            AND r.estado = 'RESERVADO'
+                        ),0) AS reservado,
+
+                        IFNULL((
+                            SELECT SUM(ocd.cantidad)
+                            FROM ordenes_compra_detalle ocd
+                            JOIN ordenes_compra oc
+                                ON oc.id = ocd.orden_compra_id
+                            WHERE ocd.materia_prima_id = mp.id
+                            AND oc.estado IN ('BORRADOR','PENDIENTE')
+                        ),0) AS en_compra
+
+                    FROM materias_primas mp
+                    WHERE mp.id = ?
+                ");
+                $stmt->execute([$materiaId]);
+                $stockData = $stmt->fetch(PDO::FETCH_ASSOC);
+                return $stockData;
+        } catch (Exception $e) {
+            error_log('Error al calcular el sotck proyectado: '.$e->getMessage());
+        }
+
+    }
+
+    public function ocExistente(int $mp_id){
+        error_log('funcion ocExistente con mp: '.$mp_id.' ok');
+        $stmt = $this->db->prepare("
+                        SELECT oc.id
+                        FROM ordenes_compra oc
+                        LEFT JOIN ordenes_compra_detalle ocd ON ocd.orden_compra_id=oc.id
+                        WHERE oc.estado IN ('BORRADOR','PENDIENTE') AND ocd.materia_prima_id=?
+                        ORDER BY id DESC
+                        LIMIT 1
+                    ");
+        $stmt->execute([$mp_id]);
+        $ocExistente = $stmt->fetch(PDO::FETCH_COLUMN);
+        error_log('funcion ocExistente devuelve: '.print_r($ocExistente,true));
+        return (int)$ocExistente;
+    }
+
+    public function crearOc(){ //funcion para crear una cabecera de un oc desde el controloador que es llamado para crear OC desde faltantes
+        try{
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("
+                                INSERT INTO ordenes_compra
+                                (proveedor_id, estado, usuario_id, created_at)
+                                VALUES (0, 'PENDIENTE', ?, NOW())
+                            ");
+            $stmt->execute([$_SESSION['user_id']]);
+            $ordenCompraId = $this->db->lastInsertId(); // devuelvo el id de una oc que no existia y se creo nueva
+            $this->db->commit();
+            error_log('Funcion crearoc desde faltantes devuelve id de oc nueva: '.$ordenCompraId);
+            return (int)$ordenCompraId;
+        }catch(Exception $e){
+            $this->db->rollBack();
+            error_log('Error al crear la cabecera de OC para ordenes automaticas al momento de generar produccion, '.$e->getMessage());
+            return (int)0;
+        }
+    }
+
+    public function updateMpOc(int $id_oc, int $id_mp, $cant_add): void{
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("
+                            UPDATE ordenes_compra_detalle
+                            SET cantidad = cantidad + ?
+                            WHERE orden_compra_id = ? and materia_prima_id =?
+                            ");
+            $stmt->execute([$cant_add,$id_oc,$id_mp]);
+            $this->db->commit();
+            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes');
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log('Error al actualizar la cantidad de una mp existente en una oc(proceso desde creacion con faltantes), '.$e->getMessage());
+        }
+    }
+
+    public function addMpOc($id_oc,$id_mp,$cant_add): void{
+        try {
+            $this->db->beginTransaction();
+            $stmt=$this->db->prepare("SELECT MAX(id) FROM ordenes_produccion");
+            $stmt->execute();
+            $oc_id=(int) $stmt->fetch(PDO::FETCH_COLUMN);
+            $oc_id ++;
+            $stmt = $this->db->prepare("
+                        INSERT INTO ordenes_compra_detalle
+                        (orden_compra_id, materia_prima_id, cantidad, precio_unitario, moneda,referencia_oc,referencia_id)
+                        VALUES (?, ?, ?, 0, 1,'STOCK_OP',?)
+                    ");
+            $stmt->execute([$id_oc,$id_mp,$cant_add,$oc_id]);
+            $this->db->commit();
+            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes');
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log('Error al agregar la cantidad de una mp en una oc(proceso desde creacion con faltantes), '.$e->getMessage());
+        }
+        
+    }
     
 }

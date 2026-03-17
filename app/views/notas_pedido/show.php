@@ -29,38 +29,39 @@
 <?php if ($np['observaciones']): ?>
 <p><strong>Observaciones:</strong> <?= nl2br($np['observaciones']) ?></p>
 <?php endif ?>
-
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad</th>
-            <th>Precio</th>
-            <th>Subtotal</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php 
-        $total = 0;
-        foreach ($np['detalle'] as $d): 
-            $sub = $d['cantidad'] * $d['precio'];
-            $total += $sub;
-        ?>
-        <tr>
-            <td><?= $d['nombre'] ?></td>
-            <td><?= number_format($d['cantidad'], 3) ?></td>
-            <td><?= number_format($d['precio'], 2) ?></td>
-            <td><?= number_format($sub, 2) ?></td>
-        </tr>
-        <?php endforeach ?>
-    </tbody>
-    <tfoot>
-        <tr>
-            <th colspan="3" class="text-end">Total</th>
-            <th>$<?= number_format($total, 2) ?></th>
-        </tr>
-    </tfoot>
-</table>
+<div class="table-scroll mt-3">
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio</th>
+                <th>Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            $total = 0;
+            foreach ($np['detalle'] as $d): 
+                $sub = $d['cantidad'] * $d['precio'];
+                $total += $sub;
+            ?>
+            <tr>
+                <td><?= $d['nombre'] ?></td>
+                <td><?= number_format($d['cantidad'], 3) ?></td>
+                <td><?= number_format($d['precio'], 2) ?></td>
+                <td><?= number_format($sub, 2) ?></td>
+            </tr>
+            <?php endforeach ?>
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="3" class="text-end">Total</th>
+                <th>$<?= number_format($total, 2) ?></th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
 
 <?php if ($np['estado'] === 'BORRADOR'): ?>
     <button class="btn btn-success"

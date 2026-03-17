@@ -9,46 +9,46 @@
         <p><strong>Ingreso:</strong> #-<?= $ingreso['ing_num_indicador'] ?></p>
     </div>
 </div>
-
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Materia Prima</th>
-            <th>Pedida</th>
-            <th>Ingresado</th>
-            <th>Ingreso OC-<?= $ingreso['orden_compra_id'] ?> Ing #-<?=$ingreso['ing_num_indicador'] ?></th>
-            <th>Faltante</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php 
-        $i=0;
-        foreach ($ingreso['detalle'] as $d): ?>
-        <tr>
-            <td><?= $d['nombre'] ?></td>
-            <td><?= $d['pedida'] ?></td>
-            <td><?= $faltante[$i]['total_cantidad'] ?? '0.000' ?></td>
-            <td><?= $d['ingresada'] ?></td>
-            <td>
-                <?php if (($d['pedida'] - (($faltante[$i]['total_cantidad'] ?? 0) + $d['ingresada'])) > 0): ?>
-                    <span class="badge bg-warning">
-                        <?= ($d['pedida'] - (($faltante[$i]['total_cantidad'] ?? 0) + $d['ingresada'])) ?>
-                    </span>
-                <?php else: ?>
-                    <span class="badge bg-success">OK</span>
-                <?php endif ?>
-            </td>
-        </tr>
-        <?php 
-        $i++;
-                endforeach; 
-        $i=0;
-        ?>
-    </tbody>
-</table>
+<div class="table-scroll mt-3">
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Materia Prima</th>
+                <th>Pedida</th>
+                <th>Ingresado</th>
+                <th>Ingreso OC-<?= $ingreso['orden_compra_id'] ?> Ing #-<?=$ingreso['ing_num_indicador'] ?></th>
+                <th>Faltante</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            $i=0;
+            foreach ($ingreso['detalle'] as $d): ?>
+            <tr>
+                <td><?= $d['nombre'] ?></td>
+                <td><?= number_format($d['pedida'],2,',','.') ?></td>
+                <td><?= number_format(($faltante[$i]['total_cantidad'] ?? '0.000'),3,',','.') ?></td>
+                <td><?= number_format($d['ingresada'],2,',','.') ?></td>
+                <td>
+                    <?php if (($d['pedida'] - (($faltante[$i]['total_cantidad'] ?? 0) + $d['ingresada'])) > 0):
+                        $faltante = (float)($d['pedida'] - (($faltante[$i]['total_cantidad'] ?? 0) + $d['ingresada']));
+                    ?>
+                        <span class="badge bg-warning">
+                            <?= number_format($faltante,3,',','.') ?>
+                        </span>
+                    <?php else: ?>
+                        <span class="badge bg-success">OK</span>
+                    <?php endif ?>
+                </td>
+            </tr>
+            <?php
+            $i++;
+                    endforeach;
+            $i=0;
+            ?>
+        </tbody>
+    </table>
+</div>
 <div class="mt-4 d-flex gap-2">
-    <a href="<?= BASE_URL ?>/ingresosmercaderia"
-       class="btn btn-secondary">
-       Volver
-    </a>    
+    <a href="<?= BASE_URL ?>/ingresosmercaderia" class="btn btn-secondary">Volver</a>
 </div>

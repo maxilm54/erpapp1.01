@@ -8,7 +8,7 @@ $develop = 1;
  */
 define('BASE_PATH', dirname(__DIR__));
 if($develop === 1){
-    define('BASE_URL', 'http://localhost/app/public');
+    define('BASE_URL', 'http://localhost/app/public');//define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');
 }else{
     define('BASE_URL', 'https://syspre.alimentostriba.com.ar');
 }

@@ -1,0 +1,12 @@
+[
+    {
+        "texto": "Se agrego en la tabla materiaprima el campo precio_actual",
+        "fecha": "2026-02-04 12:32:03",
+        "hecho": true
+    },
+    {
+        "texto": "se corrige la vista show en produccion para mostrar los precios de produccion",
+        "fecha": "2026-02-04 12:36:01",
+        "hecho": false
+    }
+]

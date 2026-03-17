@@ -31,7 +31,7 @@
         </div>
         <div class="col-md-6">
             <label class="form-label">Fecha Entrega</label>
-            <input type="date"name="fecha_entrega" class="form-control"required>
+            <input type="datetime-local"name="fecha_entrega" class="form-control"required>
         </div>
     </div>
     <div class="mt-3">
@@ -125,17 +125,17 @@ function chequearStock() {
     .then(data => {
         indicador.className = 'badge';
 
-        if (data.estado === 'ok') {
+        if (data.estado === 'ok') { // si el ajax devuelve ok esta en verde.
             indicador.classList.add('bg-success');
             indicador.textContent = '✔ Stock OK';
         }
         if (data.estado === 'warning') {
             indicador.classList.add('bg-warning', 'text-dark');
-            indicador.textContent = '⚠ Stock parcial';
+            indicador.textContent = '⚠ Stock parcial'; // si el ajax devuelve warning esta en amarillo, y muestra la cantidad faltante al hacer click para incentivar a generar orden de compra de esa materia prima faltante.
         }
         if (data.estado === 'error') {
             indicador.classList.add('bg-danger');
-            indicador.textContent = '✖ Stock insuficiente';
+            indicador.textContent = '✖ Stock insuficiente'; // no existe stock para producir la cantidad solicitada, indicador en rojo y al hacer click muestra detalle de lo que falta para incentivar a generar orden de compra.
         }
 
         indicador.dataset.detalle = JSON.stringify(data.faltantes);
@@ -157,13 +157,53 @@ cantidadInput.addEventListener('input', chequearStock);
     </div>
   </div>
 </div>
+<script>
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'generarOC') {
+
+        const faltantes = JSON.parse(indicador.dataset.detalle || '[]');
+
+        fetch("<?= BASE_URL ?>/ordenescompra/generardesdefaltantes", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                faltantes: faltantes
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Orden de Compra generada',
+                    text: 'OC #' + data.id + ' creada correctamente.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Ver Orden',
+                    cancelButtonText: 'Seguir con Producción'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.open("<?= BASE_URL ?>/ordenescompra/show/" + data.id, '_blank');
+                    }
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo generar la Orden de Compra'
+                });
+            }
+        });
+    }
+});
+</script>
 
 <script>
 document.getElementById('modalStock').addEventListener('show.bs.modal', () => {
     const data = JSON.parse(indicador.dataset.detalle || '[]');
     let html = '<table class="table table-sm">';
     html += '<tr><th>Materia Prima</th><th>Necesario</th><th>Disponible</th><th>Faltante</th></tr>';
-
     data.forEach(i => {
         html += `<tr class="table-danger">
             <td>${i.materia_prima}</td>
@@ -172,10 +212,8 @@ document.getElementById('modalStock').addEventListener('show.bs.modal', () => {
             <td>${i.faltante}</td>
         </tr>`;
     });
-
     html += '</table>';
-    html += '<a href="<?= BASE_URL ?>/ordenescompra/create" class="btn btn-warning">Generar Orden de Compra</a>';
-
+    html += `<button id="generarOC" class="btn btn-warning">Generar Orden de Compra</button>`;
     document.getElementById('stock-detalle').innerHTML = html;
 });
 </script>

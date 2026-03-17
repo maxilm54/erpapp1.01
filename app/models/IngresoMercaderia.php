@@ -55,7 +55,7 @@ class IngresoMercaderia extends Model
         ]);
     }
 
-    public function registrar(int $orden_id, int $proveedor_id, int $usuario_id, array $data): int
+    public function registrar(int $orden_id, int $proveedor_id, int $usuario_id, array $data): int //metodo completo para registrar el ingreso de mercaderia, ya sea Materia o Productos de reventa
     {
         
         try {
@@ -73,10 +73,11 @@ class IngresoMercaderia extends Model
             $stmt->execute([$orden_id, $data['remito']]);
 
             if ($stmt->fetchColumn() > 0) {
+                $_SESSION['error'] = 'El número de remito ya fue ingresado para este proveedor.'.$orden_id.', '.$data['remito'];
                 throw new Exception('Remito ya utilizado para este proveedor');
             }
 
-            // 2️⃣ Insertar cabecera ingreso
+            // 2️⃣ Insertar cabecera ingreso // buscamos agregar un ingreso para un mismo OC con un numero indicador secuencial
             $stmt = $this->db->prepare(
                 "INSERT INTO ingresos_mercaderia
                     (orden_compra_id, ing_num_indicador, proveedor_id, usuario_id, remito)
@@ -85,24 +86,20 @@ class IngresoMercaderia extends Model
                 WHERE orden_compra_id = ?"
             );
             $stmt->execute([$orden_id, $proveedor_id, $usuario_id, $data['remito'], $orden_id]);
-            $ingreso_id = (int)$this->db->lastInsertId();
+            $ingreso_id = (int)$this->db->lastInsertId(); // con este numero de ingreso identifico para agergar el movimiento de stock
 
             // 3️⃣ Detalle + movimiento de stock
-            foreach ($data['items'] as $materiaPrimaId => $cantidad) {
+            foreach ($data['items'] as $materiaPrimaId => $cantidad) {//recorro cada items des ingreso
                 $cantidad = (float)$cantidad;
-                if ($cantidad <= 0) continue;
-                $faltante = $this->faltantePorMateria( 
-                $orden_id,
-                $materiaPrimaId                
-                );
+                if($cantidad <= 0) continue;
+                $faltante = $this->faltantePorMateria($orden_id,$materiaPrimaId); //consulto el metodo para comprbar que se este entregandp no mas de lo que falta en la orden
 
-            if ($cantidad > $faltante) {
-                throw new Exception(
-                    "No se puede ingresar $cantidad. Faltante: $faltante"
-                );
-            }
+                if ($cantidad > $faltante) {
+                    error_log("Se intento ingresar mas de la cuenta. No se puede ingresar $cantidad. Faltante: $faltante");
+                    throw new Exception("No se puede ingresar $cantidad. Faltante: $faltante");
+                }
 
-                // Detalle ingreso
+                // preparo para insertar el Detalle ingreso
                 $this->db->prepare(
                     "INSERT INTO ingresos_mercaderia_detalle
                      (ingreso_id, materia_prima_id, oc_id,cantidad)
@@ -114,7 +111,7 @@ class IngresoMercaderia extends Model
                     $cantidad
                 ]);
 
-                // Movimiento stock
+                // Movimiento stock falta agregar info a la tabla de movimientos de stock
                 $this->db->prepare(
                     "UPDATE materias_primas
                      SET stock_actual = stock_actual + ?
@@ -123,6 +120,18 @@ class IngresoMercaderia extends Model
                     $cantidad,
                     $materiaPrimaId
                 ]);
+                //insertar el ingreso en tabla movimientos_stock para tener un historico de movimientos, con el numero de ingreso puedo identificar el movimiento con este ingreso
+                $this->db->prepare(
+                    "INSERT INTO movimientos_stock
+                     (materia_prima_id, origen, tipo, cantidad, referencia_id,usuario_id,observaciones)
+                     VALUES (?,'OC', 'ENTRADA', ?, ?, ?, 'Ingreso mercadería')"
+                )->execute([
+                    $materiaPrimaId,
+                    $cantidad,
+                    $ingreso_id,
+                    $usuario_id
+                ]);
+                error_log("(post inster mov_stock)Ingreso mercadería: Ingreso #$ingreso_id - Materia Prima ID: $materiaPrimaId - Cantidad: $cantidad");
             }
 
             // 4️⃣ Commit
@@ -202,8 +211,9 @@ class IngresoMercaderia extends Model
             $oc_total = 0;
         }
         
-        error_log("2-orden $orden_id: $oc_total");
+        
         $faltante = $oc_total - $ingreso_oc_total;
+        error_log("2-orden #$orden_id: $oc_total - $ingreso_oc_total = $faltante");
         if ($faltante <= 0) {
             $this->db->prepare(
                 "UPDATE ordenes_compra SET estado = 'RECIBIDA' WHERE id = ?"

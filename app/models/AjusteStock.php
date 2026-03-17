@@ -8,6 +8,8 @@ class AjusteStock extends Model
             SELECT 
             m.created_at,
             m.tipo,
+            m.origen,
+            m.referencia_id,
             m.cantidad,
             m.observaciones,
             u.nombre AS usuario,

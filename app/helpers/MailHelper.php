@@ -7,12 +7,12 @@ class MailHelper{
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
-            $mail->Host = 'mail.alimentostriba.com.ar';
+            $mail->Host = SMTP_HOST; //'mail.alimentostriba.com.ar';
             $mail->SMTPAuth = true;
-            $mail->Username = 'info_noresponder@alimentostriba.com.ar';
-            $mail->Password = 'Tucuman#1588';
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = 587;
+            $mail->Username = SMTP_USER;//'info_noresponder@alimentostriba.com.ar';
+            $mail->Password = SMTP_PASS;
+            $mail->SMTPSecure = SMTP_SECURE;
+            $mail->Port = SMTP_PORT;
 
             $mail->setFrom('info_noresponder@alimentostriba.com.ar', 'info ERP APP');
             $mail->addAddress($to);
@@ -23,7 +23,7 @@ class MailHelper{
 
             return $mail->send();
         } catch (Exception $e) {
-            error_log($e->getMessage());
+            error_log('Error en el helpers de los mail: '.$e->getMessage());
             return false;
         }
         return true;

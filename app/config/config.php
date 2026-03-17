@@ -13,6 +13,7 @@ define('SMTP_PASS', env('SMTP_PASS'));
 define('SMTP_SECURE', env('SMTP_SECURE'));
 define('SMTP_FROM', env('SMTP_FROM'));
 define('SMTP_FROM_NAME', env('SMTP_FROM_NAME'));
+define('FECHA_ACTUAL', date("Y-m-d H:i:s"));
 function config(string $key)
 {
     static $config;

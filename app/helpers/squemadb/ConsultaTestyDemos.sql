@@ -253,3 +253,90 @@ SELECT COALESCE(SUM(
 FROM materias_primas mp
 LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
 WHERE mp.id=12 LIMIT 1
+
+SELECT rd.*, mp.nombre, mp.unidad_medida
+            FROM recetas_detalle rd
+            JOIN materias_primas mp ON mp.id = rd.materia_prima_id
+            WHERE rd.receta_id = 24
+
+
+SELECT
+              SUM(CASE WHEN tipo='ENTRADA' THEN cantidad ELSE 0 END) -
+              SUM(CASE WHEN tipo='SALIDA' THEN cantidad ELSE 0 END) -
+              IFNULL((SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=4),0)
+            FROM movimientos_stock
+            WHERE materia_prima_id=4
+SELECT * FROM movimientos_stock ms WHERE ms.materia_prima_id=4            
+
+
+SELECT mp.id,mp.nombre,mp.unidad_medida,
+   COALESCE(SUM(
+        CASE
+            WHEN m.tipo = 'ENTRADA' THEN m.cantidad
+            WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+        END
+   ),0) AS stock
+FROM materias_primas mp
+LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
+GROUP BY mp.id
+ORDER BY mp.nombre
+
+SELECT 
+            m.created_at,
+            m.tipo,
+            m.origen,
+            m.referencia_id,
+            m.cantidad,
+            m.observaciones,
+            u.nombre AS usuario,
+            p.nombre AS producto,
+            mp.nombre AS materia_prima
+            FROM movimientos_stock m
+            JOIN users u ON u.id = m.usuario_id
+            LEFT JOIN productos p ON p.id = m.producto_id
+            LEFT JOIN materias_primas mp ON mp.id = m.materia_prima_id
+            ORDER BY m.created_at DESC
+            
+SHOW PROCESSLIST;
+
+SELECT
+    mp.stock_actual,
+
+    IFNULL((
+        SELECT SUM(cantidad)
+        FROM reservas_materia_prima r
+        WHERE r.materia_prima_id = mp.id
+        AND r.estado = 'RESERVADO'
+    ),0) AS reservado,
+
+    IFNULL((
+        SELECT SUM(ocd.cantidad)
+        FROM ordenes_compra_detalle ocd
+        JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+        WHERE ocd.materia_prima_id = mp.id
+        AND oc.estado IN ('BORRADOR','PENDIENTE')
+    ),0) AS en_compra
+
+FROM materias_primas mp
+WHERE mp.id = 11
+
+SELECT
+    mp.id,
+    mp.nombre,
+    mp.unidad_medida,
+    COALESCE(SUM(
+        CASE
+            WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+            WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+        END
+    ),0) AS stock,
+   (SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=mp.id) AS stockreserva
+FROM materias_primas mp
+LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
+GROUP BY mp.id
+ORDER BY mp.nombre
+
+
+
+
+

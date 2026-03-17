@@ -15,18 +15,19 @@
 <button type="button" class="btn btn-success" id="btn-agregar">+</button>
 
 <div id="resultados" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></div>
-
-<table class="table mt-3">
-    <thead>
-        <tr>
-            <th>Producto</th>
-            <th width="120">Cantidad</th>
-            <th width="150">Precio</th>
-            <th width="50"></th>
-        </tr>
-    </thead>
-    <tbody id="detalle"></tbody>
-</table>
+<div class="table-scroll mt-3">
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th width="120">Cantidad</th>
+                <th width="150">Precio</th>
+                <th width="50"></th>
+            </tr>
+        </thead>
+        <tbody id="detalle"></tbody>
+    </table>
+</div>
     <br><br>
     <div class="mb-3">
         <label>Observaciones</label>

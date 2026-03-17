@@ -2,7 +2,7 @@
 
 <form method="post" id="form-ajuste-mp">
 
-    <label>Materia Prima</label>
+    <label for="materia_prima_id">Materia Prima</label>
     <input type="text" id="buscador-mp" class="form-control" autocomplete="off" required>
     <input type="hidden" name="materia_prima_id" id="materia_prima_id">
 
@@ -10,18 +10,17 @@
          class="list-group position-absolute w-100"
          style="z-index:1000; display:none;"></div>
 
-    <label class="mt-3">Tipo</label>
+    <label class="mt-3" for="tipo">Tipo</label>
     <select name="tipo" class="form-control" required>
         <option value="ENTRADA">Entrada</option>
         <option value="SALIDA">Salida</option>
-        <option value="AJUSTE">Ajuste</option>
     </select>
 
-    <label class="mt-3">Cantidad</label>
+    <label class="mt-3" for="cantidad">Cantidad</label>
     <input type="number" step="0.01" min="0.01"
            name="cantidad" class="form-control" required>
            
-    <label class="mt-3">Motivo del ajuste</label>
+    <label class="mt-3" for="motivo">Motivo del ajuste</label>
     <input type="text"
         name="motivo"
         class="form-control"
@@ -29,7 +28,7 @@
         required
     placeholder="Ej: Merma, corrección de stock">
 
-    <label class="mt-3">Observaciones</label>
+    <label class="mt-3" for="observaciones">Observaciones</label>
     <textarea name="observaciones" class="form-control"></textarea>
 
     <br>

@@ -1,16 +1,15 @@
 <?php
-
 class Stock extends Model
 {
     public function stockProductos(): array
     {
         return $this->db->query("
-            SELECT 
+            SELECT
                 p.id,
                 p.sku,
                 p.nombre,
                 COALESCE(SUM(
-                    CASE 
+                    CASE
                         WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
                         WHEN m.tipo = 'SALIDA' THEN -m.cantidad
                     END
@@ -25,16 +24,17 @@ class Stock extends Model
     public function stockMateriasPrimas(): array
     {
         return $this->db->query("
-            SELECT 
+            SELECT
                 mp.id,
                 mp.nombre,
                 mp.unidad_medida,
                 COALESCE(SUM(
-                    CASE 
+                    CASE
                         WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
                         WHEN m.tipo = 'SALIDA' THEN -m.cantidad
                     END
-                ),0) AS stock
+                ),0) AS stock,
+            (SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=mp.id) AS stockreserva
             FROM materias_primas mp
             LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
             GROUP BY mp.id

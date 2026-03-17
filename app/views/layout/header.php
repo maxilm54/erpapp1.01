@@ -4,15 +4,21 @@
     <meta charset="UTF-8">
     <title><?= $title ?? APP_NAME ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="<?= BASE_URL ?>/triba-logo.png?v=<?= time() ?>">
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <!-- Sweet alert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- css global -->
+    <link href="<?= BASE_URL ?>/assets/css/app.css?v=<?= time() ?>" rel="stylesheet">
+    <!-- charts js -->
+     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark" style="background: #14194a;">
 <div class="container-fluid">
 
 <a class="navbar-brand" href="<?= BASE_URL ?>">TRIBA APP</a>
@@ -104,6 +110,5 @@ CtaCte
 </div>
 </div>
 </nav>
-
-</script>
-<div class="container mt-4">
+<div class="container">
+    <div class="page-container">

@@ -47,7 +47,7 @@ $action = $isEdit
                 </button>
             </div>
         </div>
-        <div class="table-responsive mt-3">
+        <div class="table-scroll table-responsive mt-3">
             <table class="table table-bordered align-middle" id="tabla_detalle">
                 <thead class="table-dark">
                     <tr>
