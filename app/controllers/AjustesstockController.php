@@ -66,9 +66,7 @@ class AjustesstockController extends Controller
                 );
                 if(1){
                     $_SESSION['success'] = 'Ajuste realizado con éxito';
-                } else {
-                    $_SESSION['error'] = 'No se pudo realizar el ajuste';
-                }
+                } // borre la parte del else
 
                 header('Location: ' . BASE_URL . '/ajustesstock');
                 exit;
