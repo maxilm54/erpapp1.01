@@ -64,11 +64,8 @@ class AjustesstockController extends Controller
                     (int)$_SESSION['user_id'],
                     htmlspecialchars($_POST['tipo'])
                 );
-                if(1){
-                    $_SESSION['success'] = 'Ajuste realizado con éxito';
-                } else {
-                    $_SESSION['error'] = 'No se pudo realizar el ajuste';
-                }
+                $_SESSION['success'] = 'Ajuste realizado con éxito';
+
 
                 header('Location: ' . BASE_URL . '/ajustesstock');
                 exit;
