@@ -476,7 +476,40 @@ ALTER TABLE `orden_produccion_detalle`
 	ADD COLUMN `id_tbl_ordendetalle` INT NOT NULL AUTO_INCREMENT FIRST,
 	ADD PRIMARY KEY (`id_tbl_ordendetalle`);
 
-
+/*Limpieza de tablas*/
+TRUNCATE TABLE tbl_historico_reserva_mp;
+TRUNCATE TABLE stock_mp_transito;
+TRUNCATE TABLE reservas_materia_prima;
+TRUNCATE TABLE remitos_salida_detalle;
+TRUNCATE TABLE remitos_salida;
+TRUNCATE TABLE recetas_detalle;
+TRUNCATE TABLE orden_produccion_detalle;
+-- no lo toma TRUNCATE TABLE ordenes_produccion;
+ALTER TABLE ordenes_produccion AUTO_INCREMENT = 0;
+-- no lo tama TRUNCATE TABLE recetas;
+ALTER TABLE recetas AUTO_INCREMENT = 0;
+TRUNCATE TABLE ingresos_mercaderia_detalle;
+-- no lo toma TRUNCATE TABLE ingresos_mercaderia;
+ALTER TABLE ingresos_mercaderia AUTO_INCREMENT = 0;
+TRUNCATE TABLE ordenes_compra_detalle;
+-- no lo toma TRUNCATE TABLE ordenes_compra;
+ALTER TABLE ordenes_compra AUTO_INCREMENT = 0;
+TRUNCATE TABLE notas_pedido_detalle;
+-- no funciona TRUNCATE TABLE notas_pedido;
+ALTER TABLE notas_pedido AUTO_INCREMENT=0;
+TRUNCATE TABLE movimientos_stock;
+-- no funciona TRUNCATE TABLE materias_primas;
+ALTER TABLE materias_primas;
+TRUNCATE TABLE cuentas_corriente_clientes;
+-- no funciona TRUNCATE TABLE clientes;
+ALTER TABLE clientes AUTO_INCREMENT=0;
+TRUNCATE TABLE mails_log;
+TRUNCATE TABLE pagos;
+TRUNCATE TABLE producto_codigos;
+-- no funciona TRUNCATE TABLE productos;
+ALTER TABLE productos AUTO_INCREMENT=0;
+-- no funciona TRUNCATE TABLE proveedores;
+ALTER TABLE proveedores AUTO_INCREMENT=0;
 
 
  

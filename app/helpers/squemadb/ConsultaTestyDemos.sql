@@ -336,7 +336,30 @@ LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
 GROUP BY mp.id
 ORDER BY mp.nombre
 
+SELECT mp.nombre, r.cantidad,mp.precio_actual AS precio_unitario, mp.unidad_medida
+FROM reservas_materia_prima r
+JOIN materias_primas mp ON mp.id = r.materia_prima_id
+WHERE r.orden_produccion_id = 23
+
+SELECT opd.*,p.nombre AS producto,u.nombre AS nombre_user
+FROM orden_produccion_detalle opd
+LEFT JOIN users u ON u.id=opd.user_id
+LEFT JOIN productos p ON p.id=opd.producto_id
+WHERE opd.orden_id = 15
+ORDER BY opd.registred_at ASC;
+
+SELECT SUM(cantidad_producida) FROM orden_produccion_detalle
+                WHERE orden_id=23
 
 
+SELECT opd.*,p.nombre AS producto,u.nombre AS nombre_user
+            FROM orden_produccion_detalle opd
+            LEFT JOIN users u ON u.id=opd.user_id
+            LEFT JOIN productos p ON p.id=opd.producto_id
+            WHERE opd.orden_id = 41
+            ORDER BY opd.registred_at ASC
+
+SELECT * FROM recetas_detalle WHERE id= 27
+SELECT MAX(PROD.ID) FROM ordenes_produccion PROD
 
 
