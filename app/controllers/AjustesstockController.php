@@ -65,7 +65,7 @@ class AjustesstockController extends Controller
                     htmlspecialchars($_POST['tipo'])
                 );
                 if(1){
-                    $_SESSION['success'] = 'Ajuste realizado con éxito';
+                    $_SESSION['error'] = 'Operación completada correctamente';
                 } // borre la parte del else
 
                 header('Location: ' . BASE_URL . '/ajustesstock');
