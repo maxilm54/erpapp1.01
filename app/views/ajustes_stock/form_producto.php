@@ -1,37 +1,39 @@
 <h1>Ajuste de Stock – Producto</h1>
 
 <form method="post" id="form-ajuste-producto">
+    <div class="row">
+        <div class="col-6">
+            <label>Producto</label>
+            <input type="text" id="buscador-producto" class="form-control" autocomplete="off" required>
+            <input type="hidden" name="producto_id" id="producto_id">
 
-    <label>Producto</label>
-    <input type="text" id="buscador-producto" class="form-control" autocomplete="off" required>
-    <input type="hidden" name="producto_id" id="producto_id">
-
-    <div id="resultados-producto"
-         class="list-group position-absolute w-100"
-         style="z-index:1000; display:none;"></div>
-
-    <label class="mt-3">Tipo</label>
-    <select name="tipo" class="form-control" required>
-        <option value="ENTRADA">Entrada</option>
-        <option value="SALIDA">Salida</option>
-        <option value="AJUSTE">Ajuste</option>
-    </select>
-
-    <label class="mt-3">Cantidad</label>
-    <input type="number" step="0.01" min="0.01"
-           name="cantidad" class="form-control" required>
-
-    <label class="mt-3">Motivo del ajuste</label>
-    <input type="text"
-        name="motivo"
-        class="form-control"
-        maxlength="100"
-        required
-    placeholder="Ej: Diferencia inventario, rotura, conteo físico">
-
-    <label class="mt-3">Observaciones</label>
-    <textarea name="observaciones" class="form-control"></textarea>
-
+            <div id="resultados-producto"
+                class="list-group position-absolute w-100"
+                style="z-index:1000; display:none;">
+            </div>
+        </div>
+        <div class="col-6">
+            <label>Tipo</label>
+            <select name="tipo" class="form-control" required>
+                <option value="ENTRADA">Entrada</option>
+                <option value="SALIDA">Salida</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-4">
+            <label class="mt-3">Cantidad</label>
+            <input type="number" name="cantidad" class="form-control" step="0.01" required>
+        </div>
+        <div class="col-4">
+            <label class="mt-3">Motivo del ajuste</label>
+            <input type="text" name="motivo" class="form-control" maxlength="40" required placeholder="Ej: Diferencia inventario, rotura, conteo físico">
+        </div>
+        <div class="col-4">
+            <label class="mt-3">Observaciones</label>
+            <textarea name="observaciones" class="form-control"></textarea>
+        </div>
+    </div>
     <br>
     <button class="btn btn-success">Guardar</button>
     <a href="<?= BASE_URL ?>/ajustesstock" class="btn btn-secondary">Cancelar</a>

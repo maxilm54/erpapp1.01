@@ -52,6 +52,13 @@ class OrdenProduccion extends Model
             $cantidadNecesaria = $item['cantidad'] * $orden['cantidad']; //orden cantidad es la cantidad a producir, e tiem cantidad es la cantidad de ese item
 
             // validar stock disponible si no esta disponible reservo en (--)?
+            //Validar cuando ingrese la mercaderia enviar a reserva.
+            //Ahora solo detecta y muestra que no hay solo en un log, y avanza creando la reserva u la op, 
+            //pero no es lo ideal, lo ideal seria que si no hay stock no deje crear la OP ni la reserva, y muestre un mensaje 
+            //de error indicando que no hay stock suficiente para esa materia prima. Esto implica que el metodo 
+            //reservarMateriaPrima debe lanzar una excepcion si detecta que no hay stock suficiente para alguna de las materias 
+            //primas necesarias para esa receta, y el metodo crear debe manejar esa excepcion mostrando el mensaje de 
+            //error correspondiente al usuario.
             if (!$this->stockDisponible($item['materia_prima_id'], $cantidadNecesaria)) {
                 error_log(__FILE__.':'.__LINE__.'Se detecta una reserva de MP sin stock');
                 /*throw new Exception(
@@ -128,7 +135,7 @@ class OrdenProduccion extends Model
     {
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(
-                    CASE 
+                    CASE
                         WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
                         WHEN m.tipo = 'SALIDA' THEN -m.cantidad
                     END
@@ -189,9 +196,24 @@ class OrdenProduccion extends Model
         $stmt->execute([$estado, $id]);
     }
 
-    public function avances(array $data){ //llamo desve avances para regstrar producciones, total o parcial
+    public function avances(array $data){ //llamo desde controlador avances para registrar producciones, aca solo inicio el 
+                                        //proceso de produccion, luego falta registrar el fin de produccion, 
+                                        //ahi es cuando hago los mov de stock producto.
         $this->db->beginTransaction();
         try {
+            //pasos:
+            //1 registrar el avance en la tabla de detalle de OP, esto me permite llevar un historial de los avances registrados 
+                //con fecha y hora, cantidad producida, observaciones, etc.
+            //2 actualizar el stock de producto incrementando la cantidad producida,esto debe agregarse en movimientos de stock 
+                //con el tipo de movimiento "ENTRADA" y la referencia a la OP, esto me permite tener el stock real del producto 
+                //actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción. 
+                //esto me permite tener el stock real del producto actualizado a medida que se van registrando los avances, 
+                //sin necesidad de esperar a que se complete toda la producción.
+            //3 actualizar el stock de materia prima consumida, esto me permite tener el stock real, tambien en tabla movimientos
+            //4 actualizar el estado de la orden de produccion a EN_PRODUCCION si no estaba en ese estado, 
+                //esto me permite tener el estado real de la orden actualizado a medida que se van registrando los avances, 
+                //y poder mostrarlo en la vista de avance.
+            //1
             $stmt = $this->db->prepare("
                 INSERT INTO orden_produccion_detalle
                 (orden_id,producto_id,registred_at,cantidad_producida,observaciones,user_id)
@@ -206,9 +228,11 @@ class OrdenProduccion extends Model
                 $data['usuario_id']
             ]);
             //cambiar el estado de la orden si se completo o no
-            $dato_opid=(int) $data['orden_id'];
+            $dato_opid=(int) $data['orden_id']; //obtengo el id de produccion (tabla orden_produccion_detalle)
             $change_estado= $this->estadoChange($dato_opid); // validar true.
             error_log('Cambio de estado:'.$change_estado);
+            //2 debo insertar en la tabla de mov el ingreso de producto que viene de produccion
+            
             //cambiar el estado de la materia prima solo si lo producido alcanza lo pedido
             //si esta completa eliminar el dato de la tabla reserva MP antes cambiando el estado reservado a consumido.
             //a medida que se va agregando producccion se debe ir aumentando el stock del producto.
@@ -300,7 +324,9 @@ class OrdenProduccion extends Model
             throw $e;
         }
     }
-
+    //cancelamos un op, esto implica cambiar el estado de la OP a cancelada, eliminar las reservas de MP y 
+    //devolver al stock la cantidad reservada, y si habia avances registrados cambiar el estado de esos avances a cancelados 
+    //o eliminarlos segun como se quiera manejar el historial.
     public function cancelarProduccion(int $id):bool{
         error_log("Entro a la funcion de cancelaion");
         try {
@@ -329,7 +355,7 @@ class OrdenProduccion extends Model
             return false;
         }
     }
-
+    //devolvemos la cantidad producida relacinada a una OP, dentro orden_produccion_detalle.
     private function cantidadProducidaOP(int $op_id){
         try {
             $stmt = $this->db->prepare("
@@ -372,6 +398,45 @@ class OrdenProduccion extends Model
             error_log("Error al intentar devolver el id de OP para el avance: $id_avance. ".$e->getMessage()."-".__FILE__.":".__LINE__);
             return 0;
         }
-    } 
+    }
+
+    public function producirvsStockMP(int $recetaId, float $cantidad): array //chequeo de receta con la cantidad a producir de esa receta.
+    {
+        $receta = (new Receta())->detalle($recetaId); //traigo los datos de la receta, que incluye la cantidad de cada materia prima necesaria para producir 1 unidad del producto final. Luego multiplico esa cantidad por la cantidad a producir que me pasan por parametro, y chequeo si hay stock disponible para cada materia prima. Devuelvo un array con el estado general (ok, warning o error) y un detalle de las materias primas faltantes si las hubiera.
+
+        $faltantes = [];
+        $ok = 0;
+        error_log(print_r($receta, true));
+        foreach ($receta as $item) {
+            $necesario = $item['cantidad'] * $cantidad; //cantidad a producir * cantidad de ese item que se necesita para producir 1 unidad del producto final, me da la cantidad total necesaria de ese item para producir la cantidad deseada del producto final
+            $disponible = $this->stockDisponibleCantidad($item['materia_prima_id']);
+            error_log("MP: {$item['nombre']} - Necesario: $necesario - Disponible: $disponible. ".__FILE__.":".__LINE__);
+
+            if ($disponible < $necesario) { //comprar lo disponible y mostrar lo faltante, o directamente mostrar que no hay stock suficiente para esa cantidad a producir?
+                $faltantes[] = [
+                    'materia_prima_id' => $item['materia_prima_id'],
+                    'materia_prima' => $item['nombre'],
+                    'necesario'     => $necesario,
+                    'disponible'    => $disponible,
+                    'faltante'      => $necesario - $disponible
+                ];
+            } else {
+                $ok++;
+            }
+            
+        }
+
+        $estado = 'ok'; // normalmente devuelve ok salvo no haya stock o si hay varios items y alguno no tiene stocks muestra warning.
+        if (count($faltantes) === count($receta)) {
+            $estado = 'error';
+        } elseif (count($faltantes) > 0) {
+            $estado = 'warning';
+        }
+
+        return [
+            'estado'    => $estado,
+            'faltantes' => $faltantes
+        ];
+    }
 
 }

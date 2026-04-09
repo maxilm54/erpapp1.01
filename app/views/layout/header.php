@@ -74,7 +74,7 @@ Compras
 Stock
 </a>
 <ul class="dropdown-menu">
-    <li><a class="dropdown-item" href="<?= BASE_URL ?>/stock">Stock</a></li>
+    <!-- <li><a class="dropdown-item" href="<?= BASE_URL ?>/stock">Stock</a></li> -->
     <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock">Movimientos</a></li>
 </ul>
 </li>
@@ -110,5 +110,5 @@ CtaCte
 </div>
 </div>
 </nav>
-<div class="container">
+<div class="container-fluid">
     <div class="page-container">
