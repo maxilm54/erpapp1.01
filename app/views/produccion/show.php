@@ -58,7 +58,7 @@ foreach ($orden_det as $r) {
 </div>
 <a href="<?= BASE_URL ?>/ordenproduccion" class="btn btn-secondary">Volver</a>
 <?php if ($orden['estado'] === 'PENDIENTE'): ?>
-<a href="<?= BASE_URL ?>/ordenproduccion/producir/<?= $orden['id'] ?>" class="btn btn-success">Producir</a>
+<a href="<?= BASE_URL ?>/ordenproduccion/producir/<?= $orden['id'] ?>" class="btn btn-success">Confirmar</a>
 <?php endif ?>
 <?php if ($orden['estado'] !== 'CANCELADA' && $orden['estado'] !== 'FINALIZADA' && $orden['estado'] == 'EN_PRODUCCION'): ?>
     <button class="btn btn-danger"

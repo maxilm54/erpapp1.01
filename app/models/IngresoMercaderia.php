@@ -1,4 +1,7 @@
 <?php
+
+use function Safe\error_log;
+
 require_once BASE_PATH.'/app/models/OrdenCompra.php';
 class IngresoMercaderia extends Model
 {
@@ -11,18 +14,19 @@ class IngresoMercaderia extends Model
             ORDER BY i.fecha DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
+    // devulevo si o no si existe el remito para el proveedor
     public function findByRemitoProveedor(int $proveedorId, string $remito)
     {
         $stmt = $this->db->prepare(
-            "SELECT COUNT(*) FROM ingresos_mercaderia
+            "SELECT COUNT(*) as remito_existe FROM ingresos_mercaderia
              WHERE proveedor_id = :p AND remito = :r"
         );
         $stmt->execute([
             'p'=>$proveedorId,
             'r'=>$remito
         ]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $existente = $stmt->fetch(PDO::FETCH_ASSOC);
+        return (int)$existente['remito_existe'] > 0;
     }
 
     public function create(array $data): int
@@ -54,14 +58,12 @@ class IngresoMercaderia extends Model
             'c'=>$cantidad
         ]);
     }
-
-    public function registrar(int $orden_id, int $proveedor_id, int $usuario_id, array $data): int //metodo completo para registrar el ingreso de mercaderia, ya sea Materia o Productos de reventa
+    //metodo completo para registrar el ingreso de mercaderia, ya sea Materia o Productos de reventa
+    public function registrar(int $orden_id, int $proveedor_id, int $usuario_id, array $data): int
     {
-        
         try {
             $this->db->beginTransaction();
-
-            // 1️⃣ Validar remito único por proveedor
+            // 1️⃣ Validar remito único por proveedor, por segunda vez. Seguridad. OK
             $stmt = $this->db->prepare(
                 "SELECT COUNT(*) FROM ingresos_mercaderia im
                  JOIN ordenes_compra oc ON oc.id = im.orden_compra_id
@@ -73,11 +75,13 @@ class IngresoMercaderia extends Model
             $stmt->execute([$orden_id, $data['remito']]);
 
             if ($stmt->fetchColumn() > 0) {
-                $_SESSION['error'] = 'El número de remito ya fue ingresado para este proveedor.'.$orden_id.', '.$data['remito'];
-                throw new Exception('Remito ya utilizado para este proveedor');
+                error_log('error creado a proposito para revalidad el remito exixtente para el proveedor');
+                throw new Exception('El número de remito ya fue ingresado para este proveedor. OC: '.$orden_id.', RE: '.$data['remito']);
             }
 
-            // 2️⃣ Insertar cabecera ingreso // buscamos agregar un ingreso para un mismo OC con un numero indicador secuencial
+            // 2️⃣ Insertar cabecera ingreso 
+            // buscamos agregar un ingreso para un mismo OC con un numero indicador secuencial
+            // voy a tener uno o muchos ingresos de mercaderia para la misma oc, eso no es un problema es una de las tantas formas de trabajo que tienen los clientes.
             $stmt = $this->db->prepare(
                 "INSERT INTO ingresos_mercaderia
                     (orden_compra_id, ing_num_indicador, proveedor_id, usuario_id, remito)
@@ -91,12 +95,15 @@ class IngresoMercaderia extends Model
             // 3️⃣ Detalle + movimiento de stock
             foreach ($data['items'] as $materiaPrimaId => $cantidad) {//recorro cada items des ingreso
                 $cantidad = (float)$cantidad;
-                if($cantidad <= 0) continue;
-                $faltante = $this->faltantePorMateria($orden_id,$materiaPrimaId); //consulto el metodo para comprbar que se este entregandp no mas de lo que falta en la orden
+                if($cantidad <= 0){
+                    continue;// salto al siguiente si no tiene ingreso de cantidad
+                }
+                //consulto el metodo para comprbar que se este entregandp no mas de lo que falta en la orden
+                $faltante = $this->faltantePorMateria($orden_id,$materiaPrimaId);
 
                 if ($cantidad > $faltante) {
-                    error_log("Se intento ingresar mas de la cuenta. No se puede ingresar $cantidad. Faltante: $faltante");
-                    throw new Exception("No se puede ingresar $cantidad. Faltante: $faltante");
+                    error_log("Se intento ingresar mas de la cuenta. No se puede ingresar $cantidad. Faltante: $faltante".__FILE__.' - '.__LINE__);
+                    throw new Exception("Error al ingresar mercadería oc: $orden_id. No se puede ingresar $cantidad. Faltante: $faltante");
                 }
 
                 // preparo para insertar el Detalle ingreso
@@ -110,17 +117,9 @@ class IngresoMercaderia extends Model
                     $orden_id,
                     $cantidad
                 ]);
-
-                // Movimiento stock falta agregar info a la tabla de movimientos de stock
-                $this->db->prepare(
-                    "UPDATE materias_primas
-                     SET stock_actual = stock_actual + ?
-                     WHERE id = ?"
-                )->execute([
-                    $cantidad,
-                    $materiaPrimaId
-                ]);
-                //insertar el ingreso en tabla movimientos_stock para tener un historico de movimientos, con el numero de ingreso puedo identificar el movimiento con este ingreso
+                //insertar el ingreso en tabla movimientos_stock para tener un historico de movimientos, 
+                //con el numero de ingreso puedo identificar el movimiento con este ingreso.
+                //la tabla movimientos_stock es la que maneja el stock de productos y MP
                 $this->db->prepare(
                     "INSERT INTO movimientos_stock
                      (materia_prima_id, origen, tipo, cantidad, referencia_id,usuario_id,observaciones)
@@ -141,8 +140,10 @@ class IngresoMercaderia extends Model
 
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log($e->getMessage());
-            die('Error ingreso mercadería: '.$e->getMessage());
+            error_log($e->getMessage() . ' in ' . __FILE__ . ' on line ' . __LINE__);
+            $_SESSION['error'] = 'Error al registrar el ingreso: ' . $e->getMessage();
+            header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$orden_id);
+            exit;
         }
     }
 
@@ -241,6 +242,7 @@ class IngresoMercaderia extends Model
         return $faltantes;
 
     }
+    //funcion que devuleve el faltante de ingreso de cada MP en una OC
     public function faltantePorMateria(int $ocId, int $mpId): float
     {
         $stmt = $this->db->prepare("

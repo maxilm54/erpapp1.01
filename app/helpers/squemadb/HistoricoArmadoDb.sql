@@ -510,6 +510,48 @@ TRUNCATE TABLE producto_codigos;
 ALTER TABLE productos AUTO_INCREMENT=0;
 -- no funciona TRUNCATE TABLE proveedores;
 ALTER TABLE proveedores AUTO_INCREMENT=0;
+-- 31-3-26 ARMANDO PROCESO CORRECO DE RESERVA MP
+ALTER TABLE `movimientos_stock`
+	CHANGE COLUMN `tipo` `tipo` ENUM('ENTRADA','SALIDA','AJUSTE','RESERVA') NOT NULL COLLATE 'utf8mb4_unicode_ci' AFTER `id`;
+/*4/4/2026 creaar vista para consutlas de stocks*/
+CREATE VIEW vstStock_movStock_Producto AS
+-- vista para traer el stock de Prductos
+SELECT msp.producto_id,pd.nombre,
+COALESCE(SUM(
+  CASE
+      WHEN msp.tipo IN ('ENTRADA','AJUSTE') THEN msp.cantidad
+      WHEN msp.tipo = 'SALIDA' THEN -msp.cantidad
+      WHEN msp.tipo = 'RESERVA' THEN + 0
+  END
+),0) AS stock
+FROM movimientos_stock msp
+LEFT JOIN productos pd ON pd.id=msp.producto_id
+WHERE producto_id IS NOT NULL
+GROUP BY msp.producto_id;
+
+CREATE VIEW vstStock_movStock_MateriaPrima AS
+-- vista para traer el stock de MP
+SELECT msmp.materia_prima_id,mp.nombre,
+COALESCE(SUM(
+  CASE
+      WHEN msmp.tipo IN ('ENTRADA','AJUSTE') THEN msmp.cantidad
+      WHEN msmp.tipo = 'SALIDA' THEN - msmp.cantidad
+      WHEN msmp.tipo = 'RESERVA' THEN + 0
+  END
+),0) AS stock
+FROM movimientos_stock msmp
+LEFT JOIN materias_primas mp ON mp.id= msmp.materia_prima_id
+WHERE msmp.materia_prima_id IS NOT NULL
+GROUP BY msmp.materia_prima_id
+
+
+SELECT * FROM vstStock_movStock_MateriaPrima;
+SELECT * FROM vstStock_movStock_Producto;
+
+/*6-4-26 editar tabla movimientos_stock para agregar campomotivo*/
+ALTER TABLE `movimientos_stock`
+	ADD COLUMN `motivo` TEXT NOT NULL AFTER `cantidad`;
+
 
 
  

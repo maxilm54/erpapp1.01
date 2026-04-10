@@ -14,6 +14,7 @@ class IngresosMercaderiaController extends Controller
         $this->oc = new OrdenCompra();
         $this->ingreso = new IngresoMercaderia();
     }
+    //Vista para listar los ingresos de mercaderia, muestra fecha/proveedor/remito/orden y boton para ver detalle del ingreso
     public function index()
     {
         $ingresos = $this->ingreso->all();
@@ -22,44 +23,52 @@ class IngresosMercaderiaController extends Controller
             'ingresos' => $ingresos
         ]);
     }
+    //Funcion para ingresar mercaderia, recibe el id de la orden de compra, se ejecuta desde la vista ingresarmercaderia/create/id_oc
+    //valida que la orden exista y que no este completamente recibida, luego valida que el numero de remito no se repita 
+    //para el mismo proveedor, si todo es correcto registra el ingreso y redirige a la vista del ingreso creado
     public function create($ordenCompraId)
     {
         $orden = $this->oc->findWithDetalle($ordenCompraId); //traigo datos de la orden
-        if (!$orden) {
-            die('Orden no válida'); // aca devo generar un error y volver a los listados
+        if (!$orden) { //devuelvo error si no existe la orden de compra
+            $_SESSION['error'] = "El número de OC $ordenCompraId no existe.";
+            error_log('Controlador de Numero de OC devuelve error, no existe la oc: '.$ordenCompraId.' - '.__FILE__.' - '.__LINE__);
+            header('Location: '.BASE_URL.'/ordenescompra');
+            exit;
         }
 
-        if ($orden['estado'] === 'RECIBIDA') { //aca ya estoy validadndo que la orden esta completamente recibida
-            die('La orden ya fue recibida completamente');
+        if ($orden['estado'] === 'RECIBIDA') { //devulevo error si la orden ya fue recibida completamente
+            $_SESSION['error'] = "El número de OC $ordenCompraId . Ya fue recibida completamente.";
+            error_log('Controlador de Numero de OC fue recibida completamente,oc: '.$ordenCompraId.' - '.__FILE__.' - '.__LINE__);
+            header('Location: '.BASE_URL.'/ordenescompra');
+            exit;
         }
-
-        if ($_POST) {
-            $existente = $this->ingreso->findByRemitoProveedor( //obtengo datos de remito por proveedor, el numero de remito solo pueden repetirse si el proveedor es distinto
+        //no tengo errores, espero el envio del post para procesare el ingreso.
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log(print_r($_POST, true));
+            //Existente me va a devolver si existe o no un remito para ese proveedor, debe venir vacio para poder seguir sino alerta.
+            $existente = $this->ingreso->findByRemitoProveedor(
                 $orden['proveedor_id'],
                 $_POST['remito']
-                
             );
-            if (!$existente) {
-                $_SESSION['error'] = 'El número de remito ya fue ingresado para este proveedor.';
-                error_log('Controlador ingMerc, metodo findByRemitoProveedor: Remito repetido para el mismo proveedor'.$existente);
-                header('Location: '.BASE_URL.'/ingresosmercaderia');//revisar si el remito ya fue ingresado
+            error_log(print_r($existente, true));
+            // existente es 1 (existe numero de remito para ese proveedor) tengo que entrar al if y devolver el alerta.Esto esta ok
+            if ($existente===0) {
+                $remito=$_POST['remito'];
+                $_SESSION['warning'] = 'El número de remito '.$remito.' ya fue ingresado para este proveedor. Ingrese el Numero Correcto.';
+                error_log("Controlador ingMerc, metodo findByRemitoProveedor: Remito repetido ".$remito." para el mismo proveedor. ". __FILE__.' - '.__LINE__ );
+                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);//revisar si el remito ya fue ingresado
                 exit;
             }
-            try {
-                $ingresoId = $this->ingreso->registrar( //metodo para registrar el ingreso
-                    $orden['id'],
-                    $orden['proveedor_id'],
-                    $_SESSION['user_id'],
-                    $_POST
-                );
-
-                $_SESSION['success'] = 'Ingreso registrado de orden '.$orden['id'].' correctamente';
-                header('Location: '.BASE_URL.'/ingresosmercaderia/show/'.$ingresoId);
-                exit;
-
-            } catch (Exception $e) {
-                $_SESSION['error'] = $e->getMessage();
-            }
+            //todo ok sin errores llamo a la funcion para registrar el ingreso.
+            $ingresoId = $this->ingreso->registrar(
+                $orden['id'],
+                $orden['proveedor_id'],
+                $_SESSION['user_id'],
+                $_POST
+            );
+            $_SESSION['success'] = 'Ingreso registrado de orden '.$orden['id'].' correctamente';
+            header('Location: '.BASE_URL.'/ingresosmercaderia/show/'.$ingresoId);
+            exit;
         }
         $this->view('ingresos/form', [ //muestro la vista del formulario de ingreso, cuando tengo un post entro valido y creo el ingreso
             'title'=>'Ingreso de mercadería',

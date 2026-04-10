@@ -19,3 +19,5 @@
         </tbody>
     </table>
 </div>
+<hr>
+<a href="<?= BASE_URL ?>/ajustesstock" class="btn btn-primary">Volver</a>
