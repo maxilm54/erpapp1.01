@@ -30,7 +30,7 @@
 
     <button class="btn btn-success w-100">Guardar</button>
 </form>
-
+<a href="<?= BASE_URL ?>/productos" class="btn btn-primary mb-3">Vovler</a>
 <script>
 function agregarCodigo() {
     document.getElementById('codigos').insertAdjacentHTML(

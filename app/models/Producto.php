@@ -20,6 +20,31 @@ class Producto extends Model
         return $stmt->fetch();
     }
 
+    public function stockByProductoId_movstock($id_prod): array
+    {
+        try{
+            $stmt = $this->db->prepare(
+                "SELECT
+                    COALESCE(SUM(
+                    CASE
+                        WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                        WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                    END
+                    ),0) AS stock
+                FROM movimientos_stock m WHERE m.producto_id = :id_prod ORDER BY m.created_at DESC"
+            );
+            $stmt->execute(['id_prod' => $id_prod]);
+            $data = $stmt->fetch();
+            error_log('Stock data for product ID '.$id_prod.': '.print_r($data, true).__FILE__.':'.__LINE__);
+            return $data ? $data : ['stock' => 0];
+        } catch (Exception $e) {
+            error_log('Error fetching stock movements for product ID '.$id_prod.': '.$e->getMessage());
+            $_SESSION['error'] = "Error al obtener los movimientos de stock: " . $e->getMessage();
+            return [];
+        }
+
+    }
+
     public function getBarcodeByProductoId($id_prod): array
     {
         try{

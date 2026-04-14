@@ -57,22 +57,7 @@ class ProductosController extends Controller
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-            /*$imagen = null;
-            if (!empty($_FILES['imagen']['name'])) {
-                $imagen = $this->uploadImagen();
-            }*/
-
             $productoId = $this->producto->update($id_prod, $_POST/*, $imagen*/);
-
-           /* foreach ($_POST['codigos'] as $i => $codigo) {
-                if ($codigo !== '') {
-                    $this->codigo->add(
-                        $productoId,
-                        $codigo,
-                        $_POST['tipos'][$i]
-                    );
-                }
-            }*/
             
             header('Location: ' . BASE_URL . '/productos');
             exit;
@@ -112,7 +97,7 @@ class ProductosController extends Controller
 
     public function updatebarcode($idprod){
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            //$this->codigo->deleteByProductoId($idprod);
+            // $this->codigo->deleteByProductoId($idprod);
 
             foreach ($_POST['codigos'] as $i => $codigo) {
                 error_log($_POST['codigos'][$i]);
@@ -153,6 +138,17 @@ class ProductosController extends Controller
         $this->view('productos/formnewbarcode', [
             'title' => 'Nuevo Código de Barra',
             'producto' => $infoProducto
+        ]);
+    }
+
+    public function stockdata($idprod){
+        $infoProducto = $this->producto->find($idprod);
+        $inforStockmov = $this->producto->stockByProductoId_movstock($idprod);
+        $this->view('productos/stockdata', [
+            'title' => 'Datos de Stock',
+            'producto' => $infoProducto,
+            'stockmovements' => $inforStockmov,
+            'csrf' => Csrf::generate()
         ]);
     }
 }

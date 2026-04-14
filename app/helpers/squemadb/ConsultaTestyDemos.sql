@@ -362,4 +362,13 @@ SELECT opd.*,p.nombre AS producto,u.nombre AS nombre_user
 SELECT * FROM recetas_detalle WHERE id= 27
 SELECT MAX(PROD.ID) FROM ordenes_produccion PROD
 
+SELECT
+  COALESCE(SUM(
+  CASE
+      WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+      WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+  END
+  ),0) AS stock
+FROM movimientos_stock m WHERE producto_id = 1 ORDER BY created_at DESC
+
 
