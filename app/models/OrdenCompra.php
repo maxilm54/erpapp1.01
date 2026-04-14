@@ -71,12 +71,12 @@ class OrdenCompra extends Model
              WHERE id = :id"
         )->execute(['id'=>$id]);
     }
-
+    //Busca orden de compra con su detalle, pidiendo el id_oc
     public function findWithDetalle(int $id): ?array
     {
         // 1️⃣ CABECERA
         $stmt = $this->db->prepare(
-            "SELECT 
+            "SELECT
                 oc.*,
                 p.razon_social
             FROM ordenes_compra oc
@@ -114,7 +114,7 @@ class OrdenCompra extends Model
         );
         $stmt->execute([$id]);
         $orden['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+        // el retorno es $orden y $orden['detalle']
         return $orden;
     }
     public function update(int $id, array $data): bool

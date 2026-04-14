@@ -1,16 +1,15 @@
 <?php
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/Ordenproduccion.php';
+require_once BASE_PATH.'/app/models/OrdenProduccion.php';
 require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
-//require_once BASE_PATH.'/app/core/Csrf.php';
 class OrdenproduccionController extends Controller
 {
-    private Ordenproduccion $model;
+    private OrdenProduccion $model;
 
     public function __construct()
     {
-        $this->model = new Ordenproduccion();
+        $this->model = new OrdenProduccion();
     }
 
     public function index() // muestra todas las OP (#-producto-cantidad-estado-ver)
@@ -19,7 +18,7 @@ class OrdenproduccionController extends Controller
             'ordenes' => $this->model->all()
         ]);
     }
-
+    //En la Vista Create, cuando generamos la orden, hacemos el pedido de MP, lo que hay de stock se reserva y lo que falta se pide.
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -63,16 +62,43 @@ class OrdenproduccionController extends Controller
             exit;
         }
     }
-    public function avance(int $id) //controlador de eventos de produccion.
+    public function avance(int $id) //controlador de eventos de produccion, vista avance/id,Modal del boton + iniciar produccion.
     {
-        $orden = $this->model->find((int)$id);
-        $orden_det = $this->model->findopdetalle((int)$id);
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL);
+        $orden = $this->model->find((int)$id); // obtengo datos de cabecera OP
+        $orden_det = $this->model->findopdetalle((int)$id); //Obtengo datos de detalle de OP (puede estar vacio o tener varios registros)
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') { // viene del modal de agregar produccion, se registra el avance y se actualiza el stock de producto y materia prima consumida, si es que hubo consumo. Se debe actualizar el estado de la OP a EN_PRODUCCION si no estaba en ese estado.
+            //solo entro si hubo envio desde el modal.
+            error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true));
+            //die();
             if (!Csrf::validate($_POST['csrf'])) {
-                error_log('se a intentado un registro rechazado por csrf');
+                error_log('se a intentado un registro rechazado por csrf. '.__FILE__.':'.__LINE__);
+                $_SESSION['error'] = 'CSRF inválido. Intente nuevamente.';
+                header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);//me vuelvo a la vista rechazando el inicio de produccion y alertando el csrf
                 die('CSRF inválido');
             }
+            //antes de llamar al modelo para registrar el avance,primero controlar stock de Materia Prima y luego el modelo se encarga de rechazar si se superan las cantidades.
+            try {
+                $stockCheck = $this->model->producirvsStockMP($_POST['receta_id'], $_POST['cantidad_producida']);
+                error_log('Resultado del chequeo de stock para avance OP '.$id.': '.print_r($stockCheck,true));
+                //error=sin stock, warnign stock insuficiente, niguno permite producir.
+                //die();
+                if ($stockCheck['estado'] === 'error') {
+                    $_SESSION['error'] = 'No hay stock suficiente para producir la cantidad solicitada.';
+                    header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
+                    exit;
+                }
+                if ($stockCheck['estado'] === 'warning') {
+                    $_SESSION['error'] = 'No hay stock suficiente para producir la cantidad solicitada.';
+                    header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
+                    exit;
+                }
+            } catch (Exception $e) {
+                error_log('Error al chequear stock antes de registrar avance: '.$e->getMessage());
+                $_SESSION['error'] = 'Error al verificar stock. Intente nuevamente.';
+                header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
+                exit;
+            }
+            //si el stock esta ok, en todas sus MP para la contidad a producir permite generar el registro a producir.
             try {
                 $id = $this->model->avances([
                     'orden_id'   => $_POST['orden_id'],
@@ -140,7 +166,7 @@ class OrdenproduccionController extends Controller
     }
     // realizar la metodologia del consumo o devolucion de mp en reservas
     
-    public function producir($id) // empieza el proceso de produccion de x cantidad solicitada en la OP
+    public function producir($id) // habilita el proceso de produccion de x cantidad solicitada en la OP
     {
         $this->model->actualizarEstado((int)$id, 'EN_PRODUCCION');
         $_SESSION['success'] = 'Orden de producción en estado "En Producción"';

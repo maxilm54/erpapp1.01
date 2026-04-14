@@ -49,7 +49,7 @@ $faltante = $cantidadPedida - $totalProducido;
         <?php endif ?>
     </div>
 </div>
-<!-- Modal Agregar Producción -->
+<!-- Modal Iniciar Producción -->
 <div class="modal fade" id="modalProduccion" tabindex="-1" aria-labelledby="modalProduccionLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -62,6 +62,7 @@ $faltante = $cantidadPedida - $totalProducido;
             <form method="POST">
                 <div class="modal-body">
                     <input type="hidden" name="orden_id" value="<?= $orden['id'] ?>">
+                    <input type="hidden" name="receta_id" value="<?= $orden['receta_id'] ?>">
                     <input type="hidden" name="csrf" value="<?= $csrf ?>">
                     <input type="hidden" name="producto_id" value="<?= $orden['producto_id'] ?>">
                     <input type="hidden" name="cantidad_faltante" value="<?= number_format($faltante, 3, '.', '') ?>">
