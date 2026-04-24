@@ -74,8 +74,11 @@ Compras
 Stock
 </a>
 <ul class="dropdown-menu">
-    <!-- <li><a class="dropdown-item" href="<?= BASE_URL ?>/stock">Stock</a></li> -->
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/stock/productos">Stock Productos</a></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/stock/materiasprimas">Stock Materias Primas</a></li>
     <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock">Movimientos</a></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock/producto">Aj Producto</a></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock/materiaprima">Aj Materia Prima</a></li>
 </ul>
 </li>
 <!-- PRODUCCIÓN -->
@@ -92,10 +95,11 @@ Producción
 <!-- CtaCte -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-CtaCte
+Movimientos
 </a>
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte">Movimientos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte/cliente">Mov Cliente</a></li>
 </ul>
 </li>
 

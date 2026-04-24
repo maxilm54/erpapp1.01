@@ -1,17 +1,271 @@
 
 <?php
-error_log($_SESSION['error'] ?? 'No error set');
-$_SESSION['error'] = null;
+$error = $_SESSION['error'] ?? null;
 ?>
 <!DOCTYPE html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ERP</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      body {
+  height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background: #e8dfff;
+  color: #645e74;
+  font-family: "Euclid Circular B", "Poppins";
+}
 
-    <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+:root {
+  --color-primary: #5e3b8f;
+  --color-border: #d0d0d6;
+}
 
+* {
+  box-sizing: border-box;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 22px;
+  padding: 20px;
+  width: clamp(300px, 85vw, 500px);
+  box-shadow: 0 50px 100px rgb(0 0 0 / 8%);
+}
+
+.hero,
+form {
+  flex: 1 1 50%;
+}
+
+h3,
+p {
+  font-weight: 500;
+  margin: 0;
+}
+
+.hero {
+  background: url("hero.svg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: "Space Grotesk";
+}
+
+.hero-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: inherit;
+  background: linear-gradient(rgb(95 69 168 / 0%), rgb(95 69 168 / 70%));
+  padding: 40px 66px;
+  height: 100%;
+  min-height: 170px;
+}
+
+.hero h2 {
+  font-size: 22px;
+  color: #ffffff;
+  line-height: 1.25;
+}
+
+.hero h3 {
+  margin-top: 12px;
+  font-size: 18px;
+  color: #d8d8d8;
+  display: none;
+}
+
+form {
+  padding: 30px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+form > img {
+  height: 28px;
+  margin-top: px;
+  margin-bottom: 12px;
+}
+
+form :is(h2, h3) {
+  text-align: center;
+}
+
+form > h2 {
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+form > h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+button,
+input {
+  height: 44px;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 16px;
+  width: 100%;
+  outline-color: var(--color-primary);
+}
+
+input {
+  border: 1px solid var(--color-border);
+  padding: 0 2.5vw;
+}
+
+input::placeholder {
+  color: #9c99a4;
+}
+
+.socials {
+  display: flex;
+  gap: 8px;
+}
+
+.extra-text {
+  display: none;
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #f2f3f6;
+  border-color: transparent;
+  font-size: 15px;
+}
+
+.social-btn > img {
+  height: 24px;
+}
+
+.social-btn:first-child > img {
+  height: 20px;
+}
+
+.social-btn > p {
+  color: #7e7c83;
+}
+
+form > button[type="submit"] {
+  color: #ffffff;
+  border: 0;
+  background: var(--color-primary);
+  font-size: 17px;
+}
+
+.or {
+  position: relative;
+  text-align: center;
+  height: 24px;
+}
+
+.or::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  translate: 0 -50%;
+  height: 1px;
+  background: var(--color-border);
+  opacity: 0.6;
+}
+
+.or::after {
+  content: "Or";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  z-index: 1;
+  background: #ffffff;
+  font-size: 12px;
+  padding: 0 12px;
+}
+
+@media (width >= 485px) {
+  .card {
+    width: clamp(300px, 90vw, 740px);
+  }
+
+  form {
+    padding-inline: 50px;
+  }
+
+  .hero-inner {
+    padding-right: clamp(10px, 20vw, 60px);
+  }
+
+  .socials {
+    flex-direction: column;
+  }
+
+  .extra-text {
+    display: inline;
+  }
+}
+
+@media (width >= 640px) {
+  .card {
+    flex-direction: row;
+    padding: 8px 0 8px 8px;
+  }
+
+  .hero-inner {
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 36px;
+  }
+
+  .hero h3 {
+    display: block;
+  }
+
+  form {
+    padding: 30px;
+  }
+}
+
+</style>
 </head>
 <body>
-<div class="container mt-4">
+<div class="card">

@@ -18,20 +18,35 @@ class MateriasprimasController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(): void // Crea una nueva materia prima
     {
-        if ($_POST) {
-            $this->mp->create($_POST);
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if(!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
+                error_log('CSRF token validation failed for MateriasprimasController::create. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+            error_log(print_r($_POST, true));
+            error_log(print_r($_FILES, true));
+            $imagen = null;
+            if (!empty($_FILES['imagen_mp']['name'])) {
+                $imagen = $this->uploadImagenMP();
+                error_log('Imagen uploaded for new Materia Prima: ' . $imagen . ' in ' . __FILE__ . ':' . __LINE__);
+            }
+            $this->mp->create($_POST, $imagen);
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
+        $categorias=$this->mp->categoriasMP();
 
         $this->view('materias_primas/form', [
-            'title'=>'Nueva Materia Prima'
+            'title'=>'Nueva Materia Prima',
+            'categorias'=>$categorias
         ]);
     }
 
-    public function search()
+    public function search() // Busca materias primas por nombre para autocompletar
     {
         $q = trim($_GET['q'] ?? '');
 
@@ -42,5 +57,81 @@ class MateriasprimasController extends Controller
 
         $model = new MateriaPrima();
         echo json_encode($model->search($q));
+    }
+
+    public function update($id) // Actualiza datas de una materia prima
+    {
+        $item = $this->mp->find($id);
+        $categorias=$this->mp->categoriasMP();
+        $umedida=$this->mp->umedidaMP();
+        if (!$item) {
+            $_SESSION['error'] = "Materia Prima no encontrada.";
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if(!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
+                error_log('CSRF token validation failed for MateriasprimasController::update. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+            $this->mp->update($id, $_POST);
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
+
+        $this->view('materias_primas/edit', [
+            'title'=>'Editar Materia Prima',
+            'item'=>$item,
+            'categorias'=>$categorias,
+            'umedida'=>$umedida
+        ]);
+    }
+    private function uploadImagenMP(): string
+    {
+        $name = uniqid() . '_' . $_FILES['imagen_mp']['name'];
+        $path = BASE_PATH . '/public/uploads/materiasprimas/' . $name;
+        move_uploaded_file($_FILES['imagen_mp']['tmp_name'], $path);
+        return 'uploads/materiasprimas/' . $name;
+    }
+    public function stockdata($id){
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
+                error_log('CSRF token validation failed for MateriasprimasController::stockdata POST. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+            if( //validaciones para prhibir valor de stock incorrectos
+                $_POST['stock_minimo'] < 0 || $_POST['stock_critico'] < 0 || $_POST['stock_maximo'] < 0 ||
+                ($_POST['stock_minimo'] > $_POST['stock_maximo']) ||
+                ($_POST['stock_critico'] > $_POST['stock_maximo']) ||
+                ($_POST['stock_critico'] < $_POST['stock_minimo'])){
+                $_SESSION['error'] = 'Los valores de stock no pueden ser negativos. Tampoco el stock mínimo puede ser mayor que el máximo, ni el stock crítico puede ser mayor que el máximo o menor que el mínimo.';
+                header('Location: ' . BASE_URL . '/materiasprimas/stockdata/' . $id);
+                exit;
+
+            }
+            $this->mp->paramStocks($id, $_POST);
+            exit;
+            $cantidad = floatval($_POST['cantidad']);
+            $this->mp->updateStock($id, $cantidad);
+            header('Location: ' . BASE_URL . '/materiasprimas');
+            exit;
+        }
+        $mp=$this->mp->find($id);
+        $stockmovements = $this->mp->stockByProductoId_movstock($id);
+        if (!$mp) {
+            $_SESSION['error'] = "Materia Prima no encontrada.";
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
+        $this->view('materias_primas/stockdata', [
+            'title'=>'Actualizar Stock - '.$mp['nombre'],
+            'item'=>$mp,
+            'stockmovements'=>$stockmovements,
+            'csrf' => Csrf::generate()
+        ]);
     }
 }

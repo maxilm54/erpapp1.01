@@ -5,7 +5,9 @@
             <tr>
                 <th>SKU</th>
                 <th>Producto</th>
-                <th class="text-end">Stock</th>
+                <th class="text-center">Stock</th>
+                <th class="text-center">Stock Mínimo</th>
+                <th class="text-center">Stock Máximo</th>
             </tr>
         </thead>
         <tbody>
@@ -13,7 +15,9 @@
             <tr>
                 <td><?= htmlspecialchars($p['sku']) ?></td>
                 <td><?= htmlspecialchars($p['nombre']) ?></td>
-                <td class="text-end"><?= number_format($p['stock'],2,',','.') ?></td>
+                <td class="text-center"><?= number_format($p['stock'],2,',','.') ?></td>
+                <td class="text-center"><?= number_format($p['stock_minimo'],2,',','.') ?></td>
+                <td class="text-center"><?= number_format($p['stock_maximo'],2,',','.') ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>

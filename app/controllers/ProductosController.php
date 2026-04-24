@@ -26,6 +26,7 @@ class ProductosController extends Controller
     public function create(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log(print_r($_FILES, true));
 
             $imagen = null;
             if (!empty($_FILES['imagen']['name'])) {
@@ -144,6 +145,26 @@ class ProductosController extends Controller
     public function stockdata($idprod){
         $infoProducto = $this->producto->find($idprod);
         $inforStockmov = $this->producto->stockByProductoId_movstock($idprod);
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            //error_log(print_r($_POST, true));
+            if(!Csrf::validate($_POST['csrf_token'])){
+                $_SESSION['error'] = 'Token CSRF inválido. Por favor, inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/productos/stockdata/' . $idprod);
+                exit;
+            }
+            if(
+                $_POST['stock_minimo'] < 0 || $_POST['stock_critico'] < 0 || $_POST['stock_maximo'] < 0 ||
+                ($_POST['stock_minimo'] > $_POST['stock_maximo']) ||
+                ($_POST['stock_critico'] > $_POST['stock_maximo']) ||
+                ($_POST['stock_critico'] < $_POST['stock_minimo'])){
+                $_SESSION['error'] = 'Los valores de stock no pueden ser negativos. Tampoco el stock mínimo puede ser mayor que el máximo, ni el stock crítico puede ser mayor que el máximo o menor que el mínimo.';
+                header('Location: ' . BASE_URL . '/productos/stockdata/' . $idprod);
+                exit;
+
+            }
+            $this->producto->paramStocks($idprod, $_POST);
+            exit;
+        }
         $this->view('productos/stockdata', [
             'title' => 'Datos de Stock',
             'producto' => $infoProducto,

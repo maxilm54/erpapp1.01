@@ -8,6 +8,8 @@ class Stock extends Model
                 p.id,
                 p.sku,
                 p.nombre,
+                p.stock_minimo,
+                p.stock_maximo,
                 COALESCE(SUM(
                     CASE
                         WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad

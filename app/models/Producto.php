@@ -151,4 +151,29 @@ class Producto extends Model
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function paramStocks($idprod, $data){
+        try {
+            $this->db->beginTransaction();
+            $sql = "UPDATE productos SET stock_minimo = :stock_minimo, stock_maximo = :stock_maximo, stock_critico = :stock_critico
+                WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            $stmt-> bindValue(':id', $idprod, PDO::PARAM_INT);
+            $stmt-> bindValue(':stock_minimo', $data['stock_minimo'], PDO::PARAM_STR);
+            $stmt-> bindValue(':stock_maximo', $data['stock_maximo'], PDO::PARAM_STR);
+            $stmt-> bindValue(':stock_critico', $data['stock_critico'], PDO::PARAM_STR);
+            $stmt->execute();
+            $this->db->commit();
+            $_SESSION['success'] = "Parametros de stock actualizados correctamente.";
+            header('Location: ' . BASE_URL . '/productos/stockdata/' . $idprod);
+            exit;
+        } catch (Exception $e) {
+            $this->db->rollback();
+            $_SESSION['error'] = "Error al modificar los parametros de stock: " . $e->getMessage();
+            error_log('Error al modificar los parametros de stock: ' . $e->getMessage().__FILE__.':'.__LINE__);
+            header('Location: ' . BASE_URL . '/productos/stockdata/' . $idprod);
+            exit;
+        }
+
+    }
 }

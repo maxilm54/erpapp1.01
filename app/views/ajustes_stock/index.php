@@ -1,8 +1,4 @@
 <h1>Historial de Movimientos de Stock</h1>
-<a href="<?= BASE_URL ?>/ajustesstock/producto" class="btn btn-primary">Ajuste Producto</a>
-<a href="<?= BASE_URL ?>/ajustesstock/materiaprima" class="btn btn-secondary">Ajuste Materia Prima</a>
-<a href="<?= BASE_URL ?>/stock/productos" class="btn btn-primary">Stock Productos</a>
-<a href="<?= BASE_URL ?>/stock/materiasprimas" class="btn btn-secondary">Stock Materias Primas</a>
 <div class="table-scroll mt-3">
     <table class="table table-striped table-bordered mt-3 table-hover">
         <thead>

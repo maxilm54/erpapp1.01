@@ -14,7 +14,7 @@ class RecetasController extends Controller
     {
         $this->model = new Receta();
         $this->producto = new Producto();
-        $this->materia  = new MateriaPrima();        
+        $this->materia  = new MateriaPrima();
     }
 
     public function index()
@@ -79,12 +79,12 @@ class RecetasController extends Controller
             header('Location: '.BASE_URL.'/recetas');
             exit;
         }
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {            
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $editar= $this->model->edit_receta();
             if($editar){
                 $_SESSION['success'] = 'Receta editada correctamente';
                 header('Location: '.BASE_URL.'/recetas/show/'.$id_receta);
-                exit;                
+                exit;
             }
         }
        $this->view('recetas/edit', ['receta'=>$receta,'rec_det'=>$receta['detalle']]);
