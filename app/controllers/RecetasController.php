@@ -27,6 +27,11 @@ class RecetasController extends Controller
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido';
+                header('Location: '.BASE_URL.'/recetas/create');
+                exit;
+            }
             try {
                 $items = [];
                 foreach ($_POST['items'] as $i) {
@@ -80,6 +85,11 @@ class RecetasController extends Controller
             exit;
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido';
+                header('Location: '.BASE_URL.'/recetas/edit/'.$id_receta);
+                exit;
+            }
             $editar= $this->model->edit_receta();
             if($editar){
                 $_SESSION['success'] = 'Receta editada correctamente';

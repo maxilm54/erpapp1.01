@@ -27,7 +27,13 @@ class OrdenesCompraController extends Controller
     }
     public function create()
     {
-        if ($_POST) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token OrdenesCompraController::create'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/ordenescompra/create');
+                exit;
+            }
             $db = Database::getInstance();
             $db->beginTransaction();
 
@@ -84,20 +90,32 @@ class OrdenesCompraController extends Controller
 
     public function edit($id)
     {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token OrdenesCompraController::edit'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/ordenescompra/edit/' . $id);
+                exit;
+            }
+
+            $this->oc->update($id, $_POST);
+            header('Location: '.BASE_URL.'/ordenescompra');
+            exit;
+        }
         $orden = $this->oc->findWithDetalle($id);
 
         if (!$orden) {
+            $_SESSION['error'] = 'La Orden No existe.';
+            error_log('Error al buscar la OC OrdenesCompraController::edit'.__FILE__.':'.__LINE__);
+            header('Location: ' . BASE_URL . '/ordenescompra/edit/' . $id);
             die('Orden no encontrada');
         }
 
         if ($orden['estado'] !== 'PENDIENTE') {
+            $_SESSION['error'] = 'Esta Orden Esta Aprobado, no se puede esditar.';
+            error_log('Intento de editar OC aprobada OrdenesCompraController::edit'.__FILE__.':'.__LINE__);
+            header('Location: ' . BASE_URL . '/ordenescompra/edit/' . $id);
             die('No se puede editar una OC aprobada');
-        }
-
-        if ($_POST) {
-            $this->oc->update($id, $_POST);
-            header('Location: '.BASE_URL.'/ordenescompra');
-            exit;
         }
 
         $this->view('ordenes_compras/form', [

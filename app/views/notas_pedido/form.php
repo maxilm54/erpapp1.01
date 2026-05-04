@@ -1,33 +1,34 @@
 <h1>Nueva Nota de Pedido</h1>
 <form method="POST" action="<?= BASE_URL ?>/notaspedido/store">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <label>Cliente</label>
-<select name="cliente_id" id="cliente_id" class="form-control" required>
-    <option value="">Seleccione cliente</option>
-    <?php foreach ($clientes as $c): ?>
-        <option value="<?= $c['id'] ?>"><?= $c['razon_social'] ?></option>
-    <?php endforeach ?>
-</select>
-<label class="mt-3">Presupuesto (opcional)</label>
-<select name="presupuesto_id" id="presupuesto_id" class="form-control mb-3">
-    <option value="">Sin presupuesto</option>
-</select>
-<input type="text" id="buscador-producto" class="form-control" placeholder="Buscar producto...">
-<button type="button" class="btn btn-success" id="btn-agregar">+</button>
+    <select name="cliente_id" id="cliente_id" class="form-control" required>
+        <option value="">Seleccione cliente</option>
+        <?php foreach ($clientes as $c): ?>
+            <option value="<?= $c['id'] ?>"><?= $c['razon_social'] ?></option>
+        <?php endforeach ?>
+    </select>
+    <label class="mt-3">Presupuesto (opcional)</label>
+    <select name="presupuesto_id" id="presupuesto_id" class="form-control mb-3">
+        <option value="">Sin presupuesto</option>
+    </select>
+    <input type="text" id="buscador-producto" class="form-control" placeholder="Buscar producto...">
+    <button type="button" class="btn btn-success" id="btn-agregar">+</button>
 
-<div id="resultados" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></div>
-<div class="table-scroll mt-3">
-    <table class="table table-striped mt-3">
-        <thead>
-            <tr>
-                <th>Producto</th>
-                <th width="120">Cantidad</th>
-                <th width="150">Precio</th>
-                <th width="50"></th>
-            </tr>
-        </thead>
-        <tbody id="detalle"></tbody>
-    </table>
-</div>
+    <div id="resultados" class="list-group position-absolute w-100" style="z-index:1000; display:none;"></div>
+    <div class="table-scroll mt-3">
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th width="120">Cantidad</th>
+                    <th width="150">Precio</th>
+                    <th width="50"></th>
+                </tr>
+            </thead>
+            <tbody id="detalle"></tbody>
+        </table>
+    </div>
     <br><br>
     <div class="mb-3">
         <label>Observaciones</label>

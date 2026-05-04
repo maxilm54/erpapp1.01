@@ -11,6 +11,7 @@ $action = $isEdit
     </h3>
 
     <form method="POST" action="<?= $action ?>">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
         <!-- Cliente -->
         <div class="mb-3">
             <label class="form-label">Cliente</label>

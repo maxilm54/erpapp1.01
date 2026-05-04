@@ -22,6 +22,12 @@ class OrdenproduccionController extends Controller
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                error_log('se a intentado un registro rechazado por csrf. '.__FILE__.':'.__LINE__);
+                $_SESSION['error'] = 'CSRF inválido. Intente nuevamente.';
+                header('Location: '.BASE_URL.'/ordenproduccion/create');
+                die('CSRF inválido');
+            }
             try {
                 $id = $this->model->crear([
                     'producto_id' => $_POST['producto_id'],
@@ -70,7 +76,7 @@ class OrdenproduccionController extends Controller
             //solo entro si hubo envio desde el modal.
             error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true));
             //die();
-            if (!Csrf::validate($_POST['csrf'])) {
+            if (!Csrf::validate($_POST['csrf_token'])) {
                 error_log('se a intentado un registro rechazado por csrf. '.__FILE__.':'.__LINE__);
                 $_SESSION['error'] = 'CSRF inválido. Intente nuevamente.';
                 header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);//me vuelvo a la vista rechazando el inicio de produccion y alertando el csrf

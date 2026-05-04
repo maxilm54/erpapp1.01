@@ -33,27 +33,21 @@ class NotasPedidoController extends Controller
     // 💾 Guardar
     public function store()
     {
-        try {
-            $id = $this->np->create([
-                'cliente_id'     => $_POST['cliente_id'],
-                'presupuesto_id' => $_POST['presupuesto_id'] ?? NULL,
-                'observaciones'  => $_POST['observaciones'] ?? NULL,
-                'usuario_id'     => $_SESSION['user_id'],
-                'items'          => $_POST['items'] ?? []
-            ]);
-            // 🔒 Si viene presupuesto → bloquearlo
-            if (!empty($_POST['presupuesto_id'])) {
-                (new Presupuesto())->marcarAsignado($_POST['presupuesto_id']);
+        if($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token NotasPedidoController::store'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/notaspedido/create');
+                exit;
             }
-            
-            $_SESSION['success'] = 'Nota de Pedido creada correctamente';
+            $id = $this->np->create([
+                'cliente_id'   => $_POST['cliente_id'],
+                'presupuesto_id' => $_POST['presupuesto_id'] ?: null,
+                'usuario_id'   => $_SESSION['user_id'],
+                'items'        => $_POST['items'],
+                'observaciones' => $_POST['observaciones']
+            ]);
             header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
-            exit;
-
-        } catch (Exception $e) {
-            $_SESSION['error'] = $e->getMessage();
-            error_log($e->getMessage());
-            header('Location: '.BASE_URL.'/notaspedido');
             exit;
         }
     }

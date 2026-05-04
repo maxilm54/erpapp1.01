@@ -34,15 +34,18 @@ class MateriasprimasController extends Controller
                 $imagen = $this->uploadImagenMP();
                 error_log('Imagen uploaded for new Materia Prima: ' . $imagen . ' in ' . __FILE__ . ':' . __LINE__);
             }
-            $this->mp->create($_POST, $imagen);
+            $barcode = $_POST['barcode'] ?? null;
+            $tipo = $_POST['tipo'] ?? null;
+            $this->mp->create($_POST, $imagen, $barcode, $tipo);
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
         $categorias=$this->mp->categoriasMP();
-
-        $this->view('materias_primas/form', [
+        $umedida=$this->mp->umedidaMP();
+         $this->view('materias_primas/form', [
             'title'=>'Nueva Materia Prima',
-            'categorias'=>$categorias
+            'categorias'=>$categorias,
+            'umedida'=>$umedida
         ]);
     }
 
@@ -132,6 +135,80 @@ class MateriasprimasController extends Controller
             'item'=>$mp,
             'stockmovements'=>$stockmovements,
             'csrf' => Csrf::generate()
+        ]);
+    }
+
+    public function updatebarcode($id){ //muestra los codigos y los actualizo
+        if (!filter_var($id, FILTER_VALIDATE_INT)) {
+            $_SESSION['error'] = "ID inválido.";
+            header('Location: ' . BASE_URL . '/materiasprimas');
+            exit;
+        }
+        $mp = $this->mp->find($id);
+        if (!$mp) {
+            $_SESSION['error'] = "Materia Prima no encontrada.";
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
+                error_log('CSRF token validation failed for MateriasprimasController::updatebarcode POST. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                header('Location: ' . BASE_URL . '/materiasprimas/updatebarcode/' . $id);
+                exit;
+            }
+            $ids = $_POST['ids'] ?? [];
+            $codigos = $_POST['codigos'] ?? [];
+            $tipos = $_POST['tipos'] ?? [];
+            foreach ($ids as $index => $id_codigo) {
+                if(isset($codigos[$index]) && isset($tipos[$index])) {
+                    $this->mp->updateBarcodes($id_codigo, $codigos[$index], $tipos[$index]);
+                }
+            }
+            header('Location: ' . BASE_URL . '/materiasprimas/updatebarcode/' . $id);
+            exit;
+        }
+        $barcodes = $this->mp->getBarcodesByMPId($id);
+        $this->view('materias_primas/formeditbarcode', [
+            'title' => 'Editar Códigos de Barra - ' . $mp['nombre'],
+            'materia' => $mp,
+            'barcodes' => $barcodes
+        ]);
+    }
+
+    public function newbarcode($id){ //dentro de la vista update tengo el boton para cargar uno nuevo
+        if (!filter_var($id, FILTER_VALIDATE_INT)) {
+            $_SESSION['error'] = "ID inválido.";
+            header('Location: ' . BASE_URL . '/materiasprimas');
+            exit;
+        }
+        $mp = $this->mp->find($id);
+        if (!$mp) {
+            $_SESSION['error'] = "Materia Prima no encontrada.";
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
+                error_log('CSRF token validation failed for MateriasprimasController::newbarcode POST. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+            $codigo = $_POST['codigo'] ?? null;
+            $tipo = $_POST['tipo'] ?? null;
+            if(empty($codigo) || empty($tipo)) {
+                $_SESSION['error'] = "Código y tipo son campos obligatorios.";
+                header('Location: ' . BASE_URL . '/materiasprimas/newbarcode/' . $id);
+                exit;
+            }
+            $this->mp->addBarcode($id, $codigo, $tipo);
+            header('Location: ' . BASE_URL . '/materiasprimas/updatebarcode/' . $id);
+            exit;
+        }
+        $this->view('materias_primas/formnewbarcode', [
+            'title' => 'Agregar Código de Barra - ' . $mp['nombre'],
+            'materia' => $mp
         ]);
     }
 }

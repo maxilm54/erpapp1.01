@@ -20,7 +20,7 @@ class ProductoCodigo extends Model
             ]);
         } catch (Exception $e) {
             error_log('Error adding barcode for product ID '.$productoId.': '.$e->getMessage());
-            $_SESSION['ERROR'] = "Error al agregar el código de barra: " . $e->getMessage();
+            $_SESSION['error'] = "Error al agregar el código de barra: " . $e->getMessage();
             return false;
         }
     }
@@ -44,20 +44,18 @@ class ProductoCodigo extends Model
     public function update(int $id, string $codigo, ?string $tipo): bool
     {
         try {
-            $stmt = $this->db->prepare(
-                "UPDATE producto_codigos 
-                 SET codigo = :codigo, tipo = :tipo 
-                 WHERE id = :id"
-            );
-            $_SESSION['SUCCESS'] = "Código de barra actualizado correctamente.";
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("UPDATE producto_codigos SET codigo = :codigo, tipo = :tipo WHERE id = :id");
+            $_SESSION['success'] = "Código de barra actualizado correctamente.";
             return $stmt->execute([
                 'codigo' => $codigo,
                 'tipo' => $tipo,
                 'id' => $id
             ]);
         } catch (Exception $e) {
+            $this->db->rollBack();
             error_log('Error updating barcode ID '.$id.': '.$e->getMessage());
-            $_SESSION['ERROR'] = "Error al actualizar el código de barra: " . $e->getMessage();
+            $_SESSION['error'] = "Error al actualizar el código de barra: " . $e->getMessage();
             return false;
         }
     }

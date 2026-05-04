@@ -12,7 +12,7 @@ class MateriaPrima extends Model
         )->fetchAll();
     }
 
-    public function find(int $id)
+    public function find(int $id) // trae los datos de materia prima con cateogria y unidad de medida
     {
         $stmt = $this->db->prepare(
             "SELECT mp.*, cat.categoria_nombre AS nombre_categoria, um.nombre AS nombre_unidad, um.detalle AS detalle_unidad FROM materias_primas mp
@@ -24,31 +24,42 @@ class MateriaPrima extends Model
         return $stmt->fetch();
     }
 
-    public function create(array $d, $img): bool
+    public function create(array $d, $img, $barcode, $tipo): bool // crea la maeteria prima y opcionalmente un código de barra asociado
     {
-        return $this->db->prepare(
-            "INSERT INTO materias_primas
-            (nombre, sku, id_unidadmedida, categoria, imagen)
-            VALUES (:n,:s,:u,:c,:i)"
-        )->execute([
-            'n'=>$d['nombre'],
-            's'=>$d['sku'],
-            'u'=>$d['id_unidadmedida'],
-            'c'=>$d['categoria'],
-            'i'=>$img
-        ]);
+        try {
+            $this->db->beginTransaction();
+            $this->db->prepare("INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen)
+                VALUES (:n,:s,:u,:c,:i)"
+                )->execute(['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['id_unidadmedida'],'c'=>$d['categoria'],'i'=>$img]);
+            $mpId = $this->db->lastInsertId();
+            if ($barcode) {
+                $this->db->prepare("INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo) VALUES (:mpId, :codigo, :tipo)")
+                    ->execute(['mpId' => $mpId, 'codigo' => $barcode, 'tipo' => $tipo]);
+            }
+            $_SESSION['success'] = "Materia Prima creada correctamente.";
+            error_log('Materia Prima creada con ID ' . $mpId . ' in ' . __FILE__ . ':' . __LINE__);
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log('Error al crear materia prima: ' . $e->getMessage() . ' in ' . __FILE__ . ':' . __LINE__);
+            $_SESSION['error'] = "Error al crear la materia prima. Por favor, inténtalo de nuevo.";
+            return false;
+        }
     }
 
-    public function updateStock(int $id, float $cantidad): void
+    public function updateStock(int $id, float $cantidad): void //discontinuada, porque el stock se maneja desde movimientos de stock
     {
-        $this->db->prepare(
+        /*$this->db->prepare(
             "UPDATE materias_primas
              SET stock_actual = stock_actual + :c
              WHERE id = :id"
-        )->execute(['c'=>$cantidad,'id'=>$id]);
+        )->execute(['c'=>$cantidad,'id'=>$id]);*/
+        $_SESSION['error']= "La función actualizar stock que ha usado está descontinuada. El stock se maneja a través de movimientos de stock. Avise al administrador: mailto:soporte@dmtech.com.ar";
+        error_log('se llamo a la funcion updateStock para el producto ID ' . $id . ' con cantidad ' . $cantidad . ' in ' . __FILE__ . ':' . __LINE__);
     }
 
-    public function search(string $q): array
+    public function search(string $q): array // buscador de materias primas para autocompletar
     {
         $stmt = $this->db->prepare("
             SELECT id, nombre
@@ -138,5 +149,53 @@ class MateriaPrima extends Model
             exit;
         }
 
+    }
+    public function getBarcodesByMPId($id): array
+    {
+        $stmt = $this->db->prepare("SELECT id_mpcodigos, codigo, tipo, materiaprima_id FROM materiaprima_codigos WHERE materiaprima_id = :id");
+        $stmt->execute(['id' => $id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function addBarcode($id_prod, $codigo, $tipo): bool
+    {
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo) VALUES (:id_prod, :codigo, :tipo)");
+            $stmt->bindValue(':id_prod', $id_prod, PDO::PARAM_INT);
+            $stmt->bindValue(':codigo', $codigo, PDO::PARAM_STR);
+            $stmt->bindValue(':tipo', $tipo, PDO::PARAM_STR);
+            $stmt->execute();
+            $this->db->commit();
+            $_SESSION['success'] = "Código de barra agregado correctamente.";
+            error_log('Código de barra agregado para producto ID ' . $id_prod . ' en ' . __FILE__ . ':' . __LINE__);
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollback();
+            error_log('Error al agregar código de barra para producto ID ' . $id_prod . ': ' . $e->getMessage() . ' in ' . __FILE__ . ':' . __LINE__);
+            $_SESSION['error'] = "Error al agregar el código de barra. Por favor, inténtalo de nuevo.";
+            return false;
+        }
+    }
+
+    public function updateBarcodes($id_codigo, $codigo, $tipo): bool
+    {
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("UPDATE materiaprima_codigos SET codigo = :codigo, tipo = :tipo WHERE id_mpcodigos = :id_codigo");
+            $stmt->bindValue(':id_codigo', $id_codigo, PDO::PARAM_INT);
+            $stmt->bindValue(':codigo', $codigo, PDO::PARAM_STR);
+            $stmt->bindValue(':tipo', $tipo, PDO::PARAM_STR);
+            $stmt->execute();
+            $this->db->commit();
+            $_SESSION['success'] = "Código de barra actualizado correctamente.";
+            error_log('Código de barra ID ' . $id_codigo . ' actualizado en ' . __FILE__ . ':' . __LINE__);
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollback();
+            error_log('Error al actualizar código de barra ID ' . $id_codigo . ': ' . $e->getMessage() . ' in ' . __FILE__ . ':' . __LINE__);
+            $_SESSION['error'] = "Error al actualizar el código de barra. Por favor, inténtalo de nuevo.";
+            return false;
+        }
     }
 }

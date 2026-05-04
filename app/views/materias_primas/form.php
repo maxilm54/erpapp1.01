@@ -3,7 +3,14 @@
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <input name="nombre" class="form-control mb-2" required placeholder="Nombre">
     <input name="sku" class="form-control mb-2" required placeholder="SKU">
-    <input name="unidad_medida" class="form-control mb-3" required placeholder="kg, g, lt">
+
+    <select name="id_unidadmedida" id="" class="form-control mb-3">
+        <option value="">Seleccionar Unidad de Medida</option>
+        <?php foreach ($umedida as $um): ?>
+            <option value="<?= $um['id_medida'] ?>"><?= $um['nombre'].' ('.$um['detalle'].')' ?></option>
+        <?php endforeach; ?>
+    </select>
+
     <select name="categoria"  class="form-control mb-3">
         <option value="">Seleccionar Categoría</option>
         <?php foreach ($categorias as $cat): ?>
@@ -11,6 +18,17 @@
         <?php endforeach; ?>
     </select>
     <input type="file" name="imagen_mp" class="form-control mb-3">
-
-    <button class="btn btn-success w-100">Guardar</button>
+    <div class="row">
+        <div class="col">
+            <input type="text" name="barcode" class="form-control mb-3" placeholder="Código de Barra (opcional)">
+        </div>
+        <div class="col">
+            <input type="text" name="tipo" class="form-control mb-3" placeholder="Tipo de Código (EAN, Interno, etc.)">
+        </div>
+    </div>
+    <div class="col d-flex justify-content-end">
+        <a class="btn btn-secondary me-2" href="<?= BASE_URL ?>/materiasprimas">Volver</a>
+        <button class="btn btn-success me-2">Guardar</button>
+    </div>
+    
 </form>
