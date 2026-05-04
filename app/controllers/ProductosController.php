@@ -26,8 +26,13 @@ class ProductosController extends Controller
     public function create(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            error_log(print_r($_FILES, true));
-
+            error_log('creacion de producto: ' . print_r($_FILES, true).' - ' . print_r($_POST, true).__FILE__.':'.__LINE__);
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+                error_log('Error en token controller create productos'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/productos/create');
+                exit;
+            }
             $imagen = null;
             if (!empty($_FILES['imagen']['name'])) {
                 $imagen = $this->uploadImagen();
@@ -48,26 +53,38 @@ class ProductosController extends Controller
             header('Location: ' . BASE_URL . '/productos');
             exit;
         }
-
         $this->view('productos/form', [
-            'title' => 'Nuevo Producto'
+            'title' => 'Nuevo Producto',
+            'umedida' => $this->producto->unidadProd()
         ]);
     }
 
     public function update($id_prod): void
     {
+        
+        if(!filter_var($id_prod, FILTER_VALIDATE_INT)) {
+            $_SESSION['error'] = 'ID de producto inválido.';
+            header('Location: ' . BASE_URL . '/productos');
+            exit;
+        }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Por favor, inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/productos/update/' . $id_prod);
+                exit;
+            }
 
-            $productoId = $this->producto->update($id_prod, $_POST/*, $imagen*/);
-            
+            $this->producto->update($id_prod, $_POST);
             header('Location: ' . BASE_URL . '/productos');
             exit;
         }
         $infoProducto = $this->producto->find($id_prod);
+        $infoUmedida = $this->producto->unidadProd();
         $this->view('productos/formedit', [
             'title' => 'Editar Producto',
             'producto' => $infoProducto,
-            'barcodes' => $this->producto->getBarcodeByProductoId($id_prod)
+            'barcodes' => $this->producto->getBarcodeByProductoId($id_prod),
+            'umedida' => $infoUmedida
         ]);
     }
     private function uploadImagen(): string
@@ -98,6 +115,16 @@ class ProductosController extends Controller
 
     public function updatebarcode($idprod){
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Por favor, inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/productos/updatebarcode/' . $idprod);
+                exit;
+            }
+            if(!filter_var($idprod, FILTER_VALIDATE_INT)) {
+                $_SESSION['error'] = 'ID de producto inválido.';
+                header('Location: ' . BASE_URL . '/productos');
+                exit;
+            }
             // $this->codigo->deleteByProductoId($idprod);
 
             foreach ($_POST['codigos'] as $i => $codigo) {

@@ -14,7 +14,9 @@ class Producto extends Model
     public function find(int $id)
     {
         $stmt = $this->db->prepare(
-            "SELECT * FROM productos WHERE id = :id"
+            "SELECT p.*, um.nombre AS nombre_medida, um.detalle AS detalle_medida FROM productos p
+            LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
+            WHERE p.id = :id"
         );
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
@@ -64,7 +66,7 @@ class Producto extends Model
     public function create(array $data, ?string $imagen): int
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO productos 
+            "INSERT INTO productos
             (nombre, sku, descripcion, precio_venta, imagen,user_create,unidad_medida)
             VALUES (:nombre, :sku, :descripcion, :precio, :imagen,:user_create,:unidad_medida)"
         );
@@ -175,5 +177,10 @@ class Producto extends Model
             exit;
         }
 
+    }
+
+    public function unidadProd(): array
+    {
+        return $this->db->query("SELECT id_medida,nombre,detalle FROM unidad_medida")->fetchAll(PDO::FETCH_ASSOC);
     }
 }

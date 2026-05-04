@@ -13,6 +13,12 @@ class ClientesController extends Controller{
 
     public function create():void{
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token ClientesController::create'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/clientes/create');
+                exit;
+            }
             $this->cliente->create($_POST);
             header('Location: ' . BASE_URL . '/clientes');
             exit;
@@ -26,6 +32,12 @@ class ClientesController extends Controller{
     public function edit(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token ClientesController::edit'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/clientes/edit/' . $id);
+                exit;
+            }
             $this->cliente->update($id, $_POST);
             header('Location: ' . BASE_URL . '/clientes');
             exit;

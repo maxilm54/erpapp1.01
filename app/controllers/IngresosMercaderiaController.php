@@ -44,6 +44,12 @@ class IngresosMercaderiaController extends Controller
         }
         //no tengo errores, espero el envio del post para procesare el ingreso.
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Por favor, intente nuevamente.';
+                error_log('Controlador IngresosMercaderiaController: Token CSRF inválido en create - '.__FILE__.' - '.__LINE__);
+                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
+                exit;
+            }
             error_log(print_r($_POST, true));
             //Existente me va a devolver si existe o no un remito para ese proveedor, debe venir vacio para poder seguir sino alerta.
             $existente = $this->ingreso->findByRemitoProveedor(

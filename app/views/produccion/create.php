@@ -1,6 +1,7 @@
 <h1>Nueva Orden de Producción</h1>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <label class="mt-3">Receta</label>
     <div class="d-flex align-items-center gap-2 w-50">
         <select id="receta_id" name="receta_id" class="form-control" required>

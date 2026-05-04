@@ -14,7 +14,13 @@ class ProveedoresController extends Controller{
     }
 
     public function create(){
-        if($_POST){
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token ProveedoresController::create'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/proveedores/create');
+                exit;
+            }
             $this->proveedor->save($_POST);
             header('Location: '.BASE_URL.'/proveedores');
             
@@ -26,7 +32,13 @@ class ProveedoresController extends Controller{
 
     public function edit($id)
     {
-        if ($_POST) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token ProveedoresController::edit'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/proveedores/edit/' . $id);
+                exit;
+            }
             $this->proveedor->update($id, $_POST);
             header('Location: '.BASE_URL.'/proveedores');
             exit;

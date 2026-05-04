@@ -2,6 +2,7 @@
       class="card p-4 shadow col-md-8 mx-auto">
 
     <h4><?= $title ?></h4>
+    <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
     <label class="form-control mb-2"><?= $producto['nombre'] ?></label>
     <label class="form-control mb-2"><?= $producto['sku'] ?></label>
     <label class="form-control mb-2"><?= $producto['descripcion'] ?></label>

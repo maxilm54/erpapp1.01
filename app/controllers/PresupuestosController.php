@@ -31,11 +31,21 @@ class PresupuestosController extends Controller
 
     public function store()
     {
-        $id = $this->pr->create([
-            'cliente_id' => $_POST['cliente_id'],
-            'usuario_id' => $_SESSION['user_id'],
-            'items'      => $_POST['items']
-        ]);
+        if($_SERVER['REQUEST_METHOD'] === 'POST')
+        {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token PresupuestosController::store'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/presupuestos/create');
+                exit;
+            }
+
+            $id = $this->pr->create([
+                'cliente_id' => $_POST['cliente_id'],
+                'usuario_id' => $_SESSION['user_id'],
+                'items'      => $_POST['items']
+            ]);
+        }
 
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
         exit;
@@ -58,10 +68,21 @@ class PresupuestosController extends Controller
 
     public function update($id)
     {
-        $this->pr->update($id, [
-            'cliente_id' => $_POST['cliente_id'],
-            'items'      => $_POST['items']
-        ]);
+        
+        if($_SERVER['REQUEST_METHOD'] === 'POST')
+        {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                error_log('CSRF error validacion de token PresupuestosController::update'.__FILE__.':'.__LINE__);
+                header('Location: ' . BASE_URL . '/presupuestos/update/' . $id);
+                exit;
+            }
+
+            $this->pr->update($id, [
+                'cliente_id' => $_POST['cliente_id'],
+                'items'      => $_POST['items']
+            ]);
+        }
 
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
         exit;
