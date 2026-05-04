@@ -31,6 +31,7 @@ class ClientesController extends Controller{
 
     public function edit(int $id): void
     {
+        validarId($id, BASE_URL . '/clientes');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
                 $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
@@ -51,17 +52,20 @@ class ClientesController extends Controller{
 
      public function delete(int $id): void
     {
+        validarId($id, BASE_URL . '/clientes');
         $this->cliente->delete($id);
         header('Location: ' . BASE_URL . '/clientes');
     }
     public function activar(int $id): void
     {
+        validarId($id, BASE_URL . '/clientes');
         $this->cliente->activar($id);
         header('Location: ' . BASE_URL . '/clientes');
     }
 
     public function show(int $id): void
     {
+        validarId($id, BASE_URL . '/clientes');
         $this->view('clientes/show', [
             'title' => 'Detalle del Cliente',
             'cliente' => $this->cliente->find($id)

@@ -61,7 +61,7 @@ class ProductosController extends Controller
 
     public function update($id_prod): void
     {
-        
+        validarId($id_prod, BASE_URL . '/productos');
         if(!filter_var($id_prod, FILTER_VALIDATE_INT)) {
             $_SESSION['error'] = 'ID de producto inválido.';
             header('Location: ' . BASE_URL . '/productos');
@@ -114,6 +114,7 @@ class ProductosController extends Controller
     }
 
     public function updatebarcode($idprod){
+        validarId($idprod, BASE_URL . '/productos');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
                 $_SESSION['error'] = 'Token CSRF inválido. Por favor, inténtalo de nuevo.';
@@ -150,6 +151,7 @@ class ProductosController extends Controller
     }
 
     public function newBarcode($idprod){
+        validarId($idprod, BASE_URL . '/productos');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST['codigo'])) {
                 $this->codigo->add(
@@ -170,6 +172,7 @@ class ProductosController extends Controller
     }
 
     public function stockdata($idprod){
+        validarId($idprod, BASE_URL . '/productos');
         $infoProducto = $this->producto->find($idprod);
         $inforStockmov = $this->producto->stockByProductoId_movstock($idprod);
         if($_SERVER['REQUEST_METHOD'] === 'POST'){

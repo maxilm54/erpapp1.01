@@ -53,6 +53,7 @@ class PresupuestosController extends Controller
 
     public function edit($id)
     {
+        validarId($id, BASE_URL . '/presupuestos');
         $pr = $this->pr->find($id);
 
         if (!$pr || $pr['estado'] !== 'BORRADOR') {
@@ -68,7 +69,7 @@ class PresupuestosController extends Controller
 
     public function update($id)
     {
-        
+        validarId($id, BASE_URL . '/presupuestos');
         if($_SERVER['REQUEST_METHOD'] === 'POST')
         {
             if (!Csrf::validate($_POST['csrf_token'])) {
@@ -90,6 +91,7 @@ class PresupuestosController extends Controller
 
     public function show($id)
     {
+        validarId($id, BASE_URL . '/presupuestos');
         $pr = $this->pr->find($id);
         if (!$pr) die('Presupuesto no encontrado');
 
@@ -100,19 +102,22 @@ class PresupuestosController extends Controller
 
     public function aprobar($id)
     {
+        validarId($id, BASE_URL . '/presupuestos');
         $this->pr->aprobar($id);
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
         exit;
     }
 
-        public function porCliente($clienteId)
+    public function porCliente($clienteId)
     {
+        validarId($clienteId, BASE_URL . '/presupuestos');
         $model = new Presupuesto();
         echo json_encode($model->getByCliente($clienteId));
     }
 
     public function showAjax($id)
     {
+        validarId($id, BASE_URL . '/presupuestos');
         header('Content-Type: application/json');
 
         $presupuesto = $this->pr->findWithDetalle((int)$id);
@@ -128,6 +133,7 @@ class PresupuestosController extends Controller
 
     public function volvernp($presupuestoId)
     {
+        validarId($presupuestoId, BASE_URL . '/presupuestos');
         $np = $this->pr->getNotaPedidoByPresupuesto($presupuestoId);
         if (!$np){
             $_SESSION['error'] = 'No existe una Nota de Pedido asociada a este Presupuesto';

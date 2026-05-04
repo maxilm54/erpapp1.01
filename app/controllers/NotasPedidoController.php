@@ -55,8 +55,14 @@ class NotasPedidoController extends Controller
     // 👁 Ver
     public function show($id)
     {
+        validarId($id, BASE_URL . '/notaspedido');
         $np = $this->np->findWithDetalle($id);
-        if (!$np) die('Nota de Pedido no encontrada');
+        if (!$np){
+            $_SESSION['error'] = 'Nota de Pedido no encontrada';
+            error_log('Error: Nota de Pedido no encontrada en NotasPedidoController::show'.__FILE__.':'.__LINE__);
+            header('Location: ' . BASE_URL . '/notaspedido');
+            die();
+        }
 
         $this->view('notas_pedido/show', compact('np'));
     }
@@ -64,6 +70,7 @@ class NotasPedidoController extends Controller
     // ✅ Aprobar
     public function approve($id)
     {
+        validarId($id, BASE_URL . '/notaspedido');
         $this->np->aprobar($id);
         header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
         exit;
@@ -72,7 +79,8 @@ class NotasPedidoController extends Controller
     // ❌ Anular controlar y borrar este metodo viejo
     public function anularviejo($id)
     {
-        if ($_POST) {
+        validarId($id, BASE_URL . '/notaspedido');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->np->anular($id, $_POST['motivo']);
             header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
             exit;
@@ -82,7 +90,8 @@ class NotasPedidoController extends Controller
     }
     public function anular($id)
     {
-        if ($_POST) {
+        validarId($id, BASE_URL . '/notaspedido');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $this->np->anular(
                     (int)$id,
