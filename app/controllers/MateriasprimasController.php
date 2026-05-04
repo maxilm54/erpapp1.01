@@ -64,6 +64,7 @@ class MateriasprimasController extends Controller
 
     public function update($id) // Actualiza datas de una materia prima
     {
+        validarId($id, BASE_URL . '/materiasprimas');
         $item = $this->mp->find($id);
         $categorias=$this->mp->categoriasMP();
         $umedida=$this->mp->umedidaMP();
@@ -99,6 +100,13 @@ class MateriasprimasController extends Controller
         return 'uploads/materiasprimas/' . $name;
     }
     public function stockdata($id){
+        validarId($id, BASE_URL . '/materiasprimas');
+         if (!$this->mp->find($id)) {
+            $_SESSION['error'] = "Materia Prima no encontrada.";
+            error_log('Materia Prima no encontrada en MateriasprimasController::stockdata con ID: ' . $id . ' in ' . __FILE__ . ':' . __LINE__);
+            header('Location: '.BASE_URL.'/materiasprimas');
+            exit;
+        }
         if($_SERVER['REQUEST_METHOD'] === 'POST'){
             if(!Csrf::validate($_POST['csrf_token'])) {
                 $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";

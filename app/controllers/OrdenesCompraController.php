@@ -22,6 +22,7 @@ class OrdenesCompraController extends Controller
     }
     public function anular($id)
     {
+        validarId($id, BASE_URL . '/ordenescompra');
         $this->oc->anular($id);
         header('Location: '.BASE_URL.'/ordenescompra');
     }
@@ -74,12 +75,14 @@ class OrdenesCompraController extends Controller
 
     public function aprobar($id)
     {
+        validarId($id, BASE_URL . '/ordenescompra');
         $this->oc->aprobar($id);
         header('Location: '.BASE_URL.'/ordenescompra');
     }
 
     public function show($id)
     {
+        validarId($id, BASE_URL . '/ordenescompra');
         $orden = $this->oc->findWithDetalle($id);
 
         $this->view('ordenes_compras/show', [
@@ -90,6 +93,7 @@ class OrdenesCompraController extends Controller
 
     public function edit($id)
     {
+        validarId($id, BASE_URL . '/ordenescompra');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
                 $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';

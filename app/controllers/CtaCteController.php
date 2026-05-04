@@ -35,10 +35,12 @@ class CtaCteController extends Controller
      */
     public function show($id)
     {
+        validarId($id, BASE_URL . '/ctacte');
         $mov = $this->model->find((int)$id);
 
         if (!$mov) {
             $_SESSION['error'] = 'Movimiento no encontrado';
+            error_log('Movimiento no encontrado en CtaCteController::show con ID: ' . $id . ' in ' . __FILE__ . ':' . __LINE__);
             header('Location: '.BASE_URL.'/ctacte');
             exit;
         }
@@ -68,6 +70,7 @@ class CtaCteController extends Controller
      */
     public function deudas($clienteId) //luego de la vista de elegir cliente a pagar me deberia mostrar su deuda total
     {
+        validarId($clienteId, BASE_URL . '/ctacte/pago');
         $cliente_mov=$this->model->deudasActualCliente((int)$clienteId);
         $deudas = $this->model->deudasPorCliente((int)$clienteId); //busca en el modelo las deudas del cliente, muestra remitos y montos
         $cliente = $this->cliente->find((int)$clienteId); //trae los datos del cliente

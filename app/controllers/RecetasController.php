@@ -66,6 +66,7 @@ class RecetasController extends Controller
 
     public function show($id)
     {
+        validarId($id, BASE_URL . '/recetas');
         $receta = $this->model->find((int)$id);
         if (!$receta) {
             $_SESSION['error'] = 'Receta no encontrada';
@@ -78,6 +79,7 @@ class RecetasController extends Controller
 
     public function edit(int $id_receta)
     {
+        validarId($id_receta, BASE_URL . '/recetas');
         $receta = $this->model->find((int)$id_receta);
         if (!$receta) {
             $_SESSION['error'] = 'Receta no encontrada';
@@ -101,6 +103,7 @@ class RecetasController extends Controller
     }
     public function delete(int $id_receta)
     {
+        validarId($id_receta, BASE_URL . '/recetas');
         $this->model->delete((int)$id_receta);
         header('Location: '.BASE_URL.'/recetas');
         exit;

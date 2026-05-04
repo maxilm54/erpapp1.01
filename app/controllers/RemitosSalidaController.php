@@ -26,6 +26,7 @@ class RemitosSalidaController extends Controller
     }
         public function pdf($id) // funcion para descargar los pdf remitados
     {
+        validarId($id, BASE_URL . '/remitossalida');
         $remito = $this->model->find($id);
 
         if (!$remito || !$remito['pdf_path']) {
@@ -40,6 +41,7 @@ class RemitosSalidaController extends Controller
 
         public function create($notaPedidoId) // llamo al form para remitar una NP
     {
+        validarId($notaPedidoId, BASE_URL . '/remitossalida');
         $np = $this->np->findWithPendientes((int)$notaPedidoId); // obtengo la np con los pendientes de remito desde el modelo notas pedido
         $cli_act = $this->cli->cliactive((int)$np['id_cliente']);
         if($cli_act['activo']===0){
@@ -97,6 +99,7 @@ class RemitosSalidaController extends Controller
 
     public function show($id)
     {
+        validarId($id, BASE_URL . '/remitossalida');
         $remito = $this->model->find($id);
         if (!$remito){
             $_SESSION['error'] = 'El remito no existe.';
@@ -110,6 +113,7 @@ class RemitosSalidaController extends Controller
 
     public function reenviar($id) //numero de remito a reenviar
     {
+        validarId($id, BASE_URL . '/remitossalida');
         $remito = $this->model->findCompleto((int)$id); //traigo el array de datos del remito completo
 
         if (!$remito || empty($remito['pdf_path'])) {

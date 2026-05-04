@@ -56,6 +56,7 @@ class OrdenproduccionController extends Controller
         ]);
     }
     public function addavance(int $id_avance){
+        validarId($id_avance, BASE_URL . '/ordenproduccion');
         $registro=$this->model->confirmaravance($id_avance);
         $id_op=$this->model->numeroOP((int) $id_avance);
         if($registro===true){
@@ -70,6 +71,7 @@ class OrdenproduccionController extends Controller
     }
     public function avance(int $id) //controlador de eventos de produccion, vista avance/id,Modal del boton + iniciar produccion.
     {
+        validarId($id, BASE_URL . '/ordenproduccion');
         $orden = $this->model->find((int)$id); // obtengo datos de cabecera OP
         $orden_det = $this->model->findopdetalle((int)$id); //Obtengo datos de detalle de OP (puede estar vacio o tener varios registros)
         if ($_SERVER['REQUEST_METHOD'] === 'POST') { // viene del modal de agregar produccion, se registra el avance y se actualiza el stock de producto y materia prima consumida, si es que hubo consumo. Se debe actualizar el estado de la OP a EN_PRODUCCION si no estaba en ese estado.
@@ -141,6 +143,7 @@ class OrdenproduccionController extends Controller
 
     public function show($id) //ver una OP en datalle estado y requerimientos
     {
+        validarId($id, BASE_URL . '/ordenproduccion');
         $orden = $this->model->find((int)$id);
         $reservas = $this->model->findreservas((int)$id);
         $orden_det = $this->model->findopdetalle((int)$id);
@@ -174,6 +177,7 @@ class OrdenproduccionController extends Controller
     
     public function producir($id) // habilita el proceso de produccion de x cantidad solicitada en la OP
     {
+        validarId($id, BASE_URL . '/ordenproduccion');
         $this->model->actualizarEstado((int)$id, 'EN_PRODUCCION');
         $_SESSION['success'] = 'Orden de producción en estado "En Producción"';
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);
@@ -181,6 +185,7 @@ class OrdenproduccionController extends Controller
     }
     public function finalizarproduccion($id)
     {
+        validarId($id, BASE_URL . '/ordenproduccion');
         $this->model->actualizarEstado((int)$id, 'FINALIZADA');
         $_SESSION['success'] = 'Orden de producción finalizada';
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);
@@ -189,6 +194,7 @@ class OrdenproduccionController extends Controller
     //funcion para cancelar la OP, se deve devolver a stock la materia prima que estaba reservada.
     public function cancelarproduccion($id)
     {
+        validarId($id, BASE_URL . '/ordenproduccion');
         //$this->model->actualizarEstado((int)$id, 'CANCELADA');
         $this->model->cancelarproduccion($id);
         $_SESSION['success'] = 'Orden de producción cancelada';

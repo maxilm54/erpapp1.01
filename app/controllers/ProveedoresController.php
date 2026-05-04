@@ -32,6 +32,7 @@ class ProveedoresController extends Controller{
 
     public function edit($id)
     {
+        validarId($id, BASE_URL . '/proveedores');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
                 $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';

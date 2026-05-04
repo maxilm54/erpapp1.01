@@ -28,6 +28,7 @@ class IngresosMercaderiaController extends Controller
     //para el mismo proveedor, si todo es correcto registra el ingreso y redirige a la vista del ingreso creado
     public function create($ordenCompraId)
     {
+        validarId($ordenCompraId, BASE_URL . '/ordenescompra');
         $orden = $this->oc->findWithDetalle($ordenCompraId); //traigo datos de la orden
         if (!$orden) { //devuelvo error si no existe la orden de compra
             $_SESSION['error'] = "El número de OC $ordenCompraId no existe.";
@@ -87,10 +88,14 @@ class IngresosMercaderiaController extends Controller
 
     public function show($id)
     {
+        validarId($id, BASE_URL . '/ingresosmercaderia');
         $ingreso = $this->ingreso->findWithDetalle($id);
 
         if (!$ingreso) {
-            die('Ingreso no encontrado');
+            $_SESSION['error'] = 'Ingreso no encontrado';
+            error_log('Ingreso no encontrado en IngresosMercaderiaController::show con ID: ' . $id . ' in ' . __FILE__ . ':' . __LINE__);
+            header('Location: ' . BASE_URL . '/ingresosmercaderia');
+            die();
         }
 
         $this->view('ingresos/show', [
