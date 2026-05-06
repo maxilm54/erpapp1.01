@@ -95,12 +95,46 @@ class ProductosController extends Controller
             'umedida' => $infoUmedida
         ]);
     }
-    private function uploadImagen(): string
+    private function uploadImagen(): ?string
     {
-        $name = uniqid() . '_' . $_FILES['imagen']['name'];
+        if (empty($_FILES['imagen']['name'])) {
+        return null;
+        }
+        // Validar extensión
+        $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
+        $permitidas = ['jpg', 'jpeg', 'png', 'webp'];
+        if (!in_array($ext, $permitidas)) {
+            $_SESSION['error'] = 'Tipo de archivo no permitido. Solo imágenes.';
+            error_log('Tipo de archivo no permitido: ' . $ext.' - '.__FILE__.':'.__LINE__);
+            return null;
+        }
+        // Validar tamaño (ej: 5MB máximo)
+        if ($_FILES['imagen']['size'] > 5 * 1024 * 1024) {
+            $_SESSION['error'] = 'El archivo es demasiado grande. Máximo 5MB.';
+            error_log('Archivo demasiado grande: ' . $_FILES['imagen']['size'].' bytes - '.__FILE__.':'.__LINE__);
+            return null;
+        }
+        // Validar MIME real (usando finfo)
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($_FILES['imagen']['tmp_name']);
+        $mimesPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!in_array($mime, $mimesPermitidos)) {
+            $_SESSION['error'] = 'El archivo no es una imagen válida.';
+            error_log('Archivo con MIME no permitido: ' . $mime.' - '.__FILE__.':'.__LINE__);
+            return null;
+        }
+
+        // Renombrar para seguridad
+        $name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
         $path = BASE_PATH . '/public/uploads/productos/' . $name;
-        move_uploaded_file($_FILES['imagen']['tmp_name'], $path);
-        return 'uploads/productos/' . $name;
+        
+        if (move_uploaded_file($_FILES['imagen']['tmp_name'], $path)) {
+            error_log('Imagen subida correctamente: ' . $path);
+            return 'uploads/productos/' . $name;
+        }
+        $_SESSION['error'] = 'Error al subir la imagen.';
+        error_log('Error moving uploaded file: ' . $_FILES['imagen']['error']);
+        return null;
     }
 
     // 🔍 BUSCADOR AJAX
