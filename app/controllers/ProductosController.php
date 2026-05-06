@@ -38,7 +38,15 @@ class ProductosController extends Controller
                 $imagen = $this->uploadImagen();
             }
 
-            $productoId = $this->producto->create($_POST, $imagen);
+            $productoId = $this->producto->create([
+                'nombre' => htmlspecialchars(trim($_POST['nombre'])),
+                'sku' => htmlspecialchars(trim($_POST['sku'])),
+                'descripcion' => htmlspecialchars(trim($_POST['descripcion'])),
+                'precio_venta' => (float)$_POST['precio_venta'],
+                'imagen' => $imagen,
+                'user_create' => $_SESSION['user_id'],
+                'unidad_medida' => (int)$_POST['unidad_medida']
+            ], $imagen);
 
             foreach ($_POST['codigos'] as $i => $codigo) {
                 if ($codigo !== '') {

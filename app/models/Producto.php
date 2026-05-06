@@ -65,23 +65,30 @@ class Producto extends Model
 
     public function create(array $data, ?string $imagen): int
     {
-        $stmt = $this->db->prepare(
+        try {
+            $stmt = $this->db->prepare(
             "INSERT INTO productos
             (nombre, sku, descripcion, precio_venta, imagen,user_create,unidad_medida)
             VALUES (:nombre, :sku, :descripcion, :precio, :imagen,:user_create,:unidad_medida)"
-        );
+            );
 
-        $stmt->execute([
-            'nombre' => $data['nombre'],
-            'sku' => $data['sku'],
-            'descripcion' => $data['descripcion'],
-            'precio' => $data['precio_venta'],
-            'imagen' => $imagen,
-            'user_create' => $_SESSION['user_id'],
-            'unidad_medida' => $data['unidad_medida']
-        ]);
-        $_SESSION['success'] = "Producto creado correctamente.";
-        return (int)$this->db->lastInsertId();
+            $stmt->execute([
+                'nombre' => $data['nombre'],
+                'sku' => $data['sku'],
+                'descripcion' => $data['descripcion'],
+                'precio' => $data['precio_venta'],
+                'imagen' => $imagen,
+                'user_create' => $_SESSION['user_id'],
+                'unidad_medida' => $data['unidad_medida']
+            ]);
+            $_SESSION['success'] = "Producto creado correctamente.";
+            error_log('Producto creado con ID '.$this->db->lastInsertId().' y data: '.print_r($data, true).' - '.__FILE__.':'.__LINE__);
+            return (int)$this->db->lastInsertId();
+        } catch (Exception $th) {
+            $_SESSION['error'] = "Error al crear el producto: " . $th->getMessage();
+            error_log('Error creating product: ' . $th->getMessage());
+            return 0;
+        }
     }
 
     public function update(int $id, array $data, ?string $imagen = null): bool //sin imagen y sin barcode

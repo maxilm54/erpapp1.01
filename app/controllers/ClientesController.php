@@ -19,7 +19,18 @@ class ClientesController extends Controller{
                 header('Location: ' . BASE_URL . '/clientes/create');
                 exit;
             }
-            $this->cliente->create($_POST);
+            $this->cliente->create([
+                'razon_social' => htmlspecialchars(trim($_POST['razon_social'])),
+                'cuit' => htmlspecialchars(trim($_POST['cuit'])),
+                'email' => filter_var($_POST['email'], FILTER_SANITIZE_EMAIL),
+                'telefono' => htmlspecialchars(trim($_POST['telefono'])),
+                'localidad' => htmlspecialchars(trim($_POST['localidad'])),
+                'direccion' => htmlspecialchars(trim($_POST['direccion'])),
+                'contacto' => htmlspecialchars(trim($_POST['contacto'])),
+                'es_distribuidor' => htmlspecialchars(trim($_POST['es_distribuidor'])),
+                'observaciones_gral' => htmlspecialchars(trim($_POST['observaciones_gral'])),
+                'obs_financieras' => htmlspecialchars(trim($_POST['obs_financieras']))
+            ]);
             header('Location: ' . BASE_URL . '/clientes');
             exit;
         }
