@@ -48,58 +48,66 @@ class Cliente extends Model
 
     }
 
-    public function create(array $data): bool
+    public function create(array $data): int
     {
-        $sql = "INSERT INTO clientes 
-                (razon_social, cuit, email, telefono, localidad, direccion, contacto, es_distribuidor,observaciones_gral,obs_financieras) 
-                VALUES (:razon, :cuit, :email, :telefono, :localidad, :direccion, :contacto, :es_distribuidor,:observaciones_gral,:obs_financieras)";
+        try {
+            $sql = "INSERT INTO clientes 
+            (razon_social, cuit, email, telefono, localidad, direccion, contacto, es_distribuidor,observaciones_gral,obs_financieras) 
+            VALUES (:razon, :cuit, :email, :telefono, :localidad, :direccion, :contacto, :es_distribuidor,:observaciones_gral,:obs_financieras)";
 
-        $stmt = $this->db->prepare($sql);
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'razon' => $data['razon_social'],
+                'cuit' => $data['cuit'],
+                'email' => $data['email'],
+                'telefono' => $data['telefono'],
+                'localidad' => $data['localidad'],
+                'direccion' => $data['direccion'],
+                'contacto' => $data['contacto'],
+                'es_distribuidor' => $data['es_distribuidor'],
+                'observaciones_gral' => $data['observaciones_gral'] ?? null,
+                'obs_financieras' => $data['obs_financieras'] ?? null,
+            ]);
+            $_SESSION['success'] = "Cliente creado correctamente.";
+            error_log('Cliente creado con ID '.$this->db->lastInsertId().' y data: '.print_r($data, true).' - '.__FILE__.':'.__LINE__);
+            return (int)$this->db->lastInsertId();
+        } catch (Exception $th) {
+            $_SESSION['error'] = "Error al crear el cliente. Avise al administrador. ".$th->getMessage();
+            error_log('Error creating client: ' . $th->getMessage().' - '.__FILE__.':'.__LINE__);
+            return 0;
+        }
 
-        return $stmt->execute([
-            'razon' => $data['razon_social'],
-            'cuit' => $data['cuit'],
-            'email' => $data['email'],
-            'telefono' => $data['telefono'],
-            'localidad' => $data['localidad'],
-            'direccion' => $data['direccion'],
-            'contacto' => $data['contacto'],
-            'es_distribuidor' => $data['es_distribuidor'],
-            'observaciones_gral' => $data['observaciones_gral'] ?? null,
-            'obs_financieras' => $data['obs_financieras'] ?? null,
-        ]);
     }
 
     public function update(int $id, array $data): bool
     {
-        $sql = "UPDATE clientes SET
-                razon_social = :razon,
-                cuit = :cuit,
-                email = :email,
-                telefono = :telefono,
-                direccion = :direccion,
-                localidad = :localidad,
-                contacto = :contacto,
-                es_distribuidor = :es_distribuidor,
-                observaciones_gral = :observaciones_gral,
-                obs_financieras = :obs_financieras
-                WHERE id = :id";
-
-        $stmt = $this->db->prepare($sql);
-
-        return $stmt->execute([
-            'id' => $id,
-            'razon' => $data['razon_social'],
-            'cuit' => $data['cuit'],
-            'email' => $data['email'],
-            'telefono' => $data['telefono'],
-            'direccion' => $data['direccion'],
-            'localidad' => $data['localidad'],
-            'contacto' => $data['contacto'],
-            'es_distribuidor' => $data['es_distribuidor'],
-            'observaciones_gral' => $data['observaciones_gral'] ?? null,
-            'obs_financieras' => $data['obs_financieras'] ?? null,
-        ]);
+        try {
+            $sql = "UPDATE clientes SET razon_social = :razon, cuit = :cuit, email = :email, telefono = :telefono, direccion = :direccion,
+            localidad = :localidad, contacto = :contacto, es_distribuidor = :es_distribuidor, observaciones_gral = :observaciones_gral,
+            obs_financieras = :obs_financieras
+            WHERE id = :id";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'id' => $id,
+                'razon' => $data['razon_social'],
+                'cuit' => $data['cuit'],
+                'email' => $data['email'],
+                'telefono' => $data['telefono'],
+                'direccion' => $data['direccion'],
+                'localidad' => $data['localidad'],
+                'contacto' => $data['contacto'],
+                'es_distribuidor' => $data['es_distribuidor'],
+                'observaciones_gral' => $data['observaciones_gral'] ?? null,
+                'obs_financieras' => $data['obs_financieras'] ?? null,
+            ]);
+            $_SESSION['success'] = "Cliente actualizado correctamente.";
+            error_log('Cliente actualizado con ID '.$id.' y data: '.print_r($data, true).' - '.__FILE__.':'.__LINE__);
+            return true;
+        } catch (Exception $th) {
+            $_SESSION['error'] = "Error al actualizar el cliente. Avise al administrador. ".$th->getMessage();
+            error_log('Error updating client: ' . $th->getMessage().' - '.__FILE__.':'.__LINE__);
+            return false;
+        }
     }
 
     public function delete(int $id): bool
