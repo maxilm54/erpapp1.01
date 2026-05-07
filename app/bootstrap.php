@@ -2,9 +2,19 @@
 declare(strict_types=1);
 
 session_start();
+// Configuración de cookies seguras
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+// Configurar cookies seguras
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', 0); // Cambiar a 1 en producción con HTTPS
+ini_set('session.cookie_samesite', 'Strict');
+// Variables de entorno para producción
+//$develop = getenv('APP_ENV') === 'production' ? 0 : 1;
 $develop = 1;
 /**
- * Constantes base
+ * Constantes base//
  */
 define('BASE_PATH', dirname(__DIR__));
 if($develop === 1){

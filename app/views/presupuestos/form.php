@@ -18,7 +18,7 @@ $action = $isEdit
             <select name="cliente_id" class="form-select" required>
                 <option value="">Seleccione</option>
                 <?php foreach ($clientes as $c): ?>
-                    <option value="<?= $c['id'] ?>"
+                    <option value="<?= htmlspecialchars($c['id']) ?>"
                         <?= $isEdit && $c['id'] == $presupuesto['cliente_id'] ? 'selected' : '' ?>>
                         <?= htmlspecialchars($c['razon_social']) ?>
                     </option>

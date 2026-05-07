@@ -41,9 +41,9 @@ class PresupuestosController extends Controller
             }
 
             $id = $this->pr->create([
-                'cliente_id' => $_POST['cliente_id'],
+                'cliente_id' =>(int) $_POST['cliente_id'],
                 'usuario_id' => $_SESSION['user_id'],
-                'items'      => $_POST['items']
+                'items'      => is_array($_POST['items']) ? $_POST['items'] : []
             ]);
         }
 

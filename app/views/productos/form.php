@@ -10,7 +10,7 @@
         <select class="form-control mb-2" name="unidad_medida" required>
             <option value="">Seleccionar Unidad de Medida</option>
             <?php foreach ($umedida as $um): ?>
-                <option value="<?= $um['id_medida'] ?>"><?= $um['nombre']. " - " . $um['detalle'] ?></option>
+                <option value="<?= htmlspecialchars($um['id_medida']) ?>"><?= htmlspecialchars($um['nombre']) . " - " . htmlspecialchars($um['detalle']) ?></option>
             <?php endforeach; ?>
         </select>
 
