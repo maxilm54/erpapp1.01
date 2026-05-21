@@ -3,6 +3,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/User.php';
 require_once BASE_PATH.'/app/core/Csrf.php';
 require_once BASE_PATH.'/app/helpers/MailHelper.php';
+require_once BASE_PATH.'/app/core/Role.php';
 
 class AuthController extends Controller{
     public function register(): void{
@@ -18,7 +19,8 @@ class AuthController extends Controller{
                 'nombre' => $_POST['nombre'],
                 'email' => $_POST['email'],
                 'password' => $_POST['password'],
-                'token' => $token
+                'token' => $token,
+                'role' => Role::OPERARIO // Asignar rol por defecto
             ]);
 
             $link = BASE_URL . "/auth/verify/$token";
