@@ -59,14 +59,16 @@ class MateriaPrima extends Model
         error_log('se llamo a la funcion updateStock para el producto ID ' . $id . ' con cantidad ' . $cantidad . ' in ' . __FILE__ . ':' . __LINE__);
     }
 
-    public function search(string $q): array // buscador de materias primas para autocompletar
+    public function search(string $q): array
     {
         $stmt = $this->db->prepare("
-            SELECT id, nombre
-            FROM materias_primas
-            WHERE nombre LIKE :q
-            ORDER BY nombre
-            LIMIT 10
+            SELECT mp.id, mp.nombre, um.nombre AS nombre_medida
+            FROM materias_primas mp
+            LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            WHERE mp.activo = 1
+              AND mp.nombre LIKE :q
+            ORDER BY mp.nombre
+            LIMIT 20
         ");
         $stmt->execute(['q' => "%$q%"]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -197,5 +199,35 @@ class MateriaPrima extends Model
             $_SESSION['error'] = "Error al actualizar el código de barra. Por favor, inténtalo de nuevo.";
             return false;
         }
+    }
+
+    public function getStockStatus(): array
+    {
+        $stmt = $this->db->query("
+            SELECT 
+                id,
+                nombre,
+                stock_actual,
+                stock_minimo,
+                stock_maximo,
+                stock_critico,
+                CASE 
+                    WHEN stock_critico > 0 AND stock_actual <= stock_critico THEN 'critico'
+                    WHEN stock_minimo > 0 AND stock_actual <= stock_minimo THEN 'bajo'
+                    WHEN stock_maximo > 0 AND stock_actual >= stock_maximo THEN 'alto'
+                    ELSE 'normal'
+                END AS estado
+            FROM materias_primas
+            WHERE activo = 1
+            ORDER BY 
+                CASE 
+                    WHEN stock_critico > 0 AND stock_actual <= stock_critico THEN 1
+                    WHEN stock_minimo > 0 AND stock_actual <= stock_minimo THEN 2
+                    ELSE 3
+                END,
+                stock_actual ASC
+            LIMIT 50
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

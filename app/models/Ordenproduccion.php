@@ -108,9 +108,10 @@ class OrdenProduccion extends Model
     public function findreservas(int $ordenId): array
     {
         $stmt = $this->db->prepare("
-            SELECT mp.nombre, r.cantidad,mp.precio_actual AS precio_unitario, mp.unidad_medida
+            SELECT mp.nombre, r.cantidad,mp.precio_actual AS precio_unitario, um.nombre as unidad_medida
             FROM reservas_materia_prima r
             JOIN materias_primas mp ON mp.id = r.materia_prima_id
+            LEFT JOIN unidad_medida um ON um.id_medida=mp.id_unidadmedida
             WHERE r.orden_produccion_id = ?
         ");
         $stmt->execute([$ordenId]);

@@ -2,6 +2,8 @@
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/helpers/StockHelper.php';
+require_once BASE_PATH . '/app/models/Producto.php';
+require_once BASE_PATH . '/app/models/MateriaPrima.php';
 
 class HomeController extends Controller
 {
@@ -116,6 +118,15 @@ class HomeController extends Controller
             LIMIT 3
         ")->fetchAll(PDO::FETCH_ASSOC);
 
+        // =========================
+        // STOCK PRODUCTOS Y MP
+        // =========================
+        $producto = new Producto();
+        $materiaPrima = new MateriaPrima();
+        
+        $productosStock = $producto->getStockStatus();
+        $materiasPrimasStock = $materiaPrima->getStockStatus();
+
         $this->view('home/index', compact(
             'ingresos',
             'egresos',
@@ -128,7 +139,9 @@ class HomeController extends Controller
             'totalVendido',
             'topProducidos',
             'totalProducido',
-            'alertasStock'
+            'alertasStock',
+            'productosStock',
+            'materiasPrimasStock'
         ));
     }
 }

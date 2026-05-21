@@ -13,6 +13,10 @@
     <div class="card-body">
         <p><strong>Proveedor:</strong> <?= htmlspecialchars($orden['razon_social']) ?></p>
         <p><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($orden['created_at'])) ?></p>
+        <?php if (!empty($orden['observaciones'])): ?>
+            <p><strong>Observaciones:</strong></p>
+            <p class="mb-0"><?= nl2br(htmlspecialchars($orden['observaciones'])) ?></p>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -21,25 +25,29 @@
     <table class="table table-bordered table-striped">
         <thead class="table-dark">
             <tr>
-                <tr>
-                    <th>Materia Prima</th>
-                    <th>Pedida</th>
-                    <th>Recibida</th>
-                    <th>Faltante</th>
-                    <th>Unidad</th>
-                    <th>Precio Unitario</th>
-                    <th>Moneda</th>
-                </tr>
+                <th>Tipo</th>
+                <th>Nombre</th>
+                <th>Pedida</th>
+                <th>Recibida</th>
+                <th>Faltante</th>
+                <th>Unidad</th>
+                <th>Precio Unitario</th>
+                <th>Moneda</th>
             </tr>
         </thead>
         <tbody>
         <?php foreach ($orden['detalle'] as $d): ?>
+        <?php 
+            $tipoLabel = ($d['tipo'] ?? 'materia_prima') === 'producto' ? 'Producto' : 'Materia Prima';
+            $tipoClass = ($d['tipo'] ?? 'materia_prima') === 'producto' ? 'info' : 'warning';
+        ?>
         <tr>
+            <td><span class="badge bg-<?= $tipoClass ?>"><?= $tipoLabel ?></span></td>
             <td><?= htmlspecialchars($d['nombre']) ?></td>
             <td><?= number_format($d['pedida'], 3,',','.') ?></td>
             <td><?= number_format($d['recibida'], 3,',','.') ?></td>
             <td><?= number_format($d['faltante'], 3,',','.') ?></td>
-            <td><?= htmlspecialchars($d['unidad_medida']) ?></td>
+            <td><?= htmlspecialchars($d['nombre_medida'] ?? $d['id_unidadmedida'] ?? '') ?></td>
             <td><?= number_format($d['precio_unitario'], 3,',','.') ?></td>
             <td><?= htmlspecialchars($d['moneda']) ?></td>
         </tr>

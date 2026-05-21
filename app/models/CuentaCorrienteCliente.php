@@ -1,4 +1,7 @@
 <?php
+
+use function Safe\error_log;
+
 require_once BASE_PATH . '/app/core/Model.php';
 class CuentaCorrienteCliente extends Model
 {
@@ -56,9 +59,10 @@ class CuentaCorrienteCliente extends Model
             ");
             $stmt->execute([$clienteId, $clienteId, $clienteId]);
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log('deudasActualCliente result: ' . print_r($result, true).' - '.__FILE__ . ':' . __LINE__);
             return $result ?: [];
         }catch(Exception $e){
-            error_log('Error fetching deudasActualCliente: ' . $e->getMessage());
+            error_log('Error fetching deudasActualCliente: ' . $e->getMessage().' - '.__FILE__ . ':' . __LINE__);
             $_SESSION['error'] = 'Ocurrio un error al obtener las deudas del cliente (id:'. $clienteId .').'. $e->getMessage();
             return [];
         }
@@ -76,64 +80,52 @@ class CuentaCorrienteCliente extends Model
             $dato = $stmt->fetch(PDO::FETCH_ASSOC);
             return $dato ?: null;
         } catch (Exception $e) {
-            error_log('Error fetching datonp: ' . $e->getMessage());
+            error_log('Error fetching datonp: ' . $e->getMessage().' - '.__FILE__ . ':' . __LINE__);
             return null;
         }
     }
 
-    public function registrarDebito(
-        int $clienteId,
-        float $monto,
-        string $origen,
-        int $referenciaId,
-        int $usuarioId,
-        ?string $obs = null
-    ): void {
-        // calcular saldo actual
-        $saldoActual = $this->saldoCliente($clienteId);
+    public function registrarDebito(int $clienteId,float $monto,string $origen,int $referenciaId,int $usuarioId,?string $obs = null): void {
+        try {
+            // calcular saldo actual
+            $saldoActual = $this->saldoCliente($clienteId);
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("
+                INSERT INTO cuentas_corriente_clientes
+                (cliente_id, fecha, tipo, origen, referencia_id, monto, saldo, observaciones, usuario_id)
+                VALUES (?, CURDATE(), 'DEBITO', ?, ?, ?, ?, ?, ?)
+            ");
 
-        $stmt = $this->db->prepare("
-            INSERT INTO cuentas_corriente_clientes
-            (cliente_id, fecha, tipo, origen, referencia_id, monto, saldo, observaciones, usuario_id)
-            VALUES (?, CURDATE(), 'DEBITO', ?, ?, ?, ?, ?, ?)
-        ");
-
-        $stmt->execute([
-            $clienteId,
-            $origen,
-            $referenciaId,
-            $monto,
-            $saldoActual + $monto,
-            $obs,
-            $usuarioId
-        ]);
+            $stmt->execute([$clienteId,$origen,$referenciaId,$monto,$saldoActual + $monto,$obs,$usuarioId]);
+            $this->db->commit();
+            $_SESSION['success'] = 'Débito registrado correctamente';
+            error_log("Debito registrado: cliente_id=$clienteId, monto=$monto, nuevo_saldo=" . ($saldoActual + $monto) . " - " . __FILE__ . ':' . __LINE__);
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            $_SESSION['error'] = 'Error registrando débito. Avise al Administrador. Detalles: ' . $e->getMessage();
+            error_log("Error registrando debito: " . $e->getMessage() . " - " . __FILE__ . ':' . __LINE__);
+            //throw $th;
+        }
     }
 
-    public function registrarCredito(
-        int $clienteId,
-        float $monto,
-        string $origen,
-        int $referenciaId,
-        int $usuarioId,
-        ?string $obs = null
-    ): void {
-        $saldoActual = $this->saldoCliente($clienteId);
-
-        $stmt = $this->db->prepare("
-            INSERT INTO cuentas_corriente_clientes
-            (cliente_id, fecha, tipo, origen, referencia_id, monto, saldo, observaciones, usuario_id)
-            VALUES (?, CURDATE(), 'CREDITO', ?, ?, ?, ?, ?, ?)
-        ");
-
-        $stmt->execute([
-            $clienteId,
-            $origen,
-            $referenciaId,
-            $monto,
-            $saldoActual - $monto,
-            $obs,
-            $usuarioId
-        ]);
+    public function registrarCredito(int $clienteId,float $monto,string $origen,int $referenciaId,int $usuarioId,?string $obs = null): void {
+        try {
+            $saldoActual = $this->saldoCliente($clienteId);
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare("
+                INSERT INTO cuentas_corriente_clientes
+                (cliente_id, fecha, tipo, origen, referencia_id, monto, saldo, observaciones, usuario_id)
+                VALUES (?, CURDATE(), 'CREDITO', ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$clienteId,$origen,$referenciaId,$monto,$saldoActual - $monto,$obs,$usuarioId]);
+            $this->db->commit();
+            $_SESSION['success'] = 'Crédito registrado correctamente';
+            error_log("Credito registrado: cliente_id=$clienteId, monto=$monto, nuevo_saldo=" . ($saldoActual - $monto) . " - " . __FILE__ . ':' . __LINE__);
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            $_SESSION['error'] = 'Error registrando crédito. Avise al Administrador. Detalles: ' . $e->getMessage();
+            error_log("Error registrando credito: " . $e->getMessage() . " - " . __FILE__ . ':' . __LINE__);
+        }
     }
 
     public function saldoCliente(int $clienteId): float
@@ -163,7 +155,7 @@ class CuentaCorrienteCliente extends Model
             $saltocliente=$saldodeuda - $saldocredito;
             return (float)$saltocliente;
         }catch(Exception $e){
-            error_log('Error calculating saldoCliente: ' . $e->getMessage());
+            error_log('Error calculating saldoCliente: ' . $e->getMessage().' - '.__FILE__ . ':' . __LINE__);
             $_SESSION['error'] = 'Ocurrio un error al calcular el saldo del cliente (id:'. $clienteId .').'. $e->getMessage();
             header('Location: '.BASE_URL.'/ctacte');
             exit;

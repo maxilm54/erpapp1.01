@@ -27,7 +27,7 @@
                 <td>
                     <a href="<?= BASE_URL ?>/productos/update/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-pencil-square"></i></a>
                     <a href="<?= BASE_URL ?>/productos/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-upc-scan"></i></a>
-                    <a href="<?= BASE_URL ?>/productos/updateimage/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a>
+                    <!-- <a href="<?php //BASE_URL ?>/productos/uploadImagen/<?php //$p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a> -->
                     <a href="<?= BASE_URL ?>/productos/stockdata/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-boxes"></i></a>
                 </td>
             </tr>

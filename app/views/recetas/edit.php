@@ -20,7 +20,7 @@
         }
     ?>
     <label>Indique un procedimiento de fabricacion u obsercion, en caso de ser necesario:</label>
-    <textarea name="procedimiento" class="form-control" rows="4"><?= $receta['procedimiento'] ?? '' ?></textarea>
+    <textarea name="procedimiento" class="form-control" rows="4"><?= $receta['proceso_fabrica'] ?? '' ?></textarea>
     <br>
     <button class="btn btn-success">Guardar Receta</button>
     <a href="<?= BASE_URL ?>/recetas" class="btn btn-secondary">Cancelar</a>

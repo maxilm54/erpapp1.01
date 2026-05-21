@@ -13,26 +13,33 @@
                 <th>Precio Subtotal</th>
                 <th>Remitida</th>
                 <th>Pendiente</th>
+                <th>Disponible</th>
                 <th width="140">Remitir ahora</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($np['detalle'] as $item): ?>
                 <?php if ($item['pendiente'] <= 0) continue; ?>
+<?php
+                    $u = strtoupper($item['unidad_nombre'] ?? '');
+                    $esUnidadEntera = in_array($u, ['U','UN','UNIDAD','UNIDADES']);
+                    $step = $esUnidadEntera ? '1' : '0.01';
+                ?>
                 <tr>
-                    <td><?= htmlspecialchars($item['nombre']) ?></td>
-                    <td><?= number_format($item['pedida'], 2) ?></td>
-                    <td>$ <?= number_format($item['precio'], 2) ?></td>
-                    <td>$ <?= number_format($item['total_linea'], 2) ?></td>
-                    <td><?= number_format($item['remitida'], 2) ?></td>
-                    <td><?= number_format($item['pendiente'], 2) ?></td>
+                    <td><?= htmlspecialchars($item['nombre']) ?> <small class="text-muted">(<?= $u ?>)</small></td>
+                    <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
+                    <td>$ <?= number_format($item['precio'], 2, ',', '.') ?></td>
+                    <td>$ <?= number_format($item['total_linea'], 2, ',', '.') ?></td>
+                    <td><?= number_format($item['remitida'], 3, ',', '.') ?></td>
+                    <td><?= number_format($item['pendiente'], 3, ',', '.') ?></td>
+                    <td><?= number_format($item['stock_disponible'] ?? 0, 3, ',', '.') ?></td>
                     <td>
                         <input type="number"
-                            step="1"
+                            step="<?= $step ?>"
                             min="0"
                             max="<?= $item['pendiente'] ?>"
                             name="items[<?= $item['producto_id'] ?>]"
-                            class="form-control" required> <?php // $item['pendiente'] ?>
+                            class="form-control" required>
                     </td>
                 </tr>
             <?php endforeach; ?>

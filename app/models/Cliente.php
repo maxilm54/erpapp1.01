@@ -1,4 +1,7 @@
 <?php
+
+use function Safe\error_log;
+
 require_once BASE_PATH . '/app/core/Model.php';
 class Cliente extends Model
 {
@@ -116,10 +119,12 @@ class Cliente extends Model
             $stmt = $this->db->prepare(
                 "UPDATE clientes SET activo = 0 WHERE id = :id"
             );
+            $stmt->execute(['id' => $id]);
             $_SESSION['success'] = "Cliente inactivado correctamente.";
-            return $stmt->execute(['id' => $id]);
+            error_log("Cliente inactivado con ID: $id" . __FILE__ . ':' . __LINE__);
+            return true;
         } catch (Exception $e) {
-            error_log("Error inactivando cliente: " . $e->getMessage());
+            error_log("Error inactivando cliente: " . $e->getMessage(). __FILE__ . ':' . __LINE__);
             $_SESSION['error'] = "No se pudo inactivar el cliente.".$e->getMessage();
             return false;
         }
@@ -130,10 +135,13 @@ class Cliente extends Model
             $stmt = $this->db->prepare(
                 "UPDATE clientes SET activo = 1 WHERE id = :id"
             );
+            $stmt->execute(['id' => $id]);
             $_SESSION['success'] = "Cliente activado correctamente.";
-            return $stmt->execute(['id' => $id]);
+            error_log("Cliente activado con ID: $id" . __FILE__ . ':' . __LINE__);
+
+            return true;
         } catch (Exception $e) {
-            error_log("Error activating client: " . $e->getMessage());
+            error_log("Error activating client: " . $e->getMessage(). __FILE__ . ':' . __LINE__);
             $_SESSION['error'] = "No se pudo activar el cliente.".$e->getMessage();
             return false;
         }

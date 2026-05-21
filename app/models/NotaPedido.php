@@ -175,18 +175,32 @@ class NotaPedido extends Model
             return null;
         }
 
-        // Detalle con pendientes
+        // Detalle con pendientes y stock disponible
         $stmt = $this->db->prepare("
             SELECT
                 d.producto_id,
                 p.nombre,
+                p.unidad_medida,
+                um.nombre AS unidad_nombre,
                 d.cantidad AS pedida,
                 COALESCE(SUM(rsd.cantidad), 0) AS remitida,
                 (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente,
                 d.precio AS precio,
-                SUM(d.cantidad * d.precio) AS total_linea
+                SUM(d.cantidad * d.precio) AS total_linea,
+                COALESCE((
+                    SELECT SUM(
+                        CASE
+                            WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
+                            WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
+                            ELSE 0
+                        END
+                    )
+                    FROM movimientos_stock ms
+                    WHERE ms.producto_id = d.producto_id
+                ), 0) AS stock_disponible
             FROM notas_pedido_detalle d
             JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
             LEFT JOIN remitos_salida rs
                 ON rs.nota_pedido_id = d.nota_pedido_id
             LEFT JOIN remitos_salida_detalle rsd

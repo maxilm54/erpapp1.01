@@ -25,7 +25,7 @@
                 <td>
                     <a href="<?= BASE_URL ?>/materiasprimas/update/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-pencil-square"></i></a>
                     <a href="<?= BASE_URL ?>/materiasprimas/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-upc-scan"></i></a>
-                    <a href="<?= BASE_URL ?>/materiasprimas/updateimage/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a>
+                    <!-- <a href="<?= BASE_URL ?>/materiasprimas/updateimage/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a> -->
                     <a href="<?= BASE_URL ?>/materiasprimas/stockdata/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-boxes"></i></a>
                 </td>
             </tr>

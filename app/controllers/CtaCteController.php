@@ -109,9 +109,7 @@ class CtaCteController extends Controller
                     'monto'      => (float)$_POST['monto'],
                     'medio_pago' => $_POST['medio_pago'] ?? null,
                     'observaciones' => $_POST['observaciones'] ?? null
-                ]);
-
-            $_SESSION['success'] = 'Pago registrado correctamente';
+                ]);            
             header('Location: '.BASE_URL.'/ctacte');
 
         } catch (Exception $e) {

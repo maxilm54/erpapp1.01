@@ -192,7 +192,7 @@ class ProductosController extends Controller
         ]);
     }
 
-    public function newBarcode($idprod){
+    public function newbarcode($idprod){
         validarId($idprod, BASE_URL . '/productos');
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST['codigo'])) {

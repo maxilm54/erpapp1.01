@@ -29,7 +29,7 @@ class Stock extends Model
             SELECT
                 mp.id,
                 mp.nombre,
-                mp.unidad_medida,
+                um.nombre AS unidad_medida,
                 COALESCE(SUM(
                     CASE
                         WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
@@ -38,6 +38,7 @@ class Stock extends Model
                 ),0) AS stock,
             (SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=mp.id) AS stockreserva
             FROM materias_primas mp
+            LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
             LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
             GROUP BY mp.id
             ORDER BY mp.nombre

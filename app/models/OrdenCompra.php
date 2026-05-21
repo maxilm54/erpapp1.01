@@ -16,28 +16,29 @@ class OrdenCompra extends Model
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO ordenes_compra (proveedor_id, usuario_id)
-             VALUES (:p, :u)"
+            "INSERT INTO ordenes_compra (proveedor_id, observaciones, usuario_id)
+             VALUES (:p, :obs, :u)"
         );
         $stmt->execute([
             'p' => $data['proveedor_id'],
+            'obs' => $data['observaciones'] ?? null,
             'u' => $data['usuario_id']
         ]);
 
         return (int)$this->db->lastInsertId();
     }
 
-    public function addDetalle(int $ocId, int $mpId, float $cantidad,float $precioUnitario,int $moneda): void // chequear si agrego detalle individualmente o en lote -> respndido en el controlador
+    public function addDetalle(int $ocId, ?int $mpId, ?int $productoId, float $cantidad, float $precioUnitario, int $moneda): void
     {
-        $this->db->prepare(
-            "INSERT INTO ordenes_compra_detalle
-             (orden_compra_id, materia_prima_id, cantidad, precio_unitario, moneda)
-             VALUES (:o,:m,:c,:p,:mon)"
-        )->execute([
+        $sql = "INSERT INTO ordenes_compra_detalle
+             (orden_compra_id, materia_prima_id, producto_id, cantidad, precio_unitario, moneda)
+             VALUES (:o, :m, :p, :c, :pre, :mon)";
+        $this->db->prepare($sql)->execute([
             'o' => $ocId,
             'm' => $mpId,
+            'p' => $productoId,
             'c' => $cantidad,
-            'p' => $precioUnitario,
+            'pre' => $precioUnitario,
             'mon' => $moneda
         ]);
     }
@@ -85,6 +86,7 @@ class OrdenCompra extends Model
         );
         $stmt->execute([$id]);
         $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+        error_log('OrdenCompra::findWithDetalle, orden obtenida: '.print_r($orden, true).'-'.__FILE__.'-'.__LINE__);
 
         if (!$orden) {
             return null;
@@ -93,27 +95,35 @@ class OrdenCompra extends Model
         // 2️⃣ DETALLE con recibidas / faltantes
         $stmt = $this->db->prepare(
             "SELECT 
-                d.materia_prima_id,d.precio_unitario,mon.logo AS moneda,
-                mp.nombre,
-                mp.unidad_medida,
+                d.materia_prima_id,
+                d.producto_id,
+                d.precio_unitario,
+                mon.simbolo AS moneda,
+                COALESCE(mp.nombre, pr.nombre) AS nombre,
+                COALESCE(mp.id_unidadmedida, pr.unidad_medida) AS id_unidadmedida,
+                COALESCE(um_mp.nombre, um_pr.nombre) AS nombre_medida,
                 d.cantidad AS pedida,
                 COALESCE(SUM(idt.cantidad), 0) AS recibida,
-                (d.cantidad - COALESCE(SUM(idt.cantidad), 0)) AS faltante
+                (d.cantidad - COALESCE(SUM(idt.cantidad), 0)) AS faltante,
+                CASE 
+                    WHEN d.producto_id IS NOT NULL THEN 'producto'
+                    ELSE 'materia_prima'
+                END AS tipo
             FROM ordenes_compra_detalle d
-            JOIN materias_primas mp 
-                ON mp.id = d.materia_prima_id
-            LEFT JOIN ingresos_mercaderia i
-                ON i.orden_compra_id = d.orden_compra_id
-            LEFT JOIN ingresos_mercaderia_detalle idt
-                ON idt.ingreso_id = i.id
-                AND idt.materia_prima_id = d.materia_prima_id
-            LEFT JOIN monedas mon
-                ON mon.id_monedas = d.moneda
+            LEFT JOIN materias_primas mp ON mp.id = d.materia_prima_id
+            LEFT JOIN unidad_medida um_mp ON um_mp.id_medida = mp.id_unidadmedida
+            LEFT JOIN productos pr ON pr.id = d.producto_id
+            LEFT JOIN unidad_medida um_pr ON um_pr.id_medida = pr.unidad_medida
+            LEFT JOIN ingresos_mercaderia i ON i.orden_compra_id = d.orden_compra_id
+            LEFT JOIN ingresos_mercaderia_detalle idt ON idt.ingreso_id = i.id
+                AND (idt.materia_prima_id = d.materia_prima_id OR idt.producto_id = d.producto_id)
+            LEFT JOIN monedas mon ON mon.id_moned = d.moneda
             WHERE d.orden_compra_id = ?
-            GROUP BY d.materia_prima_id, mp.nombre, mp.unidad_medida, d.cantidad"
+            GROUP BY d.materia_prima_id, d.producto_id, d.precio_unitario, d.cantidad"
         );
         $stmt->execute([$id]);
         $orden['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log('OrdenCompra::findWithDetalle, detalle obtenido: '.print_r($orden['detalle'], true).'-'.__FILE__.'-'.__LINE__);
         // el retorno es $orden y $orden['detalle']
         return $orden;
     }
@@ -125,10 +135,11 @@ class OrdenCompra extends Model
             // 1️⃣ Actualizar cabecera
             $this->db->prepare(
                 "UPDATE ordenes_compra
-                SET proveedor_id = :p
+                SET proveedor_id = :p, observaciones = :obs
                 WHERE id = :id AND estado = 'PENDIENTE'"
             )->execute([
                 'p'  => $data['proveedor_id'],
+                'obs' => $data['observaciones'] ?? null,
                 'id' => $id
             ]);
 
@@ -142,15 +153,20 @@ class OrdenCompra extends Model
             foreach ($data['items'] as $item) {
                 if ($item['cantidad'] <= 0) continue;
 
+                $mpId = !empty($item['materia_prima_id']) ? $item['materia_prima_id'] : null;
+                $prodId = !empty($item['producto_id']) ? $item['producto_id'] : null;
+
                 $this->db->prepare(
                     "INSERT INTO ordenes_compra_detalle
-                    (orden_compra_id, materia_prima_id, cantidad,precio_unitario)
-                    VALUES (?, ?, ?, ?)"
+                    (orden_compra_id, materia_prima_id, producto_id, cantidad, precio_unitario, moneda)
+                    VALUES (:id, :mp, :prod, :cant, :pre, :mon)"
                 )->execute([
-                    $id,
-                    $item['materia_prima_id'],
-                    $item['cantidad'],
-                    $item['precio_unitario']
+                    'id' => $id,
+                    'mp' => $mpId,
+                    'prod' => $prodId,
+                    'cant' => $item['cantidad'],
+                    'pre' => $item['precio_unitario'] ?? 0,
+                    'mon' => $item['moneda'] ?? 1
                 ]);
             }
 
@@ -159,6 +175,7 @@ class OrdenCompra extends Model
 
         } catch (Exception $e) {
             $this->db->rollBack();
+            error_log('Error al actualizar OC: '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
             die('Error al actualizar OC: '.$e->getMessage());
         }
     }
@@ -215,13 +232,13 @@ class OrdenCompra extends Model
                 $stockData = $stmt->fetch(PDO::FETCH_ASSOC);
                 return $stockData;
         } catch (Exception $e) {
-            error_log('Error al calcular el sotck proyectado: '.$e->getMessage());
+            error_log('Error al calcular el sotck proyectado: '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
         }
 
     }
 
     public function ocExistente(int $mp_id){
-        error_log('funcion ocExistente con mp: '.$mp_id.' ok');
+        error_log('funcion ocExistente con mp: '.$mp_id.' ok'.'-'.__FILE__.'-'.__LINE__);
         $stmt = $this->db->prepare("
                         SELECT oc.id
                         FROM ordenes_compra oc
@@ -232,7 +249,7 @@ class OrdenCompra extends Model
                     ");
         $stmt->execute([$mp_id]);
         $ocExistente = $stmt->fetch(PDO::FETCH_COLUMN);
-        error_log('funcion ocExistente devuelve: '.print_r($ocExistente,true));
+        error_log('funcion ocExistente devuelve: '.print_r($ocExistente,true).'-'.__FILE__.'-'.__LINE__);
         return (int)$ocExistente;
     }
 
@@ -247,11 +264,11 @@ class OrdenCompra extends Model
             $stmt->execute([$_SESSION['user_id']]);
             $ordenCompraId = $this->db->lastInsertId(); // devuelvo el id de una oc que no existia y se creo nueva
             $this->db->commit();
-            error_log('Funcion crearoc desde faltantes devuelve id de oc nueva: '.$ordenCompraId);
+            error_log('Funcion crearoc desde faltantes devuelve id de oc nueva: '.$ordenCompraId.'-'.__FILE__.'-'.__LINE__);
             return (int)$ordenCompraId;
         }catch(Exception $e){
             $this->db->rollBack();
-            error_log('Error al crear la cabecera de OC para ordenes automaticas al momento de generar produccion, '.$e->getMessage());
+            error_log('Error al crear la cabecera de OC para ordenes automaticas al momento de generar produccion, '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
             return (int)0;
         }
     }
@@ -266,10 +283,10 @@ class OrdenCompra extends Model
                             ");
             $stmt->execute([$cant_add,$id_oc,$id_mp]);
             $this->db->commit();
-            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes');
+            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes'.'-'.__FILE__.'-'.__LINE__);
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log('Error al actualizar la cantidad de una mp existente en una oc(proceso desde creacion con faltantes), '.$e->getMessage());
+            error_log('Error al actualizar la cantidad de una mp existente en una oc(proceso desde creacion con faltantes), '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
         }
     }
 
@@ -283,14 +300,14 @@ class OrdenCompra extends Model
             $stmt = $this->db->prepare("
                         INSERT INTO ordenes_compra_detalle
                         (orden_compra_id, materia_prima_id, cantidad, precio_unitario, moneda,referencia_oc,referencia_id)
-                        VALUES (?, ?, ?, 0, 1,'STOCK_OP',?)
+                        VALUES (?, ?, ?, 0, 4,'STOCK_OP',?)
                     ");
             $stmt->execute([$id_oc,$id_mp,$cant_add,$oc_id]);
             $this->db->commit();
-            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes');
+            error_log('Funcion actualizar cant de mp '.$id_mp.' en oc '.$id_oc.', desde proceso oc faltantes'.'-'.__FILE__.'-'.__LINE__);
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log('Error al agregar la cantidad de una mp en una oc(proceso desde creacion con faltantes), '.$e->getMessage());
+            error_log('Error al agregar la cantidad de una mp en una oc(proceso desde creacion con faltantes), '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
         }
         
     }

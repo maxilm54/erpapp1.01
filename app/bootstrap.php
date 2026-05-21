@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
-
-session_start();
-// Configuración de cookies seguras
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 // Configurar cookies seguras
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_secure', 0); // Cambiar a 1 en producción con HTTPS
 ini_set('session.cookie_samesite', 'Strict');
+//session_start();
+// Configuración de cookies seguras
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Variables de entorno para producción
 //$develop = getenv('APP_ENV') === 'production' ? 0 : 1;
 $develop = 1;
@@ -18,7 +18,7 @@ $develop = 1;
  */
 define('BASE_PATH', dirname(__DIR__));
 if($develop === 1){
-    define('BASE_URL', 'http://localhost/app/public');//define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');
+   define('BASE_URL', 'http://192.168.101.5/app/public');// define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');////define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');
 }else{
     define('BASE_URL', 'https://syspre.alimentostriba.com.ar');
 }

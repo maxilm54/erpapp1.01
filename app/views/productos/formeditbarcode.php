@@ -25,7 +25,7 @@
     <div class="col d-flex justify-content-end">
         <a class="btn btn-secondary me-2" href="<?= BASE_URL ?>/productos">Volver</a>
         <button class="btn btn-success me-2">Guardar</button>
-        <a class="btn btn-warning" href="<?= BASE_URL ?>/productos/newbarcode/<?= $codigo['producto_id'] ?>">Nuevo Codigo</a>
+        <a class="btn btn-warning" href="<?= BASE_URL ?>/productos/newbarcode/<?= $producto['id'] ?>">Nuevo Codigo</a>
     </div>
     
     
