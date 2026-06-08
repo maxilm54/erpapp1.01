@@ -40,10 +40,18 @@ class PresupuestosController extends Controller
                 exit;
             }
 
+            $items = $_POST['items'] ?? [];
+            if (empty($items)) {
+                $_SESSION['error'] = 'Debe agregar al menos un producto al presupuesto.';
+                header('Location: ' . BASE_URL . '/presupuestos/create');
+                exit;
+            }
+
             $id = $this->pr->create([
-                'cliente_id' => $_POST['cliente_id'],
-                'usuario_id' => $_SESSION['user_id'],
-                'items'      => $_POST['items']
+                'cliente_id'   => (int) $_POST['cliente_id'],
+                'usuario_id'   => $_SESSION['user_id'],
+                'items'        => $items,
+                'observaciones'=> $_POST['observaciones'] ?? ''
             ]);
         }
 
@@ -79,9 +87,17 @@ class PresupuestosController extends Controller
                 exit;
             }
 
+            $items = $_POST['items'] ?? [];
+            if (empty($items)) {
+                $_SESSION['error'] = 'Debe agregar al menos un producto al presupuesto.';
+                header('Location: ' . BASE_URL . '/presupuestos/update/' . $id);
+                exit;
+            }
+
             $this->pr->update($id, [
-                'cliente_id' => $_POST['cliente_id'],
-                'items'      => $_POST['items']
+                'cliente_id'   => $_POST['cliente_id'],
+                'items'        => $items,
+                'observaciones'=> $_POST['observaciones'] ?? ''
             ]);
         }
 

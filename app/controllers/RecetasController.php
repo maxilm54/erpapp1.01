@@ -45,7 +45,8 @@ class RecetasController extends Controller
                     (int)$_POST['producto_id'],
                     $_POST['nombre'],
                     $items,
-                    $_POST['procedimiento'] ?? null
+                    $_POST['procedimiento'] ?? null,
+                    (int)$_SESSION['user_id']
                 );
 
                 $_SESSION['success'] = 'Receta creada correctamente';
@@ -120,5 +121,13 @@ class RecetasController extends Controller
         }
 
         $this->modal('recetas/_modal', ['receta'=>$receta,'rec_det'=>$receta['detalle']], false);
+    }
+
+    public function inactivar(int $id_receta)
+    {
+        validarId($id_receta, BASE_URL . '/recetas');
+        $this->model->inactivar((int)$id_receta);
+        header('Location: '.BASE_URL.'/recetas');
+        exit;
     }
 }

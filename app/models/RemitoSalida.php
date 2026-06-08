@@ -256,19 +256,28 @@ class RemitoSalida extends Model
 
             // 2️⃣ Detalle + impacto stock
             foreach ($items as $productoId => $cantidad) {
-                $stock = $this->stockDisponibleProducto($productoId);
-                if ($stock < $cantidad) {
-                    throw new Exception(
-                        "Stock insuficiente para el producto ID $productoId. Disponible: $stock"
-                    );
-                }
-
-                if (!is_numeric($productoId) || !is_numeric($cantidad)) {
-                    $_SESSION['error'] = 'Datos inválidos en el remito, para NP ID '.$notaPedidoId;
-                    throw new Exception('Datos inválidos en el remito');                    
-                }
                 $cantidad = (float)$cantidad;
                 if ($cantidad <= 0) continue;
+
+                if (!is_numeric($productoId)) {
+                    throw new Exception('ID de producto inválido');
+                }
+
+                $stock = $this->stockDisponibleProducto($productoId);
+                
+                if ($stock <= 0) {
+                    $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
+                    $stmtProd->execute([$productoId]);
+                    $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
+                    throw new Exception("El producto '$nombreProd' no tiene stock disponible (Stock: 0). No se puede remitar.");
+                }
+
+                if ($stock < $cantidad) {
+                    $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
+                    $stmtProd->execute([$productoId]);
+                    $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
+                    throw new Exception("Stock insuficiente para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
+                }
 
                 // Detalle
                 $this->db->prepare("

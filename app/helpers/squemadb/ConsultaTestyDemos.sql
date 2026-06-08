@@ -371,4 +371,11 @@ SELECT
   ),0) AS stock
 FROM movimientos_stock m WHERE producto_id = 1 ORDER BY created_at DESC
 
+SELECT * FROM movimientos_stock WHERE producto_id=1
+
+UPDATE materias_primas SET stock_actual=0
+
+
+COMMIT;
+
 

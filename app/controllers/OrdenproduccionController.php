@@ -55,12 +55,13 @@ class OrdenproduccionController extends Controller
             'productos' => (new Producto())->all() // metodo que trae los productos en la vista con ajax llama a check stock.
         ]);
     }
-    public function addavance(int $id_avance){
+    public function addavance(int $id_avance){ //confirmo el avace de produccion, check en vista avance de produccuin, aqui es donde confirmo el stock en todos lados
         validarId($id_avance, BASE_URL . '/ordenproduccion');
-        $registro=$this->model->confirmaravance($id_avance);
+        $registro=$this->model->confirmaravance($id_avance); //id avance es el id en la tabla orden_produccion_detalle
         $id_op=$this->model->numeroOP((int) $id_avance);
         if($registro===true){
             $_SESSION['SUCCESS']="Registro de avance confirmado!";
+            error_log("Confirmacion del registro de avance $id_avance. ".__FILE__.':'.__LINE__);
             header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id_op);
             exit;
         }else{
@@ -76,7 +77,7 @@ class OrdenproduccionController extends Controller
         $orden_det = $this->model->findopdetalle((int)$id); //Obtengo datos de detalle de OP (puede estar vacio o tener varios registros)
         if ($_SERVER['REQUEST_METHOD'] === 'POST') { // viene del modal de agregar produccion, se registra el avance y se actualiza el stock de producto y materia prima consumida, si es que hubo consumo. Se debe actualizar el estado de la OP a EN_PRODUCCION si no estaba en ese estado.
             //solo entro si hubo envio desde el modal.
-            error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true));
+            error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true).' - '.__FILE__.':'.__LINE__);
             //die();
             if (!Csrf::validate($_POST['csrf_token'])) {
                 error_log('se a intentado un registro rechazado por csrf. '.__FILE__.':'.__LINE__);
@@ -86,22 +87,25 @@ class OrdenproduccionController extends Controller
             }
             //antes de llamar al modelo para registrar el avance,primero controlar stock de Materia Prima y luego el modelo se encarga de rechazar si se superan las cantidades.
             try {
-                $stockCheck = $this->model->producirvsStockMP($_POST['receta_id'], $_POST['cantidad_producida']);
-                error_log('Resultado del chequeo de stock para avance OP '.$id.': '.print_r($stockCheck,true));
+                //CUANDO CHEQUEO TENGO QUE VALIDAR NO SOLO LA RESERVA SINO QUE SI AL RESERVA SE HIZO SIN STOCK, SE REGISTRA IGUAL.
+                $stockCheck = $this->model->producirvsStockMP($_POST['receta_id'], $_POST['cantidad_producida'], (int) $id);
+                error_log('Resultado del chequeo de stock para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
                 //error=sin stock, warnign stock insuficiente, niguno permite producir.
                 //die();
-                if ($stockCheck['estado'] === 'error') {
-                    $_SESSION['error'] = 'No hay stock suficiente para producir la cantidad solicitada.';
+                if ($stockCheck['estado'] === 'error') { // tengo 0 stock reservado de todas las mp
+                    $_SESSION['error'] = 'No hay stock de Materia Prima para producir la cantidad solicitada.';
+                    error_log('stockcheck: '.$stockCheck['estado'].', para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
                     header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
                     exit;
                 }
-                if ($stockCheck['estado'] === 'warning') {
-                    $_SESSION['error'] = 'No hay stock suficiente para producir la cantidad solicitada.';
+                if ($stockCheck['estado'] === 'warning') { // algunas MP no tienen stock
+                    $_SESSION['error'] = 'No hay stock suficiente de Materia Prima para producir la cantidad solicitada.';
+                    error_log('stockcheck: '.$stockCheck['estado'].', para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
                     header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
                     exit;
                 }
             } catch (Exception $e) {
-                error_log('Error al chequear stock antes de registrar avance: '.$e->getMessage());
+                error_log('Error al chequear stock antes de registrar avance: '.$e->getMessage().' - '.__FILE__.':'.__LINE__);
                 $_SESSION['error'] = 'Error al verificar stock. Intente nuevamente.';
                 header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
                 exit;
@@ -117,9 +121,11 @@ class OrdenproduccionController extends Controller
                     'usuario_id'  => $_SESSION['user_id']
                 ]);
                 //En el modelo:
-                //si el model avance dio bien tengo que descontar la mercaderia, primero cambio el estado (consumido) luego las elimino para que el trigger las pase a historico
-                //Se debe aumentar el stock del producto producido
-
+                //Al registrar el avance, solo se hace con MP reservada, se debe insertar un registro en la tabla de reservas para ese MP id y OP id 
+                // con el estado consumido y la cantidad consumida, la reserva de stock sera RESERVADO - (CONSUMIDO+LIBERADO).
+                //se descarta el trigger y tbla de hsitoricos.
+                //Se debe aumentar el stock del producto producido. En la tabla de movimientos_stock se reigistra el ingreso de Producto y el conusmo de MP desde
+                //la reserva, con el detalle de que es un registro de avance de OP.
             } catch (Exception $e) {
                 error_log('sesion anterior'.print_r($_SESSION['error'],true));
                 $_SESSION['error'] .= $e->getMessage();

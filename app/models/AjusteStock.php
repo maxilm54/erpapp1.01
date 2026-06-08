@@ -53,7 +53,8 @@ class AjusteStock extends Model
             ]);
 
             $this->db->commit();
-
+            $_SESSION['success'] = 'Stock de producto ajustado correctamente';
+            error_log('Stock de producto id ' . $productoId . ' ajustado correctamente por usuario id ' . $usuarioId . '-'.__FILE__.'-'.__LINE__);
         } catch (Exception $e) {
             $_SESSION['error'] = 'Error al ajustar stock: ' . $e->getMessage();
             error_log('Error al ajustar stock de producto id ' . $productoId . ' : ' . $e->getMessage().__FILE__.':'.__LINE__);
@@ -92,10 +93,11 @@ class AjusteStock extends Model
             ]);
 
             $this->db->commit();
-
+            $_SESSION['success'] = 'Stock de materia prima ajustado correctamente';
+            error_log('Stock de materia prima id ' . $mpId . ' ajustado correctamente por usuario id ' . $usuarioId . '-'.__FILE__.'-'.__LINE__);
         } catch (Exception $e) {
             $_SESSION['error'] = 'Error al ajustar stock de materia prima id ' . $mpId . ' : ' . $e->getMessage();
-            error_log('Error al ajustar stock de materia prima id ' . $mpId . ' : ' . $e->getMessage());
+            error_log('Error al ajustar stock de materia prima id ' . $mpId . ' : ' . $e->getMessage().'-'.__FILE__.'-'.__LINE__);
             $this->db->rollBack();
             header('Location: ' . BASE_URL . '/ajustesstock');
             exit;

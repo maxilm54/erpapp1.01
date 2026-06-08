@@ -38,7 +38,7 @@ class AjustesstockController extends Controller
 
                 );
                 error_log('AjusteStockController: Producto ID ' . (int)$_POST['producto_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
-                $_SESSION['success'] = 'Ajuste de producto realizado exitosamente.';
+                //$_SESSION['success'] = 'Ajuste de producto realizado exitosamente.';
                 header('Location: ' . BASE_URL . '/ajustesstock');
                 exit;
 
@@ -70,7 +70,7 @@ class AjustesstockController extends Controller
                     htmlspecialchars($_POST['observaciones'])
                 );
                 error_log('AjusteStockController: Materia Prima ID ' . (int)$_POST['materia_prima_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
-                $_SESSION['success'] = 'Ajuste de materia prima realizado exitosamente.';
+                //$_SESSION['success'] = 'Ajuste de materia prima realizado exitosamente.';
                 header('Location: ' . BASE_URL . '/ajustesstock');
                 exit;
 

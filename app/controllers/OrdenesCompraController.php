@@ -3,14 +3,43 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/OrdenCompra.php';
 require_once BASE_PATH.'/app/models/Proveedor.php';
 require_once BASE_PATH.'/app/models/MateriaPrima.php';
+require_once BASE_PATH.'/app/models/Producto.php';
 
 class OrdenesCompraController extends Controller
 {
     private OrdenCompra $oc;
+    private Producto $producto;
+    private MateriaPrima $materiaPrima;
 
     public function __construct()
     {
         $this->oc = new OrdenCompra();
+        $this->producto = new Producto();
+        $this->materiaPrima = new MateriaPrima();
+    }
+
+    public function search()
+    {
+        header('Content-Type: application/json');
+        $q = trim($_GET['q'] ?? '');
+
+        if (strlen($q) < 2) {
+            echo json_encode([]);
+            return;
+        }
+
+        $productos = $this->producto->search($q);
+        $materiasPrimas = $this->materiaPrima->search($q);
+
+        foreach ($productos as &$p) {
+            $p['tipo'] = 'producto';
+        }
+        foreach ($materiasPrimas as &$mp) {
+            $mp['tipo'] = 'materia_prima';
+        }
+
+        $result = array_merge($productos, $materiasPrimas);
+        echo json_encode($result);
     }
 
     public function index()
@@ -41,17 +70,26 @@ class OrdenesCompraController extends Controller
             try {
                 $ocId = $this->oc->create([
                     'proveedor_id'=>$_POST['proveedor_id'],
+                    'observaciones'=>$_POST['observaciones'] ?? null,
                     'usuario_id'=>$_SESSION['user_id']
                 ]);
 
                 foreach ($_POST['items'] as $item) {
                     if ($item['cantidad'] > 0) {
-                        $this->oc->addDetalle(  // aca esta la respuesta! lo llama tantas veces existan lineas en detalle
+                        $mpId = !empty($item['materia_prima_id']) ? (int)$item['materia_prima_id'] : null;
+                        $productoId = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
+                        
+                        $moneda = is_numeric($item['moneda'] ?? '$') 
+                            ? intval($item['moneda']) 
+                            : 1;
+                        
+                        $this->oc->addDetalle(
                             $ocId,
-                            $item['materia_prima_id'],
-                            $item['cantidad'],
-                            $item['precio_unitario'],
-                            $item['moneda'] ?? '$'
+                            $mpId,
+                            $productoId,
+                            (float)$item['cantidad'],
+                            (float)($item['precio_unitario'] ?? 0),
+                            $moneda
                         );
                     }
                 }

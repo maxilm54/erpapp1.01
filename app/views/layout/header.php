@@ -32,6 +32,7 @@
 <ul class="navbar-nav me-auto">
 
 <!-- ABM -->
+<?php if (Auth::check()): ?>
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
 ABM
@@ -43,6 +44,10 @@ ABM
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/materiasprimas">Materias primas</a></li>
 </ul>
 </li>
+<?php endif; ?>
+
+<!-- Más secciones con verificación de login -->
+<?php if (Auth::check()): ?>
 <!-- VENTAS -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
@@ -102,17 +107,26 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte/cliente">Mov Cliente</a></li>
 </ul>
 </li>
-
-</ul>
+<?php endif; ?>
 
 <ul class="navbar-nav">
-<li class="nav-item">
-<a class="nav-link" href="<?= BASE_URL ?>/auth/logout">Salir</a>
+<?php if (Auth::check()): ?>
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+<i class="bi bi-person-circle"></i>
+<?php $u = Auth::getCurrentUser(); echo htmlspecialchars($u['nombre'] ?? 'Usuario'); ?>
+</a>
+<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/perfil">Mi Perfil</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/auth/logout">Salir</a></li>
+</ul>
 </li>
+<?php endif; ?>
 </ul>
 
 </div>
 </div>
 </nav>
 <div class="container-fluid">
-    <div class="page-container">
+<div class="page-container">
