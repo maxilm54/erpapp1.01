@@ -36,12 +36,24 @@ class Stock extends Model
                         WHEN m.tipo = 'SALIDA' THEN -m.cantidad
                     END
                 ),0) AS stock,
-            (SELECT SUM(cantidad) FROM reservas_materia_prima WHERE materia_prima_id=mp.id) AS stockreserva
+                (
+                    SELECT COALESCE(
+                        SUM(
+                            CASE 
+                                WHEN estado = 'RESERVADO' THEN cantidad
+                                WHEN estado IN ('CONSUMIDO','LIBERADO') THEN -cantidad
+                                ELSE 0
+                            END
+                        ),0
+                    )
+                    FROM reservas_materia_prima r
+                    WHERE r.materia_prima_id = mp.id
+                ) AS stockreserva
             FROM materias_primas mp
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
             LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
             GROUP BY mp.id
-            ORDER BY mp.nombre
+            ORDER BY mp.nombre;
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 }

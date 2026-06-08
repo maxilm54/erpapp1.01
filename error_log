@@ -33,3 +33,11 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\app\app\migrations\add_role_to_users.php on line 3
+[21-May-2026 14:08:58 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php:3
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php on line 3
+[21-May-2026 14:08:58 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php:3
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php on line 3
