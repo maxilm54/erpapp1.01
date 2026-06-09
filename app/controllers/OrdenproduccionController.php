@@ -147,7 +147,7 @@ class OrdenproduccionController extends Controller
     }
 
 
-    public function show($id) //ver una OP en datalle estado y requerimientos
+    public function show(int $id) //ver una OP en datalle estado y requerimientos
     {
         validarId($id, BASE_URL . '/ordenproduccion');
         $orden = $this->model->find((int)$id);
@@ -181,7 +181,7 @@ class OrdenproduccionController extends Controller
     }
     // realizar la metodologia del consumo o devolucion de mp en reservas
     
-    public function producir($id) // habilita el proceso de produccion de x cantidad solicitada en la OP
+    public function producir(int $id) // habilita el proceso de produccion de x cantidad solicitada en la OP
     {
         validarId($id, BASE_URL . '/ordenproduccion');
         $this->model->actualizarEstado((int)$id, 'EN_PRODUCCION');
@@ -189,7 +189,7 @@ class OrdenproduccionController extends Controller
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);
         exit;
     }
-    public function finalizarproduccion($id)
+    public function finalizarproduccion(int $id)
     {
         validarId($id, BASE_URL . '/ordenproduccion');
         $this->model->actualizarEstado((int)$id, 'FINALIZADA');
@@ -198,7 +198,7 @@ class OrdenproduccionController extends Controller
         exit;
     }
     //funcion para cancelar la OP, se deve devolver a stock la materia prima que estaba reservada.
-    public function cancelarproduccion($id)
+    public function cancelarproduccion(int $id)
     {
         validarId($id, BASE_URL . '/ordenproduccion');
         //$this->model->actualizarEstado((int)$id, 'CANCELADA');
