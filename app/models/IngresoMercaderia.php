@@ -96,8 +96,8 @@ class IngresoMercaderia extends Model
             // 3️⃣ Detalle + movimiento de stock
             foreach ($data['items'] as $item) {
                 $tipo = $item['tipo'] ?? 'materia_prima';
-                $mpId = $item['materia_prima_id'] ?? null;
-                $prodId = $item['producto_id'] ?? null;
+                $mpId = $item['materia_prima_id'] ?? null;//nullo para setear si entra uno o el otro
+                $prodId = $item['producto_id'] ?? null; //nunca van a entrar juntos 
                 $cantidad = (float)$item['cantidad'];
                 
                 if ($cantidad <= 0) {
@@ -106,7 +106,7 @@ class IngresoMercaderia extends Model
                 
                 // Validar faltante según tipo
                 if ($tipo === 'materia_prima') {
-                    $faltante = $this->faltantePorMateria($orden_id, $mpId);
+                    $faltante = $this->faltantePorMateria($orden_id, $mpId); //busco el faltante para no ingresar mas de lo que se pidio en la oc
                 } else {
                     $faltante = $this->faltantePorProducto($orden_id, $prodId);
                 }
@@ -115,7 +115,7 @@ class IngresoMercaderia extends Model
 
                 if ($cantidad > $faltante) {
                     error_log("Se intentó ingresar más de la cuenta. No se puede ingresar $cantidad. Faltante: $faltante".__FILE__.' - '.__LINE__);
-                    throw new Exception("Error al ingresar mercadería oc: $orden_id. No se puede ingresar $cantidad. Faltante: $faltante");
+                    throw new Exception("Atencion! no se puede ingresar mercadería oc: $orden_id. No se puede ingresar $cantidad. Faltante: $faltante");
                 }
 
                 // Insertar detalle ingreso (soporta ambos tipos)

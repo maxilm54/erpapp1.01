@@ -10,7 +10,7 @@ class OrdenProduccion extends Model
             ORDER BY op.id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
-    public function crear(array $data): int //creo OP y reservo MP, pero si no hay stock de MP lanzo excepcion y rollback para no crear nada.
+    public function crear(array $data): int //Sollo debo crear la OP. viejo:creo OP y reservo MP, pero si no hay stock de MP lanzo excepcion y rollback para no crear nada.
     {
         $this->db->beginTransaction();
 
@@ -31,7 +31,7 @@ class OrdenProduccion extends Model
 
             $ordenId = $this->db->lastInsertId();
 
-            $this->reservarMateriaPrima($ordenId); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
+            // No se reserva mas la mercaderia al generaa la op, sino al confirmar. viejo : $this->reservarMateriaPrima($ordenId); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
 
             $this->db->commit();
             return $ordenId;
@@ -186,9 +186,9 @@ class OrdenProduccion extends Model
             'faltantes' => $faltantes
         ];
     }
-    public function actualizarEstado(int $id, string $estado): void // aca tengo que cambiar para corregir cuando se tomas las reservas o se devuelven
+    public function actualizarEstado(int $id, string $estado): void // solo actauliza el estado de un op para permitir el inicio de la orden de produccion sin confirmar stock
     {
-        error_log($id.'-'.$estado);
+        error_log('cambio de estado de una op'.$id.'-'.$estado.' - '.__FILE__.":".__LINE__);
         $stmt = $this->db->prepare("
             UPDATE ordenes_produccion
             SET estado = ?
@@ -196,24 +196,23 @@ class OrdenProduccion extends Model
         ");
         $stmt->execute([$estado, $id]);
     }
-
-    public function avances(array $data){ //llamo desde controlador avances para registrar producciones, aca solo inicio el
-                                        //proceso de produccion, luego falta registrar el fin de produccion,
-                                        //ahi es cuando hago los mov de stock producto.
+    //llamo desde controlador avances para registrar producciones, aca solo inicio el
+    //proceso de produccion, luego falta registrar el fin de produccion,
+    //ahi es cuando hago los mov de stock producto.
+    //pasos:
+    //1 registrar el avance en la tabla de detalle de OP, esto me permite llevar un historial de los avances registrados
+        //con fecha y hora, cantidad producida, observaciones, etc.
+    //paso 2,3y4 solo se completan cuanso se confirma el avance.
+    //2 actualizar el stock de producto incrementando la cantidad producida,esto debe agregarse en movimientos de stock
+        //con el tipo de movimiento "ENTRADA" y la referencia a la OP, esto me permite tener el stock real del producto
+        //actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
+    //3 actualizar el stock de materia prima consumida, esto me permite tener el stock real, tambien en tabla movimientos
+    //4 actualizar el estado de la orden de produccion a EN_PRODUCCION si no estaba en ese estado,
+        //esto me permite tener el estado real de la orden actualizado a medida que se van registrando los avances,
+        //y poder mostrarlo en la vista de avance.
+    public function avances(array $data){
         $this->db->beginTransaction();
-        try {
-            //pasos:
-            //1 registrar el avance en la tabla de detalle de OP, esto me permite llevar un historial de los avances registrados
-                //con fecha y hora, cantidad producida, observaciones, etc.
-            //paso 2,3y4 solo se completan cuanso se confirma el avance.
-            //2 actualizar el stock de producto incrementando la cantidad producida,esto debe agregarse en movimientos de stock
-                //con el tipo de movimiento "ENTRADA" y la referencia a la OP, esto me permite tener el stock real del producto
-                //actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
-            //3 actualizar el stock de materia prima consumida, esto me permite tener el stock real, tambien en tabla movimientos
-            //4 actualizar el estado de la orden de produccion a EN_PRODUCCION si no estaba en ese estado,
-                //esto me permite tener el estado real de la orden actualizado a medida que se van registrando los avances,
-                //y poder mostrarlo en la vista de avance.
-            //1
+        try {//1
             $stmt = $this->db->prepare("
                 INSERT INTO orden_produccion_detalle
                 (orden_id,producto_id,registred_at,cantidad_producida,observaciones,user_id)
@@ -227,21 +226,22 @@ class OrdenProduccion extends Model
                 $data['observaciones'],
                 $data['usuario_id']
             ]);
-            //cambiar el estado de la orden si se completo o no, solo para finalizar?
-            $dato_opid=(int) $data['orden_id']; //obtengo el id de produccion (tabla orden_produccion_detalle)
-            $change_estado= $this->estadoChange($dato_opid); // validar true.
-            error_log('Cambio de estado:'.$change_estado.' - '.__FILE__.":".__LINE__);
-            //2 debo insertar en la tabla de mov el ingreso de producto que viene de produccion
-            error_log('Insertando movimiento de stock para el producto: '.$data['producto_id'].' - '.__FILE__.":".__LINE__);
-            //cambiar el estado de la materia prima solo si lo producido alcanza lo pedido
-            //si esta completa eliminar el dato de la tabla reserva MP antes cambiando el estado reservado a consumido.
-            //a medida que se va agregando producccion se debe ir aumentando el stock del producto.
-            if($change_estado === true){
-                $this->ajustarProducto($data['producto_id'],$data['cantidad_producida'],$data['observaciones'],$data['usuario_id'],'ENTRADA',$data['orden_id']);
-            }
             $this->db->commit();
             $_SESSION['success']="Se ha registrado la Produccion, Descontado Materia Prima e Ingresado el Stock del Producto.";
             return (int) $data['orden_id'];
+            //cambiar el estado de la orden si se completo o no, solo para finalizar?
+            //$dato_opid=(int) $data['orden_id']; //obtengo el id de produccion (tabla orden_produccion_detalle)
+            //$change_estado= $this->estadoChange($dato_opid); // validar true.
+            //error_log('Cambio de estado:'.$change_estado.' - '.__FILE__.":".__LINE__);
+            //2 No!! debo insertar en la tabla de mov el ingreso de producto que viene de produccion
+            //Porque se inserta cuando se confirma el avance.
+            //cambiar el estado de la materia prima solo si lo producido alcanza lo pedido
+            //si esta completa eliminar el dato de la tabla reserva MP antes cambiando el estado reservado a consumido.
+            //a medida que se va agregando producccion se debe ir aumentando el stock del producto.
+            ///if($change_estado === true){
+                //el prod se ajusta cuando se confirma el avance.
+                //$this->ajustarProducto($data['producto_id'],$data['cantidad_producida'],$data['observaciones'],$data['usuario_id'],'ENTRADA',$data['orden_id']);
+            //}
         }catch(Exception $e){
             $this->db->rollBack();
             error_log($e->getMessage());
@@ -250,22 +250,22 @@ class OrdenProduccion extends Model
         }
     }
 
-    public function estadoChange($id_orden): bool{
+    public function estadoChange(int $id_orden): bool{
         /* TODO: cambiar el estado de una orden de produccion implica lo soguiente:
         *PRIMERO comprobar si la cantidad que se produce es la misma que se pide para cerrar la orden de un solo paso.
         *SEGUNDO la materia prima virtualmente esta en reserva, a medida que se avanza en la op se inserta la cantidad de mp con estado consumida, cuando reservado es = a (consumido+liberado) se cierra
         *asi se usa en la misma tabla el registro de reserva y el descuento a medida que se produce o si se anula.
         *TERCERO en ambos casos se debe incrementar en stock de producto la cantidad producida.
         */
-        error_log("Se hizo un registro de avance para la orden: ".$id_orden." - ".__FILE__.":".__LINE__);
+        error_log("Se genero un registro de avance para la orden: ".$id_orden." - ".__FILE__.":".__LINE__);
         try{
-            $pedidas=$this->find($id_orden);
+            $pedidas=$this->find($id_orden);//traigo la cantidad que pide la orden.
             $stmt = $this->db->prepare("
                 SELECT SUM(cantidad_producida) FROM orden_produccion_detalle
                 WHERE orden_id=?
             ");
             $stmt->execute([$id_orden]);
-            $producidas= (float)$stmt->fetchColumn();
+            $producidas= (float)$stmt->fetchColumn(); // traigo las producidas,
             $total=(float) $pedidas['cantidad'] - $producidas; // si este valor da 0 la produccion esta completa sino sigue en produccion
             error_log((float)$pedidas['cantidad'].'-'.(float)$producidas.'- Total:'.$total.' - '.__FILE__.":".__LINE__);
             if($total==0){ // aca solo entra si la OP se completo de forma total en este registro de avance
@@ -487,4 +487,43 @@ class OrdenProduccion extends Model
         return (float)$stmt->fetchColumn();
     }
 
+    public function findReceta(int $id, int $idOP): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT 
+                mp.id AS materia_prima_id,
+                COALESCE(SUM(
+                    CASE
+                        WHEN ms.tipo = 'ENTRADA' THEN ms.cantidad
+                        WHEN ms.tipo = 'AJUSTE' THEN ms.cantidad
+                        WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
+                        WHEN ms.tipo = 'CONSUMO' THEN -ms.cantidad
+                        WHEN ms.tipo = 'RESERVA' THEN -ms.cantidad
+                        ELSE 0
+                    END
+                ),0) AS stock_real
+            FROM materias_primas mp
+            LEFT JOIN movimientos_stock ms 
+                ON ms.materia_prima_id = mp.id
+            WHERE mp.id = 41
+            GROUP BY mp.id;
+            
+        ");
+        $stmt->execute();
+        return $stmt->fetchALL(PDO::FETCH_ASSOC);
+    }
+
 }
+
+/*
+SELECT mp.nombre AS mp_nombre,mp.id AS mp_id, rdet.cantidad AS mp_cantidad, mp.sku AS mp_sku, mp.precio_actual AS mp_precio, um.nombre AS mp_unidadmedida,
+
+p.nombre AS producto_nombre, rdet.cantidad AS cantidad_receta
+FROM recetas r
+LEFT JOIN recetas_detalle rdet ON rdet.receta_id=r.id
+JOIN productos p ON p.id = r.producto_id
+LEFT JOIN materias_primas mp ON mp.id=rdet.materia_prima_id
+    LEFT JOIN unidad_medida um ON um.id_medida=mp.id_unidadmedida
+WHERE r.id = :id_receta
+
+*/

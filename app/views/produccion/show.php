@@ -23,13 +23,14 @@ foreach ($orden_det as $r) {
 
 <hr>
 
-<h5>Materia Prima Reservada</h5>
+<h5>Materia Prima Necesaria</h5>
 <div class="table-scroll mt-3">
     <table class="table table-bordered">
         <thead>
             <tr>
                 <th>Materia Prima</th>
                 <th>Cantidad</th>
+                <th>Disponible</th>
                 <th>Un Medida</th>
                 <th>Precio U</th>
                 <th>SubTotal</th>
@@ -44,6 +45,7 @@ foreach ($orden_det as $r) {
             <tr>
                 <td><?= htmlspecialchars($r['nombre']) ?></td>
                 <td><?= number_format($r['cantidad'], 2,',','.') ?></td>
+                <td><?= number_format($stockmp_actual[$r['id']] ?? 0, 2,',','.') ?></td>
                 <td><?= htmlspecialchars($r['unidad_medida']) ?></td>
                 <td><?= number_format($r['precio_unitario'] ?? 0, 2) ?></td>
                 <td><?= number_format($r['cantidad'] * ($r['precio_unitario'] ?? 0), 2,'.',',') ?></td>

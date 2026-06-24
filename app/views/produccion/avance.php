@@ -69,7 +69,7 @@ $faltante = $cantidadPedida - $totalProducido;
                     <input type="hidden" name="cantidad_faltante" value="<?= number_format($faltante, 3, '.', '') ?>">
 
                     <div class="mb-3">
-                        <label class="form-label" for="cantidad_producida">Cantidad Producida <span class="text-muted">(máx: <?= number_format($faltante, 2, ',', '.') ?>)</span></label>
+                        <label class="form-label" for="cantidad_producida">Cantidad a Producir <span class="text-muted">(máx: <?= number_format($faltante, 2, ',', '.') ?>)</span></label>
                         <input
                             name="cantidad_producida"
                             type="number"

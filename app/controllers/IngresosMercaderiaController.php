@@ -1,4 +1,7 @@
 <?php
+
+use function PHPSTORM_META\type;
+
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/IngresoMercaderia.php';
 require_once BASE_PATH.'/app/models/OrdenCompra.php';
@@ -26,7 +29,7 @@ class IngresosMercaderiaController extends Controller
     //Funcion para ingresar mercaderia, recibe el id de la orden de compra, se ejecuta desde la vista ingresarmercaderia/create/id_oc
     //valida que la orden exista y que no este completamente recibida, luego valida que el numero de remito no se repita 
     //para el mismo proveedor, si todo es correcto registra el ingreso y redirige a la vista del ingreso creado
-    public function create($ordenCompraId)
+    public function create(int $ordenCompraId)
     {
         validarId($ordenCompraId, BASE_URL . '/ordenescompra');
         $orden = $this->oc->findWithDetalle($ordenCompraId); //traigo datos de la orden
@@ -51,19 +54,18 @@ class IngresosMercaderiaController extends Controller
                 header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
                 exit;
             }
-            error_log(print_r($_POST, true));
+            error_log('creaar ingreso: ' . print_r($_POST, true) . ' - ' . __FILE__ . ' - ' . __LINE__);
             //Existente me va a devolver si existe o no un remito para ese proveedor, debe venir vacio para poder seguir sino alerta.
             $existente = $this->ingreso->findByRemitoProveedor(
                 $orden['proveedor_id'],
                 $_POST['remito']
             );
-            error_log(print_r($existente, true));
-            // existente es 1 (existe numero de remito para ese proveedor) tengo que entrar al if y devolver el alerta.Esto esta ok
-            if ($existente===0) {
+            // existente es true (existe numero de remito para ese proveedor) tengo que entrar al if y devolver el alerta.Esto esta ok
+            if ($existente===true) {
                 $remito=$_POST['remito'];
                 $_SESSION['warning'] = 'El número de remito '.$remito.' ya fue ingresado para este proveedor. Ingrese el Numero Correcto.';
                 error_log("Controlador ingMerc, metodo findByRemitoProveedor: Remito repetido ".$remito." para el mismo proveedor. ". __FILE__.' - '.__LINE__ );
-                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);//revisar si el remito ya fue ingresado
+                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);//vuelvo a la vista a crear el ingreso
                 exit;
             }
             //todo ok sin errores llamo a la funcion para registrar el ingreso.
@@ -80,12 +82,13 @@ class IngresosMercaderiaController extends Controller
                     ];
                 }
             }
-            
+            // gener el array data con el numero de remito y los articulos que vienen en el post
             $data = [
                 'remito' => $_POST['remito'],
                 'items' => $items
             ];
-            
+            error_log('Datos procesados para registrar ingreso: ' . print_r($data, true) . ' - ' . __FILE__ . ' - ' . __LINE__);
+            //die();
             $ingresoId = $this->ingreso->registrar(
                 $orden['id'],
                 $orden['proveedor_id'],
@@ -105,7 +108,7 @@ class IngresosMercaderiaController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show(int $id)
     {
         validarId($id, BASE_URL . '/ingresosmercaderia');
         $ingreso = $this->ingreso->findWithDetalle($id);

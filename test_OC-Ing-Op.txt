@@ -1,0 +1,41 @@
+Generamos una oc para comprar mp1=100,mp2=200 y mp3=300
+damos ingreso de la oc con RE 00001-00120310 mp1=40, mp2=50,mp3=300
+inge #1 correcto, faltantes perfectos, mp1 60,mp2 150 y mp3 ing completo
+hiostrial de mov de stock las 3 mp ingresadas, ok, la referencia es id de la tabla ingresos_mercaderia. 
+- Compras-Ver ingresos muestra el comprobante ok, faltan observaciones
+
+Vista de Stock de Materias Primas ok los stocks.
+Se aplica un ajuste de stock de salida en 5 unidades en cada producto, en historial de movimientos todos ok y en los stocks también.
+Se aplica ahora el ajuste de stock como entrada de esas mp para volver a su stock original.
+Las pruebas dan ok!
+
+Se crea la OP 13 usando la receta 33 para producir 10 unidades del producto 1 (se maneja en unidades). para cada unidad se necesita 2 mp1 y 1 kg de mp3.
+Se confirma para proceder a generar avances de producción
+en la tabla de sotck de materia prima se chequea de forma correcta que al confirmar la OP se reserva la materia prima moviendo el stock de disponible a reservado, el total se mantiene correcto pero ahora tengo materia reservada ok
+
+Confirmo la producción para 5 unidades, la generación de avance esta ok. Confirmo el avance y tengo todo ok en la op.
+Aca hay un error en stock de productos, la OP me genero directamente el stock en 10, y yo solo produje 5.
+Aca hay un error en Historico de Mov Stock se generaron 2 movimientos de 5 unidades por eso en stock se ven 10.
+En stock de mp se refleja correcto el consumo de reserva.
+
+Genero otro avance por el resto de la cantidad a producir, me da el ok perfecto y me cierra la orden. Hay que corregir en la vista el dato de Cantidad Producida ya que muestra la cantidad que pide la oc y no la que se confirmo.
+Se repiten los erros de stock de productos y mov_stock
+El stock de materias primas perfecto!
+
+Ahora genero una OP donde la MP tiene stock parcial de mp1 necesito 40 y tengo 20, me debería dejar producir la mitad de lo solicitado.
+
+antes de confirmar la OP la cantidad producida esta en 0, eso es ok, cuando confirmo sigue en 0, eso es OK.
+Sin confirmar el avance el stock de producto debería ser 20 (con el error incluido anterior que se duplico el ingreso de prod) pero ya me incremento en 5, sin cofirmar y en el historial muestra el avance agregado, ahí estam al, cuando se agrega un avance no debe agregar stock, solo cuando se confirma.
+ la materia prima reservada debería ser mp1 40 con -20 en stock esperando a ser recepcionada. Aca reserve mp1=20 que no tengo. Cuando confirme de los 40 me van a consumir 10 (mequedan 10 reales y 20 que no los tengo hasta que ingrese).
+El dato Cantidad producida esta ok, al confirmar me volvió a ingresar el producto
+Falta en el historial de Mov reflejar el consumo de la MP para que se descuente de la reserva ya sea por consumo o liberación sies que la OP se anulo
+
+-Cuando genere el segundo avance de producción sin confirmar todavía ahora si me muestra que la cantidad producida es 10, pero esto puede venir de el error donde se duplica el ingreso de prod. Se duplica el inmgreso de prod en mov_stock y en stock de productos debería tener 30 y tengo 40. tenia 20, produci 10 son 30, pero estos 10 están duplicados.
+Ahora prueba de fuego producir stock con Mp que reserve pero no tengo:
+Al generar el avance no me lo bloueo, debería. El dato cantidad producda aumento a 15. y me permito confirmar el avance, asi que hay que buscar la operatorioa de generar ese bloqueo cuando la mercaderia todavía no entro.
+Buscar la forma de ver el stock negativo de una mp para generar el avance
+
+
+
+
+

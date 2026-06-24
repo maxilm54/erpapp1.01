@@ -7,12 +7,7 @@
     </div>
     <div class="mb-3">
         <label class="form-label">Remito</label>
-        <input type="text"
-            name="remito"
-            class="form-control"
-            placeholder="00000-00000000"
-            pattern="\d{5}-\d{8}"
-            required>
+        <input type="text" name="remito" class="form-control" placeholder="00000-00000000" pattern="\d{5}-\d{8}" required>
     </div>
     <table class="table table-bordered">
         <thead class="table-dark">

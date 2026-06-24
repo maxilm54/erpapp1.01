@@ -18,7 +18,7 @@ class OrdenproduccionController extends Controller
             'ordenes' => $this->model->all()
         ]);
     }
-    //En la Vista Create, cuando generamos la orden, hacemos el pedido de MP, lo que hay de stock se reserva y lo que falta se pide.
+    //En la Vista Create, generamos la OP, perola reserva se hace al confirmar. Si no hay stock de la opcion de generar una Orden de Compra OC. - viejo: hacemos el pedido de MP, lo que hay de stock se reserva y lo que falta se pide.
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -111,6 +111,7 @@ class OrdenproduccionController extends Controller
                 exit;
             }
             //si el stock esta ok, en todas sus MP para la contidad a producir permite generar el registro a producir.
+            // Aca solo deberia generar el avance, no mueve stock, podria hacerlo figurar en transito?
             try {
                 $id = $this->model->avances([
                     'orden_id'   => $_POST['orden_id'],
@@ -150,16 +151,23 @@ class OrdenproduccionController extends Controller
     public function show(int $id) //ver una OP en datalle estado y requerimientos
     {
         validarId($id, BASE_URL . '/ordenproduccion');
-        $orden = $this->model->find((int)$id);
-        $reservas = $this->model->findreservas((int)$id);
-        $orden_det = $this->model->findopdetalle((int)$id);
+        $orden = $this->model->find((int)$id); //traigo datos de cabecera de la OP
+        $receta = $this->model->findReceta((int)$orden['receta_id'], (int)$id); // traigo la receta para esa OP, con el detalle de los insumos necesarios para producir el producto, con la cantidad necesaria para la cantidad pedida en la OP.
+        //tengo que traer la receta no la reserva. viejo $reservas = $this->model->findreservas((int)$id); //traigo las reservas de MP para esa OP, con la cantidad reservada, el precio unitario y el nombre de la MP, si no hay reservas trae un array vacio. En la vista se muestra la tabla de MP reservada aunque este vacia, y si no hay reservas se muestra un mensaje de que no hay MP reservada.
+        $orden_det = $this->model->findopdetalle((int)$id); //traigo los avances de produccion registrados para esa OP, con la cantidad producida, la fecha y el usuario que registro el avance, si no hay avances trae un array vacio. En la vista se muestra la cantidad total producida sumando los avances registrados.
+        $stockmp_actual = $this->model->chequearStockReceta((int) $orden['receta_id'],(float) $orden['cantidad']); //traigo el stock actual de MP para esa receta, sumando el stock disponible y el reservado, para mostrarlo en la vista y comparar con la cantidad a producir.
+        error_log('Stock actual de MP para OP '.$id.': '.print_r($stockmp_actual,true).' - '.__FILE__.':'.__LINE__);
+        echo '<pre>';
+        var_dump($receta);
+        echo '</pre>';
+        die();
         if (!$orden) {
             $_SESSION['error'] = 'Orden no encontrada';
-            header('Location: '.BASE_URL.'/produccion');
+            header('Location: '.BASE_URL.'/ordenproduccion');
             exit;
         }
 
-        $this->view('produccion/show', compact('orden', 'reservas','orden_det'));
+        $this->view('produccion/show', compact('orden', 'receta','orden_det', 'stockmp_actual'));
     }
 
     public function checkStock() //este controlador se usa para el chequeo de stock via ajax y poder mostrar si hay stock para las distintas cantidads que se vayan eligiendo a producir
