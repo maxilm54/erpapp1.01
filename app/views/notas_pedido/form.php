@@ -77,6 +77,12 @@ function cargarLineasDesdePresupuesto(items) {
 function agregarLineaPresupuesto(p) {
     const tbody = document.getElementById('detalle');
 
+    // Determinar step según unidad de medida (U, UN, UNIDAD = entero)
+    const nombreMedida = (p.nombre_medida || '').toLowerCase();
+    const esUnidadEntera = ['u', 'un', 'unidad', 'unidades'].includes(nombreMedida);
+    const stepCantidad = esUnidadEntera ? '1' : '0.01';
+    const minCantidad = esUnidadEntera ? '1' : '0.01';
+
     const tr = document.createElement('tr');
     tr.id = `prod-${p.producto_id}`;
 
@@ -90,6 +96,8 @@ function agregarLineaPresupuesto(p) {
                    class="form-control"
                    name="items[${p.producto_id}][cantidad]"
                    value="${p.cantidad}"
+                   step="${stepCantidad}"
+                   min="${minCantidad}"
                    readonly>
         </td>
         <td>
@@ -207,6 +215,12 @@ function agregarLinea(p) {
         return;
     }
 
+    // Determinar step según unidad de medida (U, UN, UNIDAD = entero)
+    const nombreMedida = (p.nombre_medida || '').toLowerCase();
+    const esUnidadEntera = ['u', 'un', 'unidad', 'unidades'].includes(nombreMedida);
+    const stepCantidad = esUnidadEntera ? '1' : '0.01';
+    const minCantidad = esUnidadEntera ? '1' : '0.01';
+
     const tr = document.createElement('tr');
     tr.id = `prod-${p.id}`;
 
@@ -216,7 +230,7 @@ function agregarLinea(p) {
             <input type="hidden" name="items[${p.id}][producto_id]" value="${p.id}">
         </td>
         <td>
-            <input type="number" step="0.01" min="0.01"
+            <input type="number" step="${stepCantidad}" min="${minCantidad}"
                    name="items[${p.id}][cantidad]"
                    class="form-control"
                    required>

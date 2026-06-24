@@ -5,7 +5,7 @@ require_once BASE_PATH . '/app/config/env.php';
 define('APP_NAME','app');
 //define('BASE_URL','http://localhost/app/public');
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
+ini_set('display_errors', (defined('APP_DEBUG') && APP_DEBUG) ? '1' : '0');
 define('SMTP_HOST', env('SMTP_HOST'));
 define('SMTP_PORT', env('SMTP_PORT'));
 define('SMTP_USER', env('SMTP_USER'));

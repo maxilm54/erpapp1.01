@@ -551,6 +551,39 @@ SELECT * FROM vstStock_movStock_Producto;
 /*6-4-26 editar tabla movimientos_stock para agregar campomotivo*/
 ALTER TABLE `movimientos_stock`
 	ADD COLUMN `motivo` TEXT NOT NULL AFTER `cantidad`;
+/* 14-26 agregar campo observaciones al presupuesto */
+ALTER TABLE `presupuestos`
+	ADD COLUMN `observaciones` VARCHAR(255) NULL DEFAULT '" "' AFTER `pre_asign`;
+/* 15-5-2026 */	
+ALTER TABLE `ordenes_compra_detalle`
+	CHANGE COLUMN `materia_prima_id` `materia_prima_id` INT(11) NULL AFTER `orden_compra_id`,
+	ADD COLUMN `producto_id` INT(11) NULL AFTER `materia_prima_id`;
+
+ALTER TABLE `ordenes_compra_detalle`
+	ADD CONSTRAINT `ordenes_compra_detalle_ibfk_2` FOREIGN KEY (`materia_prima_id`) REFERENCES `materias_primas` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT,
+	ADD CONSTRAINT `oc_producto_id_vs_idproductofk_4` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT;
+	
+ALTER TABLE `ingresos_mercaderia_detalle`
+	CHANGE COLUMN `materia_prima_id` `materia_prima_id` INT(11) NULL AFTER `ingreso_id`,
+	ADD COLUMN `producto_id` INT(11) NULL AFTER `materia_prima_id`;
+	
+ALTER TABLE `ingresos_mercaderia_detalle`
+	ADD CONSTRAINT `prodid_vs_idprod_FK3` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON UPDATE RESTRICT ON DELETE RESTRICT;	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 
 

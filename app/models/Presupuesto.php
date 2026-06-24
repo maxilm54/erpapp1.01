@@ -34,9 +34,10 @@ class Presupuesto extends Model
     public function detalle(int $id): array
     {
         $stmt = $this->db->prepare(
-            "SELECT d.*, p.nombre, p.unidad_medida
+            "SELECT d.*, p.nombre, p.unidad_medida, um.nombre AS nombre_medida
              FROM presupuestos_detalle d
              JOIN productos p ON p.id = d.producto_id
+             LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
              WHERE d.presupuesto_id = ?"
         );
         $stmt->execute([$id]);
@@ -50,12 +51,13 @@ class Presupuesto extends Model
         try { 
             //cabecera
             $stmt = $this->db->prepare(
-                "INSERT INTO presupuestos (cliente_id, usuario_id)
-                 VALUES (:c, :u)"
+                "INSERT INTO presupuestos (cliente_id, usuario_id, observaciones)
+                 VALUES (:c, :u, :obs)"
             );
             $stmt->execute([
-                'c' => $data['cliente_id'],
-                'u' => $_SESSION['user_id']
+                'c'   => $data['cliente_id'],
+                'u'   => $_SESSION['user_id'],
+                'obs' => $data['observaciones'] ?? ''
             ]);
 
             $presupuestoId = (int)$this->db->lastInsertId();
@@ -87,6 +89,7 @@ class Presupuesto extends Model
             }
 
             $this->db->commit();
+            $_SESSION['success'] = "Presupuesto creado correctamente.";
             return $presupuestoId;
 
         } catch (Exception $e) {
@@ -102,10 +105,11 @@ class Presupuesto extends Model
         try {
             $this->db->prepare(
                 "UPDATE presupuestos
-                 SET cliente_id = ?
+                 SET cliente_id = ?, observaciones = ?
                  WHERE id = ? AND estado = 'BORRADOR'"
             )->execute([
                 $data['cliente_id'],
+                $data['observaciones'] ?? '',
                 $id
             ]);
 
@@ -129,6 +133,7 @@ class Presupuesto extends Model
             }
 
             $this->db->commit();
+            $_SESSION['success'] = "Presupuesto actualizado correctamente.";
             return true;
 
         } catch (Exception $e) {
@@ -177,10 +182,13 @@ class Presupuesto extends Model
             SELECT 
                 d.producto_id,
                 pr.nombre,
+                pr.unidad_medida,
+                um.nombre AS nombre_medida,
                 d.cantidad,
                 d.precio
             FROM presupuestos_detalle d
             JOIN productos pr ON pr.id = d.producto_id
+            LEFT JOIN unidad_medida um ON um.id_medida = pr.unidad_medida
             WHERE d.presupuesto_id = ?
         ");
         $stmt->execute([$id]);

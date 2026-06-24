@@ -1,5 +1,6 @@
 <?php
 $isEdit = isset($presupuesto);
+error_log($isEdit);
 $action = $isEdit
     ? BASE_URL.'/presupuestos/update/'.$presupuesto['id']
     : BASE_URL.'/presupuestos/store';
@@ -18,7 +19,7 @@ $action = $isEdit
             <select name="cliente_id" class="form-select" required>
                 <option value="">Seleccione</option>
                 <?php foreach ($clientes as $c): ?>
-                    <option value="<?= $c['id'] ?>"
+                    <option value="<?= htmlspecialchars($c['id']) ?>"
                         <?= $isEdit && $c['id'] == $presupuesto['cliente_id'] ? 'selected' : '' ?>>
                         <?= htmlspecialchars($c['razon_social']) ?>
                     </option>
@@ -59,12 +60,39 @@ $action = $isEdit
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- líneas dinámicas -->
+                    <?php if ($isEdit && !empty($presupuesto['detalle'])): ?>
+                        <?php 
+                        function esUnidadEntera($nombreMedida) {
+                            $nombre = strtolower($nombreMedida ?? '');
+                            return in_array($nombre, ['u', 'un', 'unidad', 'unidades']);
+                        }
+                        ?>
+                        <?php foreach ($presupuesto['detalle'] as $idx => $item): ?>
+                        <?php 
+                            $stepCantidad = esUnidadEntera($item['nombre_medida']) ? '1' : '0.01';
+                        ?>
+                        <tr>
+                            <td>
+                                <?= htmlspecialchars($item['nombre']) ?>
+                                <input type="hidden" name="items[<?= $idx ?>][producto_id]" value="<?= $item['producto_id'] ?>">
+                            </td>
+                            <td>
+                                <input type="number" step="<?= $stepCantidad ?>" min="<?= $stepCantidad ?>" name="items[<?= $idx ?>][cantidad]" value="<?= $item['cantidad'] ?>" class="form-control" required>
+                            </td>
+                            <td>
+                                <input type="number" step="0.01" name="items[<?= $idx ?>][precio]" value="<?= $item['precio'] ?>" class="form-control" required>
+                            </td>
+                            <td class="text-center">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">&times;</button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
-        <label>Proceso u Observaciones de Fabricacion</label>
-        <textarea name="procedimiento" class="form-control" rows="4"></textarea>
+        <label>Observaciones:</label>
+        <textarea name="observaciones" class="form-control" rows="4"><?= htmlspecialchars($presupuesto['observaciones'] ?? '') ?></textarea>
         <div class="mt-3">
             <button class="btn btn-success">Guardar</button>
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Cancelar</a>
@@ -121,10 +149,17 @@ inputBuscar.addEventListener('input', function () {
     resultados.classList.remove('d-none');
 });
 
-let index = 0;
+<?php $initialIndex = ($isEdit && !empty($presupuesto['detalle'])) ? count($presupuesto['detalle']) : 0; ?>
+let index = <?= $initialIndex ?>;
 
 btnAgregar.addEventListener('click', function () {
     if (!productoSeleccionado) return;
+
+    // Determinar step según unidad de medida (U, UN, UNIDAD = entero)
+    const nombreMedida = (productoSeleccionado.nombre_medida || '').toLowerCase();
+    const esUnidadEntera = ['u', 'un', 'unidad', 'unidades'].includes(nombreMedida);
+    const stepCantidad = esUnidadEntera ? '1' : '0.01';
+    const minCantidad = esUnidadEntera ? '1' : '0.01';
 
     const row = document.createElement('tr');
 
@@ -134,7 +169,7 @@ btnAgregar.addEventListener('click', function () {
             <input type="hidden" name="items[${index}][producto_id]" value="${productoSeleccionado.id}">
         </td>
         <td>
-            <input type="number" step="0.01" name="items[${index}][cantidad]" class="form-control" required>
+            <input type="number" step="${stepCantidad}" min="${minCantidad}" name="items[${index}][cantidad]" class="form-control" required>
         </td>
         <td>
             <input type="number" step="0.01" name="items[${index}][precio]" value="${productoSeleccionado.precio_venta}" class="form-control" required>

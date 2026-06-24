@@ -67,11 +67,30 @@ class IngresosMercaderiaController extends Controller
                 exit;
             }
             //todo ok sin errores llamo a la funcion para registrar el ingreso.
+            $items = [];
+            if (!empty($_POST['items'])) {
+                foreach ($_POST['items'] as $index => $cantidad) {
+                    if (empty($cantidad) || $cantidad <= 0) continue;
+                    
+                    $items[] = [
+                        'tipo' => $_POST['tipo'][$index] ?? 'materia_prima',
+                        'materia_prima_id' => !empty($_POST['materia_prima_id'][$index]) ? (int)$_POST['materia_prima_id'][$index] : null,
+                        'producto_id' => !empty($_POST['producto_id'][$index]) ? (int)$_POST['producto_id'][$index] : null,
+                        'cantidad' => (float)$cantidad
+                    ];
+                }
+            }
+            
+            $data = [
+                'remito' => $_POST['remito'],
+                'items' => $items
+            ];
+            
             $ingresoId = $this->ingreso->registrar(
                 $orden['id'],
                 $orden['proveedor_id'],
                 $_SESSION['user_id'],
-                $_POST
+                $data
             );
             $_SESSION['success'] = 'Ingreso registrado de orden '.$orden['id'].' correctamente';
             header('Location: '.BASE_URL.'/ingresosmercaderia/show/'.$ingresoId);

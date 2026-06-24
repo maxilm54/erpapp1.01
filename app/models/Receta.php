@@ -12,23 +12,24 @@ class Receta extends Model
             JOIN productos p ON p.id = r.producto_id
             LEFT JOIN recetas_detalle rd ON rd.receta_id=r.id
             LEFT JOIN materias_primas mp ON mp.id=rd.materia_prima_id
+            WHERE r.activa = '1'
             GROUP BY r.id, r.nombre
             ORDER BY r.id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function crear(int $productoId,string $nombre, array $items, string $procedimiento = null): int
+    public function crear(int $productoId,string $nombre, array $items, string $procedimiento, int $userId): int
     {
         $this->db->beginTransaction();
 
         try {
             $this->db->prepare("
-                INSERT INTO recetas (producto_id,nombre,proceso_fabrica)
-                VALUES (?,?,?)
-            ")->execute([$productoId,$nombre,$procedimiento]);
+                INSERT INTO recetas (producto_id,nombre,proceso_fabrica,user_id)
+                VALUES (?,?,?,?)
+            ")->execute([$productoId,$nombre,$procedimiento,$userId]);
 
             $recetaId = (int)$this->db->lastInsertId();
-
+            
             $stmt = $this->db->prepare("
                 INSERT INTO recetas_detalle
                 (receta_id, materia_prima_id, cantidad)
@@ -56,9 +57,10 @@ class Receta extends Model
     public function detalle(int $recetaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT rd.*, mp.nombre, mp.unidad_medida
+            SELECT rd.*, mp.nombre, um.nombre AS unidad_medida
             FROM recetas_detalle rd
             JOIN materias_primas mp ON mp.id = rd.materia_prima_id
+            LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
             WHERE rd.receta_id = ?
         ");
         $stmt->execute([$recetaId]);
@@ -71,7 +73,7 @@ class Receta extends Model
             SELECT r.*, p.nombre AS producto
             FROM recetas r
             JOIN productos p ON p.id = r.producto_id
-            WHERE r.id = ?
+            WHERE r.id = ? AND r.activa = '1'
         ");
         $stmt->execute([$id]);
         $receta = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -180,4 +182,21 @@ class Receta extends Model
 
         return (int)$this->db->lastInsertId();
     }*/
+
+    public function inactivar(int $id): bool
+    {
+        try {
+            $this->db->prepare(
+                "UPDATE recetas SET activa = '0' WHERE id = :r"
+            )->execute(['r'=>$id]);
+            error_log('Receta inactivada correctamente (ID: '.$id.')');
+            $_SESSION['success'] = 'Receta inactivada correctamente';
+            return true;
+
+        } catch (Exception $e) {
+            error_log('Error al inactivar la receta ('.$id.'): '.$e->getMessage());
+            $_SESSION['error'] = 'Error al inactivar la receta: '.$e->getMessage();
+            return false;
+        }
+    }
 }

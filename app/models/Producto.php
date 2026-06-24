@@ -7,7 +7,10 @@ class Producto extends Model
     public function all(): array
     {
         return $this->db->query(
-            "SELECT * FROM productos WHERE activo = 1 ORDER BY nombre"
+            "SELECT p.*, um.nombre AS nombre_medida, um.detalle AS detalle_medida 
+             FROM productos p
+             LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
+             WHERE p.activo = 1 ORDER BY p.nombre"
         )->fetchAll();
     }
 
@@ -65,23 +68,31 @@ class Producto extends Model
 
     public function create(array $data, ?string $imagen): int
     {
-        $stmt = $this->db->prepare(
+        try {
+            $stmt = $this->db->prepare(
             "INSERT INTO productos
-            (nombre, sku, descripcion, precio_venta, imagen,user_create,unidad_medida)
-            VALUES (:nombre, :sku, :descripcion, :precio, :imagen,:user_create,:unidad_medida)"
-        );
+            (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated, unidad_medida)
+            VALUES (:nombre, :sku, :descripcion, :precio, :imagen, :user_create, :last_user_updated, :unidad_medida)"
+            );
 
-        $stmt->execute([
-            'nombre' => $data['nombre'],
-            'sku' => $data['sku'],
-            'descripcion' => $data['descripcion'],
-            'precio' => $data['precio_venta'],
-            'imagen' => $imagen,
-            'user_create' => $_SESSION['user_id'],
-            'unidad_medida' => $data['unidad_medida']
-        ]);
-        $_SESSION['success'] = "Producto creado correctamente.";
-        return (int)$this->db->lastInsertId();
+            $stmt->execute([
+                'nombre' => $data['nombre'],
+                'sku' => $data['sku'],
+                'descripcion' => $data['descripcion'],
+                'precio' => $data['precio_venta'],
+                'imagen' => $imagen,
+                'user_create' => $_SESSION['user_id'],
+                'last_user_updated' => $_SESSION['user_id'],
+                'unidad_medida' => $data['unidad_medida']
+            ]);
+            $_SESSION['success'] = "Producto creado correctamente.";
+            error_log('Producto creado con ID '.$this->db->lastInsertId().' y data: '.print_r($data, true).' - '.__FILE__.':'.__LINE__);
+            return (int)$this->db->lastInsertId();
+        } catch (Exception $th) {
+            $_SESSION['error'] = "Error al crear el producto: " . $th->getMessage();
+            error_log('Error creating product: ' . $th->getMessage());
+            return 0;
+        }
     }
 
     public function update(int $id, array $data, ?string $imagen = null): bool //sin imagen y sin barcode
@@ -137,11 +148,12 @@ class Producto extends Model
     public function search(string $q): array
     {
         $sql = "
-            SELECT id, nombre, sku, precio_venta
-            FROM productos
-            WHERE activo = 1
-              AND ( nombre LIKE :q OR sku LIKE :q2)
-            ORDER BY nombre
+            SELECT p.id, p.nombre, p.sku, p.precio_venta, um.nombre AS nombre_medida
+            FROM productos p
+            LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
+            WHERE p.activo = 1
+              AND ( p.nombre LIKE :q OR p.sku LIKE :q2)
+            ORDER BY p.nombre
             LIMIT 20
         ";
 
@@ -182,5 +194,35 @@ class Producto extends Model
     public function unidadProd(): array
     {
         return $this->db->query("SELECT id_medida,nombre,detalle FROM unidad_medida")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getStockStatus(): array
+    {
+        $stmt = $this->db->query("
+            SELECT 
+                id,
+                nombre,
+                stock,
+                stock_minimo,
+                stock_maximo,
+                stock_critico,
+                CASE 
+                    WHEN stock_critico > 0 AND stock <= stock_critico THEN 'critico'
+                    WHEN stock_minimo > 0 AND stock <= stock_minimo THEN 'bajo'
+                    WHEN stock_maximo > 0 AND stock >= stock_maximo THEN 'alto'
+                    ELSE 'normal'
+                END AS estado
+            FROM productos
+            WHERE activo = 1
+            ORDER BY 
+                CASE 
+                    WHEN stock_critico > 0 AND stock <= stock_critico THEN 1
+                    WHEN stock_minimo > 0 AND stock <= stock_minimo THEN 2
+                    ELSE 3
+                END,
+                stock ASC
+            LIMIT 50
+        ");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

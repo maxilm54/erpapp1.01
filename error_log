@@ -1,0 +1,43 @@
+[15-May-2026 11:58:18 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1
+[15-May-2026 11:58:33 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1
+[15-May-2026 11:58:51 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1
+[15-May-2026 11:59:03 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1
+[15-May-2026 11:59:13 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1
+[15-May-2026 11:59:26 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\core\Database.php:6
+Stack trace:
+#0 Command line code(1): Database::getInstance()
+#1 {main}
+  thrown in C:\xampp\htdocs\app\app\core\Database.php on line 6
+[16-May-2026 13:22:02 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\core\Database.php:6
+Stack trace:
+#0 Command line code(1): Database::getInstance()
+#1 {main}
+  thrown in C:\xampp\htdocs\app\app\core\Database.php on line 6
+[16-May-2026 13:23:16 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\core\Database.php:6
+Stack trace:
+#0 C:\xampp\htdocs\app\app\core\Model.php(5): Database::getInstance()
+#1 Command line code(1): Model->__construct()
+#2 {main}
+  thrown in C:\xampp\htdocs\app\app\core\Database.php on line 6
+[16-May-2026 13:23:46 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\core\Database.php:6
+Stack trace:
+#0 Command line code(1): Database::getInstance()
+#1 {main}
+  thrown in C:\xampp\htdocs\app\app\core\Database.php on line 6
+[16-May-2026 14:28:23 Europe/Berlin] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S21]: Column already exists: 1060 Duplicate column name 'observaciones' in Command line code:1
+Stack trace:
+#0 Command line code(1): PDO->query('ALTER TABLE ord...')
+#1 {main}
+  thrown in Command line code on line 1
+[21-May-2026 13:31:51 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\migrations\add_role_to_users.php:3
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\app\app\migrations\add_role_to_users.php on line 3
+[21-May-2026 14:08:58 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php:3
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php on line 3
+[21-May-2026 14:08:58 Europe/Berlin] PHP Fatal error:  Uncaught Error: Undefined constant "BASE_PATH" in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php:3
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php on line 3

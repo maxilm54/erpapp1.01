@@ -26,6 +26,11 @@
                     class="btn btn-primary btn-sm">
                     Ver
                     </a>
+                    <a href="<?= BASE_URL ?>/recetas/inactivar/<?= htmlspecialchars($r['id']) ?>"
+                    class="btn btn-warning btn-sm"
+                    onclick="return confirm('¿Estás seguro de que deseas inactivar esta receta?');">
+                    Inactivar
+                    </a>
                 </td>
             </tr>
             <?php endforeach ?>

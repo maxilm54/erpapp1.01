@@ -60,13 +60,13 @@ class RemitosSalidaController extends Controller
         }
         if (!$np || $np['estado'] !== 'APROBADA') { //si np es nulo o no esta aprobada alerto redirijo y dejo el log
             $_SESSION['error'] = 'Nota de Pedido # '.$notaPedidoId .' No Aprobada o Anulada';
-            error_log('Nota de Pedido, no aprobada: ID '.$notaPedidoId);
+            error_log('Nota de Pedido, no aprobada: ID '.$notaPedidoId.' Estado: '.$np['estado'].'-'.__FILE__.'-'.__LINE__);
             header("Location: " . BASE_URL . "/notaspedido");
             exit;
         }
         //hasta aqui si no hay errores sigo con el form
 
-        if ($_POST) { //cuando desde el form envio el post inicio el proceso de generacion del remito
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') { //cuando desde el form envio el post inicio el proceso de generacion del remito
             try {
                 if (empty($_POST['items'])) { //si items esta vacio no puedo generar el remito y genero la excepcion, esto no deberia pasar pero por control se deja el bloqueo
                     throw new Exception('No hay productos para remitar');

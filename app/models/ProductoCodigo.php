@@ -46,16 +46,18 @@ class ProductoCodigo extends Model
         try {
             $this->db->beginTransaction();
             $stmt = $this->db->prepare("UPDATE producto_codigos SET codigo = :codigo, tipo = :tipo WHERE id = :id");
-            $_SESSION['success'] = "Código de barra actualizado correctamente.";
-            return $stmt->execute([
+            $stmt->execute([
                 'codigo' => $codigo,
                 'tipo' => $tipo,
                 'id' => $id
             ]);
+            $_SESSION['success'] = "Código o Tipo, actualizado correctamente.";
+            $this->db->commit();
+            return true;
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log('Error updating barcode ID '.$id.': '.$e->getMessage());
-            $_SESSION['error'] = "Error al actualizar el código de barra: " . $e->getMessage();
+            $_SESSION['success'] .= "Error al actualizar el código de barra: " . $e->getMessage();
             return false;
         }
     }

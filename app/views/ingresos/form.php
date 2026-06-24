@@ -17,38 +17,39 @@
     <table class="table table-bordered">
         <thead class="table-dark">
             <tr>
-                <th>Materia Prima</th>
+                <th>Tipo</th>
+                <th>Nombre</th>
                 <th>Cantidad Pedida</th>
-                <th>Cantidad Recibida</th>
+                <th>Recibida</th>
+                <th>Faltante</th>
+                <th>Ingresar</th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($detalle as $item): ?>
+            <?php $index = 0; foreach ($detalle as $item): ?>
             <tr>
-                <td><?= htmlspecialchars($item['nombre']) ?></td>
-
                 <td>
-                    <?= $item['pedida'] ?> <?= $item['unidad_medida'] ?><br>
-                    <small class="text-muted">
-                        Recibido: <?= $item['recibida'] ?> |
-                        Faltante: <?= $item['faltante'] ?>
-                    </small>
+                    <span class="badge bg-<?= ($item['tipo'] ?? 'materia_prima') === 'producto' ? 'info' : 'warning' ?>">
+                        <?= ($item['tipo'] ?? 'materia_prima') === 'producto' ? 'Producto' : 'Materia Prima' ?>
+                    </span>
                 </td>
-
+                <td><?= htmlspecialchars($item['nombre']) ?></td>
+                <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
+                <td><?= number_format($item['recibida'], 3, ',', '.') ?></td>
+                <td><?= number_format($item['faltante'], 3, ',', '.') ?></td>
                 <td>
                     <?php if ($item['faltante'] > 0): ?>
-                        <input type="number"
-                            name="items[<?= $item['materia_prima_id'] ?>]"
-                            class="form-control"
-                            step="0.01"
-                            max="<?= $item['faltante'] ?>"
-                            value="<?= $item['faltante'] ?>">
+                        <input type="hidden" name="tipo[<?= $index ?>]" value="<?= $item['tipo'] ?? 'materia_prima' ?>">
+                        <input type="hidden" name="materia_prima_id[<?= $index ?>]" value="<?= $item['materia_prima_id'] ?? '' ?>">
+                        <input type="hidden" name="producto_id[<?= $index ?>]" value="<?= $item['producto_id'] ?? '' ?>">
+                        <input type="number" name="items[<?= $index ?>]" class="form-control" step="0.01" min="0" 
+                            max="<?= $item['faltante'] ?>" value="<?= $item['faltante'] ?>">
                     <?php else: ?>
                         <span class="badge bg-success">Completo</span>
                     <?php endif; ?>
                 </td>
             </tr>
-            <?php endforeach; ?>
+            <?php $index++; endforeach; ?>
         </tbody>
     </table>
 

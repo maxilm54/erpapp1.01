@@ -8,7 +8,7 @@
             name="razon_social"
             class="form-control"
             required
-            value="<?= $proveedor['razon_social'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['razon_social'] ?? '') ?>">
     </div>
 
     <div class="mb-3">
@@ -16,7 +16,7 @@
         <input type="text"
             name="cuit"
             class="form-control"
-            value="<?= $proveedor['cuit'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['cuit'] ?? '') ?>">
     </div>
 
     <div class="mb-3">
@@ -24,7 +24,7 @@
         <input type="email"
             name="email"
             class="form-control"
-            value="<?= $proveedor['email'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['email'] ?? '') ?>">
     </div>
 
     <div class="mb-3">
@@ -32,7 +32,7 @@
         <input type="text"
             name="telefono"
             class="form-control"
-            value="<?= $proveedor['telefono'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['telefono'] ?? '') ?>">
     </div>
 
     <div class="mb-3">
@@ -40,7 +40,7 @@
         <input type="text"
             name="contacto"
             class="form-control"
-            value="<?= $proveedor['contacto'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['contacto'] ?? '') ?>">
     </div>
     <div class="mb-3">
         <label class="form-label">Rubro</label>
@@ -59,7 +59,7 @@
         <input type="text"
             name="localidad"
             class="form-control"
-            value="<?= $proveedor['localidad'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['localidad'] ?? '') ?>">
     </div>
 
     <div class="mb-3">
@@ -67,7 +67,7 @@
         <input type="text"
             name="direccion"
             class="form-control"
-            value="<?= $proveedor['direccion'] ?? '' ?>">
+            value="<?= htmlspecialchars($proveedor['direccion'] ?? '') ?>">
     </div>
 
     <button class="btn btn-success w-100">

@@ -21,7 +21,18 @@ class ProveedoresController extends Controller{
                 header('Location: ' . BASE_URL . '/proveedores/create');
                 exit;
             }
-            $this->proveedor->save($_POST);
+            //$this->proveedor->save($_POST);
+            $this->proveedor->save([
+                'razon_social' => htmlspecialchars(trim($_POST['razon_social'])),
+                'cuit' => htmlspecialchars(trim($_POST['cuit'])),
+                'email' => filter_var($_POST['email'], FILTER_SANITIZE_EMAIL),
+                'telefono' => htmlspecialchars(trim($_POST['telefono'])),
+                'contacto' => htmlspecialchars(trim($_POST['contacto'])),
+                'rubro' => htmlspecialchars(trim($_POST['rubro'])),
+                'localidad' => htmlspecialchars(trim($_POST['localidad'])),
+                'direccion' => htmlspecialchars(trim($_POST['direccion'])),
+                'observaciones_gral' => htmlspecialchars(trim($_POST['observaciones_gral'])),
+            ]);
             header('Location: '.BASE_URL.'/proveedores');
             
             exit;
