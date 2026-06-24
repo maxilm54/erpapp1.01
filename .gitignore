@@ -1,4 +1,3 @@
-/vendor/
 /storage/*
 /storage/pdf/*
 .env
@@ -7,3 +6,7 @@ public/error_log
 public/error_log
 public/uploads
 app/config/database.php
+app/config/Database/*
+app/helpers/squemadb/*
+app/migrations/*
+public/.htaccess
