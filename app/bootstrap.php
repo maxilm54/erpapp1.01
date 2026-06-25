@@ -1,4 +1,10 @@
 <?php
+/*
+*Estas LIsnas las agrego para mostrar cambios en mi repsitorio y luego migrarlos al host remoto
+*
+*
+*
+*/
 declare(strict_types=1);
 // Configurar cookies seguras
 ini_set('session.cookie_httponly', 1);
