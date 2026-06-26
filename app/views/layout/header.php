@@ -21,7 +21,12 @@
 <nav class="navbar navbar-expand-lg navbar-dark" style="background: #14194a;">
 <div class="container-fluid">
 
-<a class="navbar-brand" href="<?= BASE_URL ?>">TRIBA APP</a>
+
+<?php if (Auth::hasTenant()): ?>
+<span class="navbar-text text-light me-3 d-none d-md-inline-block">
+    <i class="bi bi-building"></i> <?= htmlspecialchars(Auth::getTenantName()) ?>
+</span>
+<?php endif; ?>
 
 <button class="navbar-toggler" type="button"
  data-bs-toggle="collapse" data-bs-target="#menu">
@@ -105,6 +110,39 @@ Movimientos
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte">Movimientos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte/cliente">Mov Cliente</a></li>
+</ul>
+</li>
+<?php endif; ?>
+
+<!-- EMPRESA (ADMIN + OPERARIO: ven su propia empresa) -->
+<?php if (Auth::check() && Auth::hasTenant() && Auth::isEmpresaAdmin()): ?>
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+<i class="bi bi-building"></i> Empresa
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa"><i class="bi bi-info-circle"></i> Mi Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa-users"><i class="bi bi-people"></i> Usuarios de mi Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa-create-user"><i class="bi bi-person-plus"></i> Nuevo Usuario</a></li>
+</ul>
+</li>
+<?php endif; ?>
+
+<!-- ADMIN (solo superadmins: gestión global de tenants + usuarios) -->
+<?php if (Auth::check() && Auth::isSuperAdmin()): ?>
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+<i class="bi bi-gear"></i> Admin
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin"><i class="bi bi-building"></i> Empresas (Tenants)</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/create"><i class="bi bi-plus-lg"></i> Nueva Empresa</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/users"><i class="bi bi-people"></i> Todos los Usuarios</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/users/create"><i class="bi bi-person-plus"></i> Nuevo Usuario Global</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/migrations"><i class="bi bi-database"></i> Migraciones</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/select-tenant"><i class="bi bi-arrow-left-right"></i> Cambiar Empresa</a></li>
 </ul>
 </li>
 <?php endif; ?>

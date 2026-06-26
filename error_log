@@ -41,3 +41,4 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\app\app\migrations\create_cuentas_corrientes_empresa_table.php on line 3
+[25-Jun-2026 16:20:46 Europe/Berlin] PHP Parse error:  syntax error, unexpected token "=", expecting end of file in Command line code on line 1

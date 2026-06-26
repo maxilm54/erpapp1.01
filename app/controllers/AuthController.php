@@ -20,7 +20,7 @@ class AuthController extends Controller{
                 'email' => $_POST['email'],
                 'password' => $_POST['password'],
                 'token' => $token,
-                'role' => Role::OPERARIO // Asignar rol por defecto
+                'role' => 'USUARIO'
             ]);
 
             $link = BASE_URL . "/auth/verify/$token";
@@ -55,6 +55,7 @@ class AuthController extends Controller{
                 header('Location: ' . BASE_URL . '/auth/login');
                 exit;
             }
+
             $userModel = new User();
             $user = $userModel->findByEmail($_POST['email']);
 
@@ -71,8 +72,31 @@ class AuthController extends Controller{
                 exit;
             }
 
+            // Login válido — establecer sesión de usuario
             $_SESSION['user_id'] = $user['id'];
-            header('Location: ' . BASE_URL);
+            $_SESSION['user_nombre'] = $user['nombre'];
+            $_SESSION['user_rol'] = $user['rol'];
+
+            // Buscar a qué tenants tiene acceso
+            $tenants = $userModel->getTenantsForUser($user['id']);
+
+            if (count($tenants) === 0) {
+                // No tiene acceso a ningún tenant
+                $_SESSION['error'] = 'Tu cuenta no tiene acceso a ningún módulo. Contacta al administrador.';
+                header('Location: ' . BASE_URL . '/auth/login');
+                exit;
+            }
+
+            if (count($tenants) === 1) {
+                // Solo tiene 1 tenant → auto-conectar
+                $t = $tenants[0];
+                Auth::setTenant($t['id'], $t['dbname'], $t['nombre'], $t['host']);
+                header('Location: ' . BASE_URL);
+                exit;
+            }
+
+            // Tiene varios tenants → mostrar selector
+            header('Location: ' . BASE_URL . '/auth/select-tenant');
             exit;
         }
 
@@ -80,7 +104,85 @@ class AuthController extends Controller{
             'title' => 'Login'
         ]);
     }
+
+    /**
+     * Selector de tenant — solo se muestra si el usuario tiene más de 1 tenant.
+     */
+    public function selectTenant(): void{
+        Auth::requireLogin();
+
+        $userModel = new User();
+        $tenants = $userModel->getTenantsForUser($_SESSION['user_id']);
+
+        // Si solo tiene 1 tenant, redirigir automáticamente
+        if (count($tenants) === 1) {
+            $t = $tenants[0];
+            Auth::setTenant($t['id'], $t['dbname'], $t['nombre'], $t['host']);
+            header('Location: ' . BASE_URL);
+            exit;
+        }
+
+        // Si tiene 0 tenants, al login
+        if (count($tenants) === 0) {
+            $_SESSION['error'] = 'No tienes acceso a ningún módulo.';
+            header('Location: ' . BASE_URL . '/auth/login');
+            exit;
+        }
+
+        // POST: seleccionar tenant
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if(!Csrf::validate($_POST['csrf_token'])){
+                $_SESSION['error'] = 'CSRF inválido.';
+                header('Location: ' . BASE_URL . '/auth/select-tenant');
+                exit;
+            }
+
+            $tenantId = (int)($_POST['tenant_id'] ?? 0);
+
+            foreach ($tenants as $t) {
+                if ((int)$t['id'] === $tenantId) {
+                    Auth::setTenant($t['id'], $t['dbname'], $t['nombre'], $t['host']);
+                    header('Location: ' . BASE_URL);
+                    exit;
+                }
+            }
+
+            $_SESSION['error'] = 'Tenant inválido.';
+            header('Location: ' . BASE_URL . '/auth/select-tenant');
+            exit;
+        }
+
+        $this->login2('auth/select-tenant', [
+            'title' => 'Seleccionar Empresa',
+            'tenants' => $tenants,
+            'csrf' => Csrf::generate()
+        ]);
+    }
+
+    /**
+     * Cambiar de tenant (para usuarios con acceso a múltiples tenants).
+     */
+    public function switchTenant(int $tenantId): void{
+        Auth::requireLogin();
+
+        $userModel = new User();
+        $tenants = $userModel->getTenantsForUser($_SESSION['user_id']);
+
+        foreach ($tenants as $t) {
+            if ((int)$t['id'] === $tenantId) {
+                Auth::setTenant($t['id'], $t['dbname'], $t['nombre'], $t['host']);
+                header('Location: ' . BASE_URL);
+                exit;
+            }
+        }
+
+        $_SESSION['error'] = 'No tienes acceso a ese tenant.';
+        header('Location: ' . BASE_URL);
+        exit;
+    }
+
     public function logout(): void{
+        Auth::clearTenant();
         session_destroy();
         header('Location: ' . BASE_URL);
     }

@@ -30,13 +30,35 @@ class Router
             exit();
         }
 
+        // Rutas que NO requieren login
+        $isAuthRoute = ($controllerName === 'AuthController');
+
+        if (!$isAuthRoute) {
+            // Todo lo demás requiere login
+            Auth::requireLogin();
+
+            // Conectar la BD del tenant ANTES de instanciar controladores
+            // (porque los constructores crean modelos que llaman Database::getInstance())
+            $tenantDb = Auth::getTenantDb();
+            if (Auth::hasTenant() && !Database::isTenantConnectedTo($tenantDb)) {
+                error_log("[Router] Conectando tenant: {$tenantDb}");
+                Database::connectTenant(
+                    $tenantDb,
+                    Auth::getTenantHost()
+                );
+            }
+        }
+
         require_once $controllerFile;
 
         $controller = new $controllerName();
 
-        // Protección: todo menos Auth requiere login
-        if ($controllerName !== 'AuthController') {
-            Auth::requireLogin();
+        if (!$isAuthRoute) {
+            // Solo exigir tenant para rutas que no sean admin ni users
+            $isAdminRoute = ($controllerName === 'AdminController' || $controllerName === 'UsersController');
+            if (!$isAdminRoute) {
+                Auth::requireTenant();
+            }
         }
 
         if (!method_exists($controller, $method)) {
