@@ -9,4 +9,5 @@ app/config/database.php
 app/config/Database/*
 app/helpers/squemadb/*
 app/migrations/*
+app/bootstrap.php
 public/.htaccess
