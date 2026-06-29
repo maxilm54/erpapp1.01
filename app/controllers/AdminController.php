@@ -523,7 +523,7 @@ class AdminController extends Controller{
      * Panel de migraciones: estado de todos los tenants.
      */
     public function migrations(): void{
-        $this->requireAdmin();
+        $this->requireAdmin(); //solicta permiso admin, sino alerta
 
         $mm = new MigrationManager();
         $allMigrations = $mm->getAllMigrations();

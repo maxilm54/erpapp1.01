@@ -18,7 +18,9 @@ class Router
 
         $parts = explode('/', $url);
         $controllerName = ucfirst($parts[0]) . 'Controller';
-        $method = $parts[1] ?? 'index';
+        $methodRaw = $parts[1] ?? 'index';
+        // Convertir guiones a camelCase: "migrations-run-all" → "migrationsRunAll"
+        $method = preg_replace_callback('/-([a-z])/', function($m) { return strtoupper($m[1]); }, $methodRaw);
         $params = array_slice($parts, 2);
 
         $controllerFile = BASE_PATH . '/app/controllers/' . $controllerName . '.php';

@@ -92,15 +92,10 @@ class Tenant extends Model{
 
         $sql = file_get_contents($schemaFile);
 
-        // Ejecutar cada statement por separado para mayor control
-        // Separar por ; y filtrar líneas vacías y comentarios
-        $statements = array_filter(
-            array_map('trim', explode(';', $sql)),
-            function($s) { return !empty($s) && $s !== '--'; }
-        );
+        // Parsear SQL respetando BEGIN...END de triggers/procedimientos
+        $statements = self::parseSqlStatements($sql);
 
         foreach ($statements as $statement) {
-            // Saltar líneas que son solo comentarios o SET
             $trimmed = ltrim($statement);
             if (empty($trimmed) || $trimmed[0] === '-' || $trimmed === '') {
                 continue;
@@ -109,7 +104,6 @@ class Tenant extends Model{
                 $newDb->exec($statement);
             } catch (PDOException $e) {
                 error_log("Error ejecutando SQL en tenant {$dbname}: " . $e->getMessage() . " | SQL: " . substr($statement, 0, 200));
-                // Continuar con el siguiente statement (algunos DROP pueden fallar si la tabla no existe)
             }
         }
 
@@ -166,5 +160,67 @@ class Tenant extends Model{
             WHERE user_id = :user_id AND tenant_id = :tenant_id
         ");
         return $stmt->execute([':user_id' => $userId, ':tenant_id' => $tenantId]);
+    }
+
+    /**
+     * Parsea un archivo SQL dividiéndolo en statements individuales,
+     * respetando bloques BEGIN...END de triggers/procedimientos.
+     */
+    private static function parseSqlStatements(string $sql): array{
+        $statements = [];
+        $current = '';
+        $inBlock = 0;
+        $lines = explode("\n", $sql);
+
+        foreach ($lines as $line) {
+            $upper = strtoupper(trim($line));
+
+            // Detectar inicio de bloque
+            if (preg_match('/\bBEGIN\b/', $upper)) {
+                $inBlock++;
+                $current .= $line . "\n";
+                continue;
+            }
+
+            // Detectar fin de bloque
+            if (preg_match('/\bEND\b/', $upper) && $inBlock > 0) {
+                $current .= $line . "\n";
+                $inBlock--;
+                if ($inBlock === 0) {
+                    $statements[] = trim($current);
+                    $current = '';
+                }
+                continue;
+            }
+
+            // Dentro de un bloque: acumular sin dividir
+            if ($inBlock > 0) {
+                $current .= $line . "\n";
+                continue;
+            }
+
+            // Fuera de bloques: saltar comentarios
+            $trimmedLine = ltrim($line);
+            if (empty($trimmedLine) || $trimmedLine[0] === '-' || $trimmedLine === '') {
+                continue;
+            }
+
+            // Agregar línea al statement actual
+            $current .= $line . "\n";
+
+            // Si termina con ; es un statement completo
+            if (substr(trim($current), -1) === ';') {
+                $statements[] = trim($current);
+                $current = '';
+            }
+        }
+
+        // Último statement sin ;
+        $current = trim($current);
+        if (!empty($current)) {
+            $statements[] = $current;
+        }
+
+        return $statements;
     }
 }
