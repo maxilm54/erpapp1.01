@@ -185,4 +185,43 @@ class User extends Model{
         $stmt = $this->db->prepare("DELETE FROM user_tenant WHERE user_id = :user_id");
         return $stmt->execute([':user_id' => $userId]);
     }
+
+    /**
+     * Sincroniza el usuario desde master DB a la tabla users del tenant.
+     * Usado para que las foreign keys en tablas del tenant (productos, etc.) funcionen.
+     */
+    public function syncToTenant(int $userId, string $tenantDbname, string $host = 'localhost'): bool{
+        $user = $this->findById($userId);
+        if (!$user) return false;
+
+        $config = require BASE_PATH . '/app/config/database.php';
+        $dsn = "mysql:host={$host};dbname={$tenantDbname};charset=utf8mb4";
+        $tenantDb = new PDO($dsn, $config['user'], $config['pass'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+
+        $sql = "INSERT INTO users (id, nombre, email, password_hash, email_verificado, rol, activo, created_at, updated_at)
+                VALUES (:id, :nombre, :email, :password_hash, :email_verificado, :rol, :activo, :created_at, :updated_at)
+                ON DUPLICATE KEY UPDATE
+                    nombre = VALUES(nombre),
+                    email = VALUES(email),
+                    password_hash = VALUES(password_hash),
+                    email_verificado = VALUES(email_verificado),
+                    rol = VALUES(rol),
+                    activo = VALUES(activo),
+                    updated_at = VALUES(updated_at)";
+
+        $stmt = $tenantDb->prepare($sql);
+        return $stmt->execute([
+            ':id'              => $user['id'],
+            ':nombre'          => $user['nombre'],
+            ':email'           => $user['email'],
+            ':password_hash'   => $user['password_hash'],
+            ':email_verificado'=> $user['email_verificado'],
+            ':rol'             => $user['rol'],
+            ':activo'          => $user['activo'],
+            ':created_at'      => $user['created_at'],
+            ':updated_at'      => $user['updated_at'] ?? null,
+        ]);
+    }
 }

@@ -60,6 +60,13 @@ class Auth{
         $_SESSION['_tenant_connected'] = $dbname;
 
         Database::connectTenant($dbname, $host);
+
+        // Sincronizar el usuario actual al tenant (para foreign keys)
+        if (self::check()) {
+            require_once BASE_PATH . '/app/models/User.php';
+            $userModel = new User();
+            $userModel->syncToTenant($_SESSION['user_id'], $dbname, $host);
+        }
     }
 
     /**

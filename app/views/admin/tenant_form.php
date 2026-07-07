@@ -17,7 +17,7 @@
                placeholder="Ej: tenant_triba"
                pattern="[a-zA-Z0-9_]+"
                title="Solo letras, números y guiones bajos">
-        <div class="form-text">Se creará automáticamente una BD con este nombre.</div>
+        <div class="form-text text-danger">Atención, la BD en algunos casos debe ser creada previamente.</div>
     </div>
     <?php else: ?>
     <input type="hidden" name="dbname" value="<?= htmlspecialchars($tenant['dbname']) ?>">

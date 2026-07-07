@@ -48,6 +48,15 @@ class Router
                     $tenantDb,
                     Auth::getTenantHost()
                 );
+
+                // Sincronizar usuario al tenant si no se hizo en esta sesión
+                $syncKey = 'synced_tenant_' . $tenantDb;
+                if (!isset($_SESSION[$syncKey])) {
+                    require_once BASE_PATH . '/app/models/User.php';
+                    $syncUser = new User();
+                    $syncUser->syncToTenant($_SESSION['user_id'], $tenantDb, Auth::getTenantHost());
+                    $_SESSION[$syncKey] = true;
+                }
             }
         }
 

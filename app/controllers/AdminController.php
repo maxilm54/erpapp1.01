@@ -208,6 +208,8 @@ class AdminController extends Controller{
 
             if ($action === 'assign' && $userId > 0) {
                 $tenantModel->assignUser($tenantId, $userId);
+                // Sincronizar el usuario al tenant para foreign keys
+                $userModel->syncToTenant($userId, $tenant['dbname'], $tenant['host'] ?? 'localhost');
                 $_SESSION['success'] = 'Usuario asignado.';
             } elseif ($action === 'remove' && $userId > 0) {
                 $tenantModel->removeUser($tenantId, $userId);
@@ -380,6 +382,10 @@ class AdminController extends Controller{
 
             // Asignar automáticamente a la empresa actual
             $userModel->assignTenant($userId, $tenantId);
+
+            // Sincronizar el usuario al tenant para foreign keys
+            $tenantHost = $tenant['host'] ?? 'localhost';
+            $userModel->syncToTenant($userId, $tenant['dbname'], $tenantHost);
 
             $_SESSION['success'] = "Usuario '{$nombre}' creado y asignado a {$tenant['nombre']}.";
             header('Location: ' . BASE_URL . '/admin/empresa-users');
