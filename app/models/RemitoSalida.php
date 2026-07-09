@@ -349,6 +349,7 @@ class RemitoSalida extends Model
 
         } catch (Exception $e) {
             $this->db->rollBack();
+            error_log('Error al generar remito: ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
             throw new Exception('Error al generar remito: ' . $e->getMessage());
             $_SESSION['error'] = 'Error al generar remito: ' . $e->getMessage();
         }

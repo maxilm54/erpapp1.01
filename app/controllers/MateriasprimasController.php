@@ -27,8 +27,8 @@ class MateriasprimasController extends Controller
                 header('Location: ' . BASE_URL . '/materiasprimas');
                 exit;
             }
-            error_log(print_r($_POST, true));
-            error_log(print_r($_FILES, true));
+            error_log('Crear MP: '.print_r($_POST, true).'-'. __FILE__ . ':' . __LINE__);
+            error_log('Archivo Adjunto: '.print_r($_FILES, true).'-'. __FILE__ . ':' . __LINE__);
             $imagen = null;
             if (!empty($_FILES['imagen_mp']['name'])) {
                 $imagen = $this->uploadImagenMP();

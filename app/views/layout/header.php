@@ -112,6 +112,17 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte/cliente">Mov Cliente</a></li>
 </ul>
 </li>
+<!-- CONTABILIDAD -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+<i class="bi bi-wallet2"></i> Contabilidad
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/dashboard"><i class="bi bi-graph-up"></i> Dashboard</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos"><i class="bi bi-list-ul"></i> Gastos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/create"><i class="bi bi-plus-lg"></i> Nuevo Gasto</a></li>
+</ul>
+</li>
 <?php endif; ?>
 
 <!-- EMPRESA (ADMIN + OPERARIO: ven su propia empresa) -->

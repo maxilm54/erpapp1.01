@@ -78,7 +78,7 @@ CREATE TABLE `user_tenant` (
 -- -----------------------------------------------------------
 -- El tenant "default" es la BD 'app' que ya existe
 INSERT INTO `tenants` (`nombre`, `dbname`, `host`)
-VALUES ('Default - App', 'app', 'localhost');
+VALUES ('DmTech', 'app', 'localhost');
 
 -- Migrar el usuario admin existente (ajustar email/password si es necesario)
 -- IMPORTANTE: Cambiar el password_hash por el real de tu usuario admin

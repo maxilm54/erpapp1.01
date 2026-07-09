@@ -95,11 +95,26 @@ class MateriaPrima extends Model
 
     public function categoriasMP(): array
     {
-        return $this->db->query("SELECT id_categoria, categoria_nombre FROM categorias_mp_id ORDER BY categoria_nombre")->fetchAll(PDO::FETCH_ASSOC);
+        try {
+        $stmt = $this->db->query("SELECT id_categoria, categoria_nombre 
+                                  FROM categorias_mp_id
+                                  ORDER BY categoria_nombre");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error al obtener categorías de materias primas: " . $e->getMessage() . " in " . __FILE__ . ":" . __LINE__);
+        return [];
+    }
     }
     public function umedidaMP(): array
     {
-        return $this->db->query("SELECT id_medida,nombre,detalle FROM unidad_medida")->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            $stmt = $this->db->query("SELECT id_medida,nombre,detalle FROM unidad_medida");
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error al obtener unidades de medida: " . $e->getMessage() . " in " . __FILE__ . ":" . __LINE__);
+            // Log o manejo de error
+            return [];
+        }
     }
 
     public function stockByProductoId_movstock($id_prod): array

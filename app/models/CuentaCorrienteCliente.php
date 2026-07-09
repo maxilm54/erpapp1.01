@@ -89,7 +89,7 @@ class CuentaCorrienteCliente extends Model
         try {
             // calcular saldo actual
             $saldoActual = $this->saldoCliente($clienteId);
-            $this->db->beginTransaction();
+            // comento el begin porque ya lo tengo inicido $this->db->beginTransaction();
             $stmt = $this->db->prepare("
                 INSERT INTO cuentas_corriente_clientes
                 (cliente_id, fecha, tipo, origen, referencia_id, monto, saldo, observaciones, usuario_id)
@@ -97,13 +97,14 @@ class CuentaCorrienteCliente extends Model
             ");
 
             $stmt->execute([$clienteId,$origen,$referenciaId,$monto,$saldoActual + $monto,$obs,$usuarioId]);
-            $this->db->commit();
+            // comento el commit porque ya lo tengo inicido $this->db->commit();
             $_SESSION['success'] = 'Débito registrado correctamente';
             error_log("Debito registrado: cliente_id=$clienteId, monto=$monto, nuevo_saldo=" . ($saldoActual + $monto) . " - " . __FILE__ . ':' . __LINE__);
         } catch (Exception $e) {
             $this->db->rollBack();
             $_SESSION['error'] = 'Error registrando débito. Avise al Administrador. Detalles: ' . $e->getMessage();
             error_log("Error registrando debito: " . $e->getMessage() . " - " . __FILE__ . ':' . __LINE__);
+            header("Location: " . BASE_URL . "/remitossalida");
             //throw $th;
         }
     }
