@@ -2,7 +2,7 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
-require_once BASE_PATH.'/app/models/MateriaPrima.php';
+require_once BASE_PATH.'/app/models/Materiaprima.php';
 
 class RecetasController extends Controller
 {

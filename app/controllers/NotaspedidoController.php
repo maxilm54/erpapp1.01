@@ -1,7 +1,7 @@
 <?php
 
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/NotaPedido.php';
+require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
 
 class NotasPedidoController extends Controller

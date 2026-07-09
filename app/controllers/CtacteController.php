@@ -1,7 +1,7 @@
 <?php
 
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/CuentaCorrienteCliente.php';
+require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Pago.php';
 

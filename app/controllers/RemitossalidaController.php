@@ -1,7 +1,7 @@
 <?php
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/RemitoSalida.php';
-require_once BASE_PATH.'/app/models/NotaPedido.php';
+require_once BASE_PATH.'/app/models/Remitosalida.php';
+require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller

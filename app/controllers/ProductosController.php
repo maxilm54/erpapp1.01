@@ -2,7 +2,7 @@
 
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Producto.php';
-require_once BASE_PATH . '/app/models/ProductoCodigo.php';
+require_once BASE_PATH . '/app/models/Productocodigo.php';
 
 class ProductosController extends Controller
 {

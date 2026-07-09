@@ -1,6 +1,6 @@
 <?php
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/OrdenProduccion.php';
+require_once BASE_PATH.'/app/models/Ordenproduccion.php';
 require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 class OrdenproduccionController extends Controller

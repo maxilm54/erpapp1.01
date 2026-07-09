@@ -1,8 +1,8 @@
 <?php
 require_once BASE_PATH.'/app/core/Controller.php';
-require_once BASE_PATH.'/app/models/OrdenCompra.php';
+require_once BASE_PATH.'/app/models/Ordencompra.php';
 require_once BASE_PATH.'/app/models/Proveedor.php';
-require_once BASE_PATH.'/app/models/MateriaPrima.php';
+require_once BASE_PATH.'/app/models/Materiaprima.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 
 class OrdenesCompraController extends Controller
