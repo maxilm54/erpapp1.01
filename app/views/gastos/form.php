@@ -11,7 +11,7 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
 
 <h3><i class="bi bi-wallet2"></i> <?= htmlspecialchars($title) ?></h3>
 
-<form method="POST" action="<?= $action ?>" class="mt-3">
+<form method="POST" action="<?= $action ?>" class="mt-3" id="formGasto">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
 
     <div class="row">
@@ -59,8 +59,9 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
         <div class="col-md-3 mb-3">
             <label for="monto_total" class="form-label">Monto Total *</label>
             <input type="number" id="monto_total" name="monto_total" class="form-control"
-                   step="0.01" min="0" required
+                   step="0.01" min="0.01" required
                    value="<?= htmlspecialchars($gasto['monto_total'] ?? '') ?>">
+            <div id="saldoInfo" class="form-text text-muted" style="display:none;"></div>
         </div>
     </div>
 
@@ -89,12 +90,16 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
                 <option value="">Sin vincular</option>
                 <?php foreach ($ocPendientes as $oc): ?>
                     <option value="<?= $oc['id'] ?>"
+                            data-total="<?= $oc['total_oc'] ?>"
+                            data-pagado="<?= $oc['total_pagado'] ?>"
+                            data-saldo="<?= $oc['saldo_pendiente'] ?>"
                         <?= (int)($gasto['orden_compra_id'] ?? 0) === (int)$oc['id'] ? 'selected' : '' ?>>
                         OC #<?= $oc['id'] ?> - <?= htmlspecialchars($oc['proveedor_nombre'] ?? 'S/Proveedor') ?>
-                        (<?= $oc['estado'] ?>)
+                        | Saldo: $ <?= number_format($oc['saldo_pendiente'], 2, ',', '.') ?>
                     </option>
                 <?php endforeach; ?>
             </select>
+            <div id="ocDetalle" class="form-text" style="display:none;"></div>
         </div>
     </div>
 
@@ -107,9 +112,85 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
 
     <!-- Botones -->
     <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" id="btnSubmit">
             <i class="bi bi-check-lg"></i> <?= $isEdit ? 'Actualizar' : 'Registrar Gasto' ?>
         </button>
         <a href="<?= BASE_URL ?>/gastos" class="btn btn-outline-secondary">Cancelar</a>
     </div>
 </form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectOC = document.getElementById('orden_compra_id');
+    const inputMonto = document.getElementById('monto_total');
+    const saldoInfo = document.getElementById('saldoInfo');
+    const ocDetalle = document.getElementById('ocDetalle');
+    const form = document.getElementById('formGasto');
+
+    function formatMoney(val) {
+        return '$ ' + val.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function actualizarInfoOC() {
+        const selected = selectOC.options[selectOC.selectedIndex];
+        if (!selected || !selected.value) {
+            saldoInfo.style.display = 'none';
+            ocDetalle.style.display = 'none';
+            inputMonto.removeAttribute('max');
+            inputMonto.placeholder = '';
+            return;
+        }
+
+        const total = parseFloat(selected.dataset.total) || 0;
+        const pagado = parseFloat(selected.dataset.pagado) || 0;
+        const saldo = parseFloat(selected.dataset.saldo) || 0;
+
+        ocDetalle.innerHTML = '<strong>Total OC:</strong> ' + formatMoney(total) +
+            ' &nbsp;|&nbsp; <strong>Pagado:</strong> ' + formatMoney(pagado) +
+            ' &nbsp;|&nbsp; <strong>Saldo:</strong> <span class="text-success fw-bold">' + formatMoney(saldo) + '</span>';
+        ocDetalle.style.display = 'block';
+
+        saldoInfo.textContent = 'Saldo pendiente de esta OC: ' + formatMoney(saldo) + '. El monto no puede exceder este valor.';
+        saldoInfo.style.display = 'block';
+        saldoInfo.className = 'form-text text-info fw-bold';
+
+        inputMonto.setAttribute('max', saldo);
+        inputMonto.placeholder = 'Máximo ' + formatMoney(saldo);
+
+        const montoActual = parseFloat(inputMonto.value) || 0;
+        if (montoActual > saldo) {
+            inputMonto.value = saldo.toFixed(2);
+        }
+    }
+
+    selectOC.addEventListener('change', actualizarInfoOC);
+
+    form.addEventListener('submit', function(e) {
+        const selected = selectOC.options[selectOC.selectedIndex];
+        if (selected && selected.value) {
+            const saldo = parseFloat(selected.dataset.saldo) || 0;
+            const monto = parseFloat(inputMonto.value) || 0;
+            if (monto > saldo) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Monto excedido',
+                    text: 'El monto (' + formatMoney(monto) + ') excede el saldo pendiente de la OC (' + formatMoney(saldo) + ').'
+                });
+                return false;
+            }
+            if (monto <= 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Monto inválido',
+                    text: 'El monto debe ser mayor a cero.'
+                });
+                return false;
+            }
+        }
+    });
+
+    actualizarInfoOC();
+});
+</script>

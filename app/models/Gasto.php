@@ -46,11 +46,24 @@ class Gasto extends Model{
         $stmt = $this->db->prepare("
             SELECT g.*, u.nombre AS usuario_nombre,
                    oc.id AS oc_numero, oc.estado AS oc_estado,
-                   p.razon_social AS proveedor_nombre
+                   p.razon_social AS proveedor_nombre,
+                   ocd.total_oc, gpag.total_pagado,
+                   COALESCE(ocd.total_oc, 0) - COALESCE(gpag.total_pagado, 0) AS oc_saldo_pendiente
             FROM gastos g
             LEFT JOIN users u ON u.id = g.usuario_id
             LEFT JOIN ordenes_compra oc ON oc.id = g.orden_compra_id
             LEFT JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(cantidad * precio_unitario) AS total_oc
+                FROM ordenes_compra_detalle
+                GROUP BY orden_compra_id
+            ) ocd ON ocd.orden_compra_id = oc.id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(monto_total) AS total_pagado
+                FROM gastos
+                WHERE estado != 'ANULADO' AND orden_compra_id IS NOT NULL
+                GROUP BY orden_compra_id
+            ) gpag ON gpag.orden_compra_id = oc.id
             WHERE g.id = :id
         ");
         $stmt->execute([':id' => $id]);
@@ -205,16 +218,65 @@ class Gasto extends Model{
     }
 
     /**
-     * Trae órdenes de compra para el selector del formulario.
+     * Trae órdenes de compra con monto total, pagado y faltante.
+     * Solo OC con saldo pendiente (> 0).
      */
     public function getOCPendientes(): array{
         $stmt = $this->db->query("
-            SELECT oc.id, oc.estado, p.razon_social AS proveedor_nombre
+            SELECT
+                oc.id,
+                oc.estado,
+                p.razon_social AS proveedor_nombre,
+                COALESCE(ocd.total_oc, 0) AS total_oc,
+                COALESCE(gpagado.total_pagado, 0) AS total_pagado,
+                COALESCE(ocd.total_oc, 0) - COALESCE(gpagado.total_pagado, 0) AS saldo_pendiente
             FROM ordenes_compra oc
             LEFT JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(cantidad * precio_unitario) AS total_oc
+                FROM ordenes_compra_detalle
+                GROUP BY orden_compra_id
+            ) ocd ON ocd.orden_compra_id = oc.id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(monto_total) AS total_pagado
+                FROM gastos
+                WHERE estado != 'ANULADO' AND orden_compra_id IS NOT NULL
+                GROUP BY orden_compra_id
+            ) gpagado ON gpagado.orden_compra_id = oc.id
             WHERE oc.estado IN ('PENDIENTE','APROBADA','RECIBIDA','PARCIAL')
+              AND (COALESCE(ocd.total_oc, 0) - COALESCE(gpagado.total_pagado, 0)) > 0
             ORDER BY oc.id DESC
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene el detalle de saldo de una OC específica.
+     */
+    public function getOCSaldo(int $ocId): ?array{
+        $stmt = $this->db->prepare("
+            SELECT
+                oc.id,
+                COALESCE(ocd.total_oc, 0) AS total_oc,
+                COALESCE(gpagado.total_pagado, 0) AS total_pagado,
+                COALESCE(ocd.total_oc, 0) - COALESCE(gpagado.total_pagado, 0) AS saldo_pendiente
+            FROM ordenes_compra oc
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(cantidad * precio_unitario) AS total_oc
+                FROM ordenes_compra_detalle
+                WHERE orden_compra_id = :oc_id
+                GROUP BY orden_compra_id
+            ) ocd ON ocd.orden_compra_id = oc.id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(monto_total) AS total_pagado
+                FROM gastos
+                WHERE estado != 'ANULADO' AND orden_compra_id = :oc_id2
+                GROUP BY orden_compra_id
+            ) gpagado ON gpagado.orden_compra_id = oc.id
+            WHERE oc.id = :oc_id3
+        ");
+        $stmt->execute([':oc_id' => $ocId, ':oc_id2' => $ocId, ':oc_id3' => $ocId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
     }
 }

@@ -32,6 +32,7 @@
                 <th>Faltante</th>
                 <th>Unidad</th>
                 <th>Precio Unitario</th>
+                <th>Subtotal</th>
                 <th>Moneda</th>
             </tr>
         </thead>
@@ -49,9 +50,19 @@
             <td><?= number_format($d['faltante'], 3,',','.') ?></td>
             <td><?= htmlspecialchars($d['nombre_medida'] ?? $d['id_unidadmedida'] ?? '') ?></td>
             <td><?= number_format($d['precio_unitario'], 3,',','.') ?></td>
+            <?php
+                $Subtotal = $d['recibida'] * $d['precio_unitario']; 
+                $total+=$Subtotal;
+            ?>
+            <td><?= number_format($Subtotal, 3,',','.') ?></td>
             <td><?= htmlspecialchars($d['moneda']) ?></td>
         </tr>
         <?php endforeach; ?>
+        <tr>
+            <th colspan="7" class="text-end">Total:</th>
+            <th><?= number_format($total, 3,',','.') ?></th>
+            <th></th>
+        </tr>
         </tbody>
     </table>
 </div>

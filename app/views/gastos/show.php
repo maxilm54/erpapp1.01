@@ -73,6 +73,34 @@ $estadoClass = $badgeClasses[$gasto['estado']] ?? 'bg-secondary';
                     </div>
                     <?php endif; ?>
                 </div>
+
+                <?php
+                $totalOC = (float)($gasto['total_oc'] ?? 0);
+                $pagadoOC = (float)($gasto['total_pagado'] ?? 0);
+                $saldoOC = (float)($gasto['oc_saldo_pendiente'] ?? 0);
+                $porcentaje = $totalOC > 0 ? round(($pagadoOC / $totalOC) * 100) : 0;
+                ?>
+                <div class="card bg-light mb-3">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small><strong>Progreso de pago OC #<?= $gasto['oc_numero'] ?></strong></small>
+                            <small class="text-muted"><?= $porcentaje ?>%</small>
+                        </div>
+                        <div class="progress mb-2" style="height: 20px;">
+                            <div class="progress-bar <?= $porcentaje >= 100 ? 'bg-success' : ($porcentaje > 50 ? 'bg-info' : 'bg-warning') ?>"
+                                 style="width: <?= min($porcentaje, 100) ?>%">
+                                <?= $porcentaje ?>%
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small>Total OC: <strong>$ <?= number_format($totalOC, 2, ',', '.') ?></strong></small>
+                            <small>Pagado: <strong>$ <?= number_format($pagadoOC, 2, ',', '.') ?></strong></small>
+                            <small>Saldo: <strong class="<?= $saldoOC > 0 ? 'text-warning' : 'text-success' ?>">
+                                $ <?= number_format($saldoOC, 2, ',', '.') ?>
+                            </strong></small>
+                        </div>
+                    </div>
+                </div>
                 <?php endif; ?>
 
                 <?php if (!empty($gasto['observaciones'])): ?>

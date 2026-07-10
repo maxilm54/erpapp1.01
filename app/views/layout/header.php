@@ -115,7 +115,7 @@ Movimientos
 <!-- CONTABILIDAD -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-<i class="bi bi-wallet2"></i> Contabilidad
+Contabilidad
 </a>
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/dashboard"><i class="bi bi-graph-up"></i> Dashboard</a></li>
@@ -129,7 +129,7 @@ Movimientos
 <?php if (Auth::check() && Auth::hasTenant() && Auth::isEmpresaAdmin()): ?>
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-<i class="bi bi-building"></i> Empresa
+Empresa
 </a>
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa"><i class="bi bi-info-circle"></i> Mi Empresa</a></li>
@@ -143,7 +143,7 @@ Movimientos
 <?php if (Auth::check() && Auth::isSuperAdmin()): ?>
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-<i class="bi bi-gear"></i> Admin
+Admin
 </a>
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/admin"><i class="bi bi-building"></i> Empresas (Tenants)</a></li>

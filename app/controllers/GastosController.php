@@ -80,6 +80,16 @@ class GastosController extends Controller{
             exit;
         }
 
+        // Validar saldo de OC si está vinculada
+        if (!empty($data['orden_compra_id'])) {
+            $ocSaldo = $this->model->getOCSaldo($data['orden_compra_id']);
+            if ($ocSaldo && $data['monto_total'] > $ocSaldo['saldo_pendiente']) {
+                $_SESSION['error'] = "El monto (\$ " . number_format($data['monto_total'], 2, ',', '.') . ") excede el saldo pendiente de la OC (\$ " . number_format($ocSaldo['saldo_pendiente'], 2, ',', '.') . ").";
+                header('Location: ' . BASE_URL . '/gastos/create');
+                exit;
+            }
+        }
+
         $data['usuario_id'] = $_SESSION['user_id'];
         $data['estado'] = 'BORRADOR';
 
@@ -170,6 +180,23 @@ class GastosController extends Controller{
             $_SESSION['error'] = 'Campos obligatorios incompletos.';
             header('Location: ' . BASE_URL . "/gastos/edit/{$id}");
             exit;
+        }
+
+        // Validar saldo de OC si está vinculada
+        if (!empty($data['orden_compra_id'])) {
+            $ocSaldo = $this->model->getOCSaldo($data['orden_compra_id']);
+            if ($ocSaldo) {
+                // Si el gasto actual ya estaba vinculado a esta OC, sumar su monto al disponible
+                $montoDisponible = $ocSaldo['saldo_pendiente'];
+                if ((int)$gasto['orden_compra_id'] === (int)$data['orden_compra_id']) {
+                    $montoDisponible += (float)$gasto['monto_total'];
+                }
+                if ($data['monto_total'] > $montoDisponible) {
+                    $_SESSION['error'] = "El monto (\$ " . number_format($data['monto_total'], 2, ',', '.') . ") excede el saldo disponible de la OC (\$ " . number_format($montoDisponible, 2, ',', '.') . ").";
+                    header('Location: ' . BASE_URL . "/gastos/edit/{$id}");
+                    exit;
+                }
+            }
         }
 
         $this->model->update($id, $data);
