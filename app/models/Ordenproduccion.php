@@ -228,19 +228,21 @@ class OrdenProduccion extends Model
                 $data['usuario_id']
             ]);
             //cambiar el estado de la orden si se completo o no, solo para finalizar?
-            $dato_opid=(int) $data['orden_id']; //obtengo el id de produccion (tabla orden_produccion_detalle)
-            $change_estado= $this->estadoChange($dato_opid); // validar true.
-            error_log('Cambio de estado:'.$change_estado.' - '.__FILE__.":".__LINE__);
-            //2 debo insertar en la tabla de mov el ingreso de producto que viene de produccion
-            error_log('Insertando movimiento de stock para el producto: '.$data['producto_id'].' - '.__FILE__.":".__LINE__);
+            //10/7/26 no debo cambiar el estado, aca solo registro un avance
+            //$dato_opid=(int) $data['orden_id']; //obtengo el id de produccion (tabla orden_produccion_detalle)
+            //$change_estado= $this->estadoChange($dato_opid); // validar true.
+            //error_log('Cambio de estado:'.$change_estado.' - '.__FILE__.":".__LINE__);
+            //2 No debo insertar en la tabla de mov el ingreso de producto que viene de produccion, porque esto se confirma cuando se cierra el avance
+            //error_log('Insertando movimiento de stock para el producto: '.$data['producto_id'].' - '.__FILE__.":".__LINE__);
             //cambiar el estado de la materia prima solo si lo producido alcanza lo pedido
             //si esta completa eliminar el dato de la tabla reserva MP antes cambiando el estado reservado a consumido.
             //a medida que se va agregando producccion se debe ir aumentando el stock del producto.
-            if($change_estado === true){
-                $this->ajustarProducto($data['producto_id'],$data['cantidad_producida'],$data['observaciones'],$data['usuario_id'],'ENTRADA',$data['orden_id']);
-            }
+            /*if($change_estado === true){
+                error_log('confirmo la creacion del avance pero no muevo stock todavia');
+                //this->ajustarProducto($data['producto_id'],$data['cantidad_producida'],$data['observaciones'],$data['usuario_id'],'ENTRADA',$data['orden_id']);
+            }*/
             $this->db->commit();
-            $_SESSION['success']="Se ha registrado la Produccion, Descontado Materia Prima e Ingresado el Stock del Producto.";
+            $_SESSION['success']="Registro de Avance generado correctamente. Se espera su finalizacion de Produccion para actualizar el stock de producto y materia prima consumida.";
             return (int) $data['orden_id'];
         }catch(Exception $e){
             $this->db->rollBack();
@@ -317,12 +319,23 @@ class OrdenProduccion extends Model
     //devolver al stock la cantidad reservada, y si habia avances registrados cambiar el estado de esos avances a cancelados 
     //o eliminarlos segun como se quiera manejar el historial.
     public function cancelarProduccion(int $id):bool{
-        error_log("Entro a la funcion de cancelaion");
+        error_log("Cancelacion de la OP id: ".$id." - ".__FILE__.":".__LINE__);
+        //Primero evaluo que la OP no este finalizada, si esta finalizada no se puede cancelar.
+        $stmt=$this->db->prepare("SELECT estado FROM ordenes_produccion where id=?");
+        $stmt->execute([$id]);
+        $estado=$stmt->fetchColumn();
+        if($estado==='FINALIZADA'){
+            error_log("La OP id: ".$id." ya esta finalizada, no se puede cancelar."." - ".__FILE__.":".__LINE__);
+            $_SESSION['error']="La OP id: ".$id." ya esta finalizada, no se puede cancelar.";
+            return false;
+        }
         try {
             $this->db->beginTransaction();
             //en tabla reserva mp cambio estado de cada mp de la OP a liberado y la borro, luego esas cantidades las sumo al stock de mP
             //consulto lo producido:
             $producido=$this->cantidadProducidaOP($id);
+            $stmt=$this->db->prepare("UPDATE ordenes_produccion SET ESTADO = 'CANCELADA' WHERE id = ?");
+            $stmt->execute([$id]);
             $stmt=$this->db->prepare("SELECT cantidad FROM ordenes_produccion where id=?");
             $stmt->execute([$id]);
             $pedido=(int)$stmt->fetchColumn();
@@ -330,16 +343,29 @@ class OrdenProduccion extends Model
             $stmt=$this->db->prepare("SELECT receta_id FROM ordenes_produccion where id=?");
             $stmt->execute([$id]);
             $receta=(int)$stmt->fetchColumn();
-            error_log("Pedido: ".print_r($pedido,true)." Producida: ".print_r($producido,true)." Faltante: ".print_r($faltante,true)." Receta id: ".print_r($receta,true));
+            error_log("Pedido: ".print_r($pedido,true)." Producida: ".print_r($producido,true)." Faltante: ".print_r($faltante,true)." Receta id: ".print_r($receta,true)." - ".__FILE__.":".__LINE__);
             $stmt=$this->db->prepare("SELECT * FROM recetas_detalle WHERE receta_id= ?");
             $stmt->execute([$receta]);
             $recetadetalle=$stmt->fetchALL(PDO::FETCH_ASSOC);
-            error_log(print_r($recetadetalle,true));
+            error_log(print_r($recetadetalle,true)." - ".__FILE__.":".__LINE__);
+            foreach ($recetadetalle as $item) { //recorro cada item de la receta
+                $cantidad_mp=$item['cantidad']*$faltante;// obtengo cuanto es la cantidad que voy a devoler al cancelar la op.
+                error_log("MP id: ".print_r($item['materia_prima_id'],true)." Cantidad a devolver: ".print_r($cantidad_mp,true)." - ".__FILE__.":".__LINE__);
+                //inserto en movimientos de stock la devolucion de la materia prima no utilizada
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo, origen, materia_prima_id, cantidad, observaciones, usuario_id,referencia_id)
+                    VALUES ('ENTRADA', 'CANCELACION_OP', ?, ?, 'Devolucion de MP no utilizada por cancelacion de OP', ?,?)
+                ")->execute([$item['materia_prima_id'],$cantidad_mp,$_SESSION['user_id'],$id]);
+                $this->db->prepare("INSERT INTO reservas_materia_prima (orden_produccion_id, materia_prima_id,cantidad, estado) VALUES (?, ?, ?, 'LIBERADO')
+                ")->execute([$id, $item['materia_prima_id'], $cantidad_mp]);
+            }
             $this->db->commit();
             return true;
         } catch (Exception $e) {
             //throw $th;
             error_log("Error al intentar anular/cancelar produccion, error: ".$e->getMessage().' - '.__FILE__.":".__LINE__);
+            $_SESSION['error']="Error al intentar anular/cancelar produccion, error: ".$e->getMessage();
             $this->db->rollBack();
             return false;
         }
@@ -372,7 +398,7 @@ class OrdenProduccion extends Model
             $stmt=$this->db->prepare("SELECT orden_id,producto_id,cantidad_producida FROM orden_produccion_detalle WHERE id_tbl_ordendetalle=?");
             $stmt->execute([$id_avance]);
             $avance = $stmt->fetchAll(PDO::FETCH_ASSOC);//OP_id y cantidad producida en ese avance
-            error_log('$avance:'.print_r($avance,true));
+            error_log('$avance:'.print_r($avance,true).' - '.__FILE__.":".__LINE__);
             $stmt=$this->db->prepare("SELECT receta_id FROM ordenes_produccion WHERE id=?");
             $stmt->execute([$avance[0]['orden_id']]);
             $receta_id=$stmt->fetchColumn();//id de receta para buscar las MP y las cantidades de cada MP
@@ -404,9 +430,10 @@ class OrdenProduccion extends Model
             }
             //llamo a ajustar el ingreso del producto, esto inserta el movimiento de stock con el tipo ENTRADA y la referencia a la OP, esto me permite tener el stock real del producto actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
             $this->ajustarProducto($avance[0]['producto_id'],$avance[0]['cantidad_producida'],"Ingreso por produccion OP ID: ".$avance[0]['orden_id'],$_SESSION['user_id'],'ENTRADA',$avance[0]['orden_id']);
-
+            //Ver y confirmar estado de la OP, si se completo o no, para cambiar el estado a FINALIZADA o dejarlo en EN_PRODUCCION
+            $this->estadoChange($avance[0]['orden_id']);
             $this->db->commit();
-            error_log("Regitrar el cierre del avance $id_avance. ".__FILE__.":".__LINE__);
+            error_log("Registro el cierre OK del avance: $id_avance. ".__FILE__.":".__LINE__);
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();

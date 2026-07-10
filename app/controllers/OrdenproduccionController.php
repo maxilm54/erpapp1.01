@@ -77,7 +77,7 @@ class OrdenproduccionController extends Controller
         $orden_det = $this->model->findopdetalle((int)$id); //Obtengo datos de detalle de OP (puede estar vacio o tener varios registros)
         if ($_SERVER['REQUEST_METHOD'] === 'POST') { // viene del modal de agregar produccion, se registra el avance y se actualiza el stock de producto y materia prima consumida, si es que hubo consumo. Se debe actualizar el estado de la OP a EN_PRODUCCION si no estaba en ese estado.
             //solo entro si hubo envio desde el modal.
-            error_log('llega al post del controlador avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true).' - '.__FILE__.':'.__LINE__);
+            error_log('Se crea registro de avance, fecha:'.FECHA_ACTUAL.' con data: '.print_r($_POST,true).' - '.__FILE__.':'.__LINE__);
             //die();
             if (!Csrf::validate($_POST['csrf_token'])) {
                 error_log('se a intentado un registro rechazado por csrf. '.__FILE__.':'.__LINE__);
@@ -89,7 +89,7 @@ class OrdenproduccionController extends Controller
             try {
                 //CUANDO CHEQUEO TENGO QUE VALIDAR NO SOLO LA RESERVA SINO QUE SI AL RESERVA SE HIZO SIN STOCK, SE REGISTRA IGUAL.
                 $stockCheck = $this->model->producirvsStockMP($_POST['receta_id'], $_POST['cantidad_producida'], (int) $id);
-                error_log('Resultado del chequeo de stock para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
+                error_log('Resultado control stock MP para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
                 //error=sin stock, warnign stock insuficiente, niguno permite producir.
                 //die();
                 if ($stockCheck['estado'] === 'error') { // tengo 0 stock reservado de todas las mp
@@ -121,7 +121,7 @@ class OrdenproduccionController extends Controller
                     'usuario_id'  => $_SESSION['user_id']
                 ]);
                 //En el modelo:
-                //Al registrar el avance, solo se hace con MP reservada, se debe insertar un registro en la tabla de reservas para ese MP id y OP id 
+                //Al registrar el avance, solo se hace con MP reservada, se debe insertar un registro en la tabla de reservas para ese MP id y OP id
                 // con el estado consumido y la cantidad consumida, la reserva de stock sera RESERVADO - (CONSUMIDO+LIBERADO).
                 //se descarta el trigger y tbla de hsitoricos.
                 //Se debe aumentar el stock del producto producido. En la tabla de movimientos_stock se reigistra el ingreso de Producto y el conusmo de MP desde
@@ -202,8 +202,10 @@ class OrdenproduccionController extends Controller
     {
         validarId($id, BASE_URL . '/ordenproduccion');
         //$this->model->actualizarEstado((int)$id, 'CANCELADA');
-        $this->model->cancelarproduccion($id);
-        $_SESSION['success'] = 'Orden de producción cancelada';
+        $cancelacion=$this->model->cancelarproduccion($id);
+        if ($cancelacion) {
+            $_SESSION['success'] = 'Orden de producción cancelada';
+        }
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);
         exit;
     }
