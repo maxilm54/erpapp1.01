@@ -156,7 +156,7 @@ class MateriasprimasController extends Controller
                 $_POST['stock_minimo'] < 0 || $_POST['stock_critico'] < 0 || $_POST['stock_maximo'] < 0 ||
                 ($_POST['stock_minimo'] > $_POST['stock_maximo']) ||
                 ($_POST['stock_critico'] > $_POST['stock_maximo']) ||
-                ($_POST['stock_critico'] < $_POST['stock_minimo'])){
+                ($_POST['stock_critico'] > $_POST['stock_minimo'])){
                 $_SESSION['error'] = 'Los valores de stock no pueden ser negativos. Tampoco el stock mínimo puede ser mayor que el máximo, ni el stock crítico puede ser mayor que el máximo o menor que el mínimo.';
                 header('Location: ' . BASE_URL . '/materiasprimas/stockdata/' . $id);
                 exit;

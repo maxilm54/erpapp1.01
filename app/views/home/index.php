@@ -6,7 +6,7 @@
     <div class="col-md-6">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-primary text-white">
-                <h6 class="mb-0">📦 Stock Productos Terminados</h6>
+                <h6 class="mb-0">📦 Stock Productos</h6>
             </div>
             <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
                 <table class="table table-sm table-hover mb-0">
@@ -74,7 +74,7 @@
                         <?php foreach ($materiasPrimasStock as $mp): ?>
                         <tr>
                             <td><?= htmlspecialchars($mp['nombre']) ?></td>
-                            <td class="text-end"><?= number_format($mp['stock_actual'], 0) ?></td>
+                            <td class="text-end"><?= number_format($mp['stock'], 0) ?></td>
                             <td class="text-end text-muted"><?= $mp['stock_minimo'] > 0 ? number_format($mp['stock_minimo'], 0) : '-' ?></td>
                             <td class="text-end text-muted"><?= $mp['stock_critico'] > 0 ? number_format($mp['stock_critico'], 0) : '-' ?></td>
                             <td class="text-end text-muted"><?= $mp['stock_maximo'] > 0 ? number_format($mp['stock_maximo'], 0) : '-' ?></td>
@@ -97,27 +97,29 @@
     </div>
 </div>
 
-<?php if (!empty($alertasStock)): ?>
+<?php if (!empty($materiasPrimasStock)): ?>
 <div class="card mt-4 border-danger mb-2">
     <div class="card-body">
         <h6 class="text-danger">⚠ Materias Primas en Riesgo</h6>
 
-        <?php foreach ($alertasStock as $mp): ?>
+        <?php foreach ($materiasPrimasStock as $mp): ?>
             <?php
-            $estado = StockHelper::estado(
-                $mp['stock_actual'],
-                $mp['stock_minimo'],
-                $mp['stock_critico'],
-                0
-            );
-            ?>
+                if($mp['stock_critico']<$mp['stock_actual']){
+                    $estado = StockHelper::estado(
+                    $mp['stock_actual'],
+                    $mp['stock_minimo'],
+                    $mp['stock_critico'],
+                    0
+                );
+                ?>
 
-            <div class="d-flex justify-content-between mb-1">
-                <span><?= htmlspecialchars($mp['nombre']) ?></span>
-                <span class="badge bg-<?= $estado['color'] ?>">
-                    <?= $mp['stock_actual'] ?>
-                </span>
-            </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span><?= htmlspecialchars($mp['nombre']) ?></span>
+                    <span class="badge bg-<?= $estado['color'] ?>">
+                        <?= $mp['stock_actual'] ?>
+                    </span>
+                </div>
+            <?php } ?>
         <?php endforeach; ?>
     </div>
 </div>

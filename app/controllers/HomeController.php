@@ -1,9 +1,11 @@
 <?php
+
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/helpers/StockHelper.php';
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Materiaprima.php';
+require_once BASE_PATH . '/app/models/Stock.php';
 
 class HomeController extends Controller
 {
@@ -14,13 +16,13 @@ class HomeController extends Controller
         //ALERTAS DE STOCK
         //EL STOCK DEBO TRAERLO DE STOCK Y NO DE LA TABLA materiaprima! ERROR!
         //========
-        $alertasStock = $db->query("
+        /*$alertasStock = $db->query("
             SELECT nombre, stock_actual, stock_minimo, stock_critico
             FROM materias_primas
             WHERE stock_actual <= stock_minimo
             ORDER BY stock_actual ASC
             LIMIT 5
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ")->fetchAll(PDO::FETCH_ASSOC);*/
 
         // =========================
         // FINANZAS
@@ -121,11 +123,10 @@ class HomeController extends Controller
         // =========================
         // STOCK PRODUCTOS Y MP
         // =========================
-        $producto = new Producto();
-        $materiaPrima = new MateriaPrima();
-        
-        $productosStock = $producto->getStockStatus();
-        $materiasPrimasStock = $materiaPrima->getStockStatus();
+        //$producto = new Producto();
+        $GetStock = new Stock();
+        $productosStock = $GetStock->stockProductos();
+        $materiasPrimasStock = $GetStock->stockMateriasPrimas();
 
         $this->view('home/index', compact(
             'ingresos',
