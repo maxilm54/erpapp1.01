@@ -104,7 +104,7 @@
 
         <?php foreach ($materiasPrimasStock as $mp): ?>
             <?php
-                if($mp['stock_critico']<$mp['stock_actual']){
+                if($mp['stock_critico']>$mp['stock']){
                     $estado = StockHelper::estado(
                     $mp['stock_actual'],
                     $mp['stock_minimo'],
@@ -116,7 +116,7 @@
                 <div class="d-flex justify-content-between mb-1">
                     <span><?= htmlspecialchars($mp['nombre']) ?></span>
                     <span class="badge bg-<?= $estado['color'] ?>">
-                        <?= $mp['stock_actual'] ?>
+                        <?= $mp['stock'] ?>
                     </span>
                 </div>
             <?php } ?>
