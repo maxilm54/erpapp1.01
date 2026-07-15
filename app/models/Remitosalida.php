@@ -48,6 +48,7 @@ class RemitoSalida extends Model
         // Render HTML
         ob_start();
         $logo = $logoBase64;
+        $empresa = config('empresa');
         require BASE_PATH.'/app/views/pdf/remito_salida.php';
         $html = ob_get_clean();
 
@@ -103,6 +104,7 @@ class RemitoSalida extends Model
         );
         $remito['detalle'] = $detalle; //precioporproductoenremito=precioremitado
         $logo = $logoBase64;
+        $empresa = config('empresa');
         // Variables disponibles en la vista
         ob_start();
         require BASE_PATH . '/app/views/pdf/remito_salida.php';
@@ -242,6 +244,7 @@ class RemitoSalida extends Model
         ): int{
         try {
             $numero = (new Numerador())->siguiente('REMITO');
+            error_log($numero.'-'.__FILE__.'-'.__LINE__);
             $this->db->beginTransaction();
             $cc = new CuentaCorrienteCliente();
 
@@ -254,6 +257,7 @@ class RemitoSalida extends Model
             $stmt->execute([$numero, $notaPedidoId, $usuarioId, $observaciones]);
 
             $remitoId = (int)$this->db->lastInsertId();
+            error_log('Remito de Salida creado con ID: ' . $remitoId . ' - ' . __FILE__ . ':' . __LINE__);
 
             // 2️⃣ Detalle + impacto stock
             foreach ($items as $productoId => $cantidad) {
