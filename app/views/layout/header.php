@@ -64,6 +64,7 @@ Ventas
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/notaspedido/create">Nueva NP</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/notaspedido">Notas de Pedidos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/remitossalida">Remitos de Salida</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/remitossalida/create-manual"><i class="bi bi-plus-lg"></i> Remito Manual</a></li>
 </ul>
 </li>
 <!-- COMPRAS -->

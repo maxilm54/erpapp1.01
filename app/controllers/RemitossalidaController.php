@@ -144,5 +144,131 @@ class RemitosSalidaController extends Controller
         exit;
     }
 
+    // =====================================================
+    // REMITO MANUAL (sin Nota de Pedido)
+    // =====================================================
 
+    /**
+     * Formulario para crear remito manual.
+     */
+    public function createManual()
+    {
+        $clientes = $this->cli->allactive();
+        $productos = $this->getProductos();
+
+        $this->view('remitos_salida/form_manual', [
+            'clientes' => $clientes,
+            'productos' => $productos,
+        ]);
+    }
+
+    /**
+     * Guardar remito manual.
+     */
+    public function storeManual()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: " . BASE_URL . "/remitossalida");
+            exit;
+        }
+
+        try {
+            if (empty($_POST['items'])) {
+                throw new Exception('No hay productos para remitar');
+            }
+
+            // Normalizar items: ahora vienen como items[id][cantidad] e items[id][precio]
+            $itemsNormalizados = [];
+            foreach ($_POST['items'] as $productoId => $datos) {
+                if (is_array($datos)) {
+                    $itemsNormalizados[$productoId] = [
+                        'cantidad' => (float)($datos['cantidad'] ?? 0),
+                        'precio' => (float)($datos['precio'] ?? 0),
+                    ];
+                } else {
+                    // Compatibilidad: si viene solo el número (formato viejo)
+                    $itemsNormalizados[$productoId] = [
+                        'cantidad' => (float)$datos,
+                        'precio' => 0,
+                    ];
+                }
+            }
+
+            // Construir datos del cliente
+            $clienteData = [];
+
+            if (!empty($_POST['cliente_id'])) {
+                // Cliente existente
+                $clienteData['cliente_id'] = (int)$_POST['cliente_id'];
+            } else {
+                // Cliente ad-hoc (ocasional)
+                $clienteData['cliente_nombre'] = trim($_POST['cliente_nombre'] ?? '');
+                $clienteData['cliente_cuit'] = trim($_POST['cliente_cuit'] ?? '');
+                $clienteData['cliente_direccion'] = trim($_POST['cliente_direccion'] ?? '');
+                $clienteData['cliente_email'] = trim($_POST['cliente_email'] ?? '');
+                $clienteData['cliente_telefono'] = trim($_POST['cliente_telefono'] ?? '');
+                $clienteData['cliente_localidad'] = trim($_POST['cliente_localidad'] ?? '');
+
+                // Validar nombre obligatorio
+                if (empty($clienteData['cliente_nombre'])) {
+                    throw new Exception('El nombre o razón social del cliente es obligatorio.');
+                }
+
+                // Email por defecto
+                if (empty($clienteData['cliente_email'])) {
+                    $clienteData['cliente_email'] = 'contacto@alimentostriba.com.ar';
+                }
+            }
+
+            $id = $this->model->createManual(
+                (int)$_SESSION['user_id'],
+                $itemsNormalizados,
+                $clienteData,
+                $_POST['observaciones'] ?? null
+            );
+
+            // Generar y guardar PDF
+            $this->model->generarYGuardarPdf($id);
+
+            $_SESSION['success'] = 'Remito manual creado correctamente.';
+            header("Location: " . BASE_URL . "/remitossalida/show/$id");
+            exit;
+
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            error_log('Error al crear remito manual: ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
+            header("Location: " . BASE_URL . "/remitossalida/create-manual");
+            exit;
+        }
+    }
+
+    /**
+     * Traer productos activos con stock.
+     */
+    private function getProductos(): array
+    {
+        require_once BASE_PATH . '/app/models/Producto.php';
+        $productoModel = new Producto();
+        return $productoModel->allConStock();
+    }
+
+    /**
+     * AJAX: buscar productos con stock para el remito manual.
+     */
+    public function searchProducts(): void
+    {
+        header('Content-Type: application/json');
+
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) {
+            echo json_encode([]);
+            return;
+        }
+
+        require_once BASE_PATH . '/app/models/Producto.php';
+        $productoModel = new Producto();
+        $productos = $productoModel->searchConStock($q);
+
+        echo json_encode($productos);
+    }
 }

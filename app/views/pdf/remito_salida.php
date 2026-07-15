@@ -122,7 +122,7 @@
 <?php
     $totalGeneral = 0;
     foreach ($remito['detalle'] as $d) {
-        $precio = (float)($d['precioremitado'] ?? 0);
+        $precio = (float)($d['precio_unitario'] ?? $d['precioremitado'] ?? 0);
         $cant = (float)$d['cantidad'];
         $subtotal = $precio * $cant;
         $totalGeneral += $subtotal;
@@ -140,7 +140,7 @@
     </thead>
     <tbody>
         <?php $i = 1; foreach ($remito['detalle'] as $d):
-            $precio = (float)($d['precioremitado'] ?? 0);
+            $precio = (float)($d['precio_unitario'] ?? $d['precioremitado'] ?? 0);
             $cant = (float)$d['cantidad'];
             $sub = $precio * $cant;
         ?>

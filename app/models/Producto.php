@@ -14,6 +14,54 @@ class Producto extends Model
         )->fetchAll();
     }
 
+    /**
+     * Productos activos con stock calculado.
+     */
+    public function allConStock(): array
+    {
+        return $this->db->query("
+            SELECT p.id, p.nombre, p.sku, p.precio_venta,
+                COALESCE(SUM(
+                    CASE
+                        WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
+                        WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
+                    END
+                ),0) AS stock
+            FROM productos p
+            LEFT JOIN movimientos_stock ms ON ms.producto_id = p.id
+            WHERE p.activo = 1
+            GROUP BY p.id, p.nombre, p.sku, p.precio_venta
+            ORDER BY p.nombre
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Buscar productos activos con stock por nombre/sku.
+     */
+    public function searchConStock(string $query): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT p.id, p.nombre, p.sku, p.precio_venta,
+                COALESCE(SUM(
+                    CASE
+                        WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
+                        WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
+                    END
+                ),0) AS stock
+            FROM productos p
+            LEFT JOIN movimientos_stock ms ON ms.producto_id = p.id
+            WHERE p.activo = 1
+              AND (p.nombre LIKE :q OR p.sku LIKE :q2)
+            GROUP BY p.id, p.nombre, p.sku, p.precio_venta
+            HAVING stock > 0
+            ORDER BY p.nombre
+            LIMIT 20
+        ");
+        $like = '%' . $query . '%';
+        $stmt->execute([':q' => $like, ':q2' => $like]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function find(int $id)
     {
         $stmt = $this->db->prepare(
