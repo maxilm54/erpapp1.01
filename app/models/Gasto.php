@@ -5,10 +5,12 @@ class Gasto extends Model{
 
     public function getAll(array $filters = []): array{
         $sql = "
-            SELECT g.*, u.nombre AS usuario_nombre, oc.id AS oc_numero
+            SELECT g.*, u.nombre AS usuario_nombre, oc.id AS oc_numero,
+                   imp.nombre AS impuesto_nombre, imp.porcentaje AS impuesto_porcentaje
             FROM gastos g
             LEFT JOIN users u ON u.id = g.usuario_id
             LEFT JOIN ordenes_compra oc ON oc.id = g.orden_compra_id
+            LEFT JOIN impuestos imp ON imp.id = g.impuesto_id
             WHERE 1=1
         ";
         $params = [];
@@ -48,11 +50,13 @@ class Gasto extends Model{
                    oc.id AS oc_numero, oc.estado AS oc_estado,
                    p.razon_social AS proveedor_nombre,
                    ocd.total_oc, gpag.total_pagado,
-                   COALESCE(ocd.total_oc, 0) - COALESCE(gpag.total_pagado, 0) AS oc_saldo_pendiente
+                   COALESCE(ocd.total_oc, 0) - COALESCE(gpag.total_pagado, 0) AS oc_saldo_pendiente,
+                   imp.nombre AS impuesto_nombre, imp.codigo AS impuesto_codigo, imp.porcentaje AS impuesto_porcentaje
             FROM gastos g
             LEFT JOIN users u ON u.id = g.usuario_id
             LEFT JOIN ordenes_compra oc ON oc.id = g.orden_compra_id
             LEFT JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN impuestos imp ON imp.id = g.impuesto_id
             LEFT JOIN (
                 SELECT orden_compra_id, SUM(cantidad * precio_unitario) AS total_oc
                 FROM ordenes_compra_detalle
@@ -73,8 +77,8 @@ class Gasto extends Model{
 
     public function create(array $data): int{
         $sql = "INSERT INTO gastos
-                (fecha, categoria, descripcion, orden_compra_id, monto_total, medio_pago, comprobante, estado, usuario_id, observaciones)
-                VALUES (:fecha, :categoria, :descripcion, :orden_compra_id, :monto_total, :medio_pago, :comprobante, :estado, :usuario_id, :observaciones)";
+                (fecha, categoria, descripcion, orden_compra_id, monto_total, medio_pago, comprobante, estado, usuario_id, observaciones, impuesto_id, monto_base, monto_impuesto, caja_banco_id)
+                VALUES (:fecha, :categoria, :descripcion, :orden_compra_id, :monto_total, :medio_pago, :comprobante, :estado, :usuario_id, :observaciones, :impuesto_id, :monto_base, :monto_impuesto, :caja_banco_id)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
             ':fecha'           => $data['fecha'],
@@ -87,6 +91,10 @@ class Gasto extends Model{
             ':estado'          => $data['estado'] ?? 'BORRADOR',
             ':usuario_id'      => $data['usuario_id'],
             ':observaciones'   => $data['observaciones'] ?: null,
+            ':impuesto_id'     => $data['impuesto_id'] ?: null,
+            ':monto_base'      => $data['monto_base'] ?: null,
+            ':monto_impuesto'  => $data['monto_impuesto'] ?: null,
+            ':caja_banco_id'   => $data['caja_banco_id'] ?: null,
         ]);
         return (int)$this->db->lastInsertId();
     }
@@ -100,7 +108,11 @@ class Gasto extends Model{
                     monto_total = :monto_total,
                     medio_pago = :medio_pago,
                     comprobante = :comprobante,
-                    observaciones = :observaciones
+                    observaciones = :observaciones,
+                    impuesto_id = :impuesto_id,
+                    monto_base = :monto_base,
+                    monto_impuesto = :monto_impuesto,
+                    caja_banco_id = :caja_banco_id
                 WHERE id = :id";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
@@ -113,6 +125,10 @@ class Gasto extends Model{
             ':medio_pago'      => $data['medio_pago'],
             ':comprobante'     => $data['comprobante'] ?: null,
             ':observaciones'   => $data['observaciones'] ?: null,
+            ':impuesto_id'     => $data['impuesto_id'] ?: null,
+            ':monto_base'      => $data['monto_base'] ?: null,
+            ':monto_impuesto'  => $data['monto_impuesto'] ?: null,
+            ':caja_banco_id'   => $data['caja_banco_id'] ?: null,
         ]);
     }
 
@@ -160,10 +176,23 @@ class Gasto extends Model{
         $stmt->execute([':mes' => $mes, ':anio' => $año]);
         $porEstado = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Total IVA del mes
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(monto_impuesto), 0) AS total_iva,
+                   COALESCE(SUM(monto_base), 0) AS total_base
+            FROM gastos
+            WHERE MONTH(fecha) = :mes AND YEAR(fecha) = :anio
+              AND estado != 'ANULADO' AND impuesto_id IS NOT NULL
+        ");
+        $stmt->execute([':mes' => $mes, ':anio' => $año]);
+        $totalesIva = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return [
             'total_general' => $totalGeneral,
             'por_categoria' => $porCategoria,
             'por_estado'    => $porEstado,
+            'total_base'    => (float)($totalesIva['total_base'] ?? 0),
+            'total_iva'     => (float)($totalesIva['total_iva'] ?? 0),
         ];
     }
 

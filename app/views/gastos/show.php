@@ -57,6 +57,31 @@ $estadoClass = $badgeClasses[$gasto['estado']] ?? 'bg-secondary';
                     </div>
                 </div>
 
+                <?php if (!empty($gasto['impuesto_id'])): ?>
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <div class="card bg-light">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>
+                                        <i class="bi bi-receipt"></i>
+                                        <strong><?= htmlspecialchars($gasto['impuesto_nombre'] ?? 'Impuesto') ?></strong>
+                                        (<?= number_format($gasto['impuesto_porcentaje'] ?? 0, 1) ?>%)
+                                    </span>
+                                    <span>
+                                        Base: <strong>$ <?= number_format($gasto['monto_base'] ?? 0, 2, ',', '.') ?></strong>
+                                        &nbsp;|&nbsp;
+                                        IVA: <strong>$ <?= number_format($gasto['monto_impuesto'] ?? 0, 2, ',', '.') ?></strong>
+                                        &nbsp;|&nbsp;
+                                        Total: <strong>$ <?= number_format($gasto['monto_total'], 2, ',', '.') ?></strong>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <?php if ($gasto['orden_compra_id']): ?>
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -153,10 +178,24 @@ $estadoClass = $badgeClasses[$gasto['estado']] ?? 'bg-secondary';
                 <?php endif; ?>
 
                 <?php if ($gasto['estado'] === 'APROBADO'): ?>
-                    <a href="<?= BASE_URL ?>/gastos/pagar/<?= $gasto['id'] ?>" class="btn btn-success"
-                       onclick="return confirm('¿Marcar como pagado?')">
-                        <i class="bi bi-cash"></i> Marcar como Pagado
-                    </a>
+                    <form method="POST" action="<?= BASE_URL ?>/gastos/pagar/<?= $gasto['id'] ?>" id="formPagar">
+                        <div class="mb-2">
+                            <label for="caja_banco_id" class="form-label fw-bold">Caja/Banco *</label>
+                            <select id="caja_banco_id" name="caja_banco_id" class="form-select form-select-sm" required>
+                                <option value="">Seleccionar...</option>
+                                <?php foreach ($cajasBancos as $cb): ?>
+                                    <option value="<?= $cb['id'] ?>">
+                                        <?= htmlspecialchars($cb['nombre']) ?>
+                                        (Saldo: $ <?= number_format($cb['saldo_actual'], 2, ',', '.') ?>)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100"
+                               onclick="return confirm('¿Marcar como pagado? Se generará el asiento contable.')">
+                            <i class="bi bi-cash"></i> Marcar como Pagado
+                        </button>
+                    </form>
                 <?php endif; ?>
 
                 <?php if (in_array($gasto['estado'], ['BORRADOR', 'APROBADO'])): ?>
@@ -164,6 +203,33 @@ $estadoClass = $badgeClasses[$gasto['estado']] ?? 'bg-secondary';
                        onclick="return confirm('¿Anular este gasto? Esta acción no se puede deshacer.')">
                         <i class="bi bi-x-circle"></i> Anular
                     </a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($gasto['estado'] === 'PAGADO'): ?>
+        <!-- Asiento Contable -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-journal-text"></i> Asiento Contable</h6>
+            </div>
+            <div class="card-body">
+                <?php
+                require_once BASE_PATH . '/app/models/AsientoContable.php';
+                $asientoModel = new AsientoContable();
+                $asiento = $asientoModel->findByOrigen('GASTOS', 'PAGO', $gasto['id']);
+                ?>
+                <?php if ($asiento): ?>
+                    <p class="mb-2">
+                        Asiento #<strong><?= $asiento['numero'] ?></strong><br>
+                        <small class="text-muted"><?= $asiento['fecha'] ?></small>
+                    </p>
+                    <a href="<?= BASE_URL ?>/contabilidad/asiento-show/<?= $asiento['id'] ?>" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="bi bi-eye"></i> Ver Asiento
+                    </a>
+                <?php else: ?>
+                    <p class="text-muted mb-0">No se encontró asiento contable.</p>
                 <?php endif; ?>
             </div>
         </div>

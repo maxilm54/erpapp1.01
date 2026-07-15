@@ -40,7 +40,7 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
         </div>
 
         <!-- Medio de pago -->
-        <div class="col-md-3 mb-3">
+        <div class="col-md-2 mb-3">
             <label for="medio_pago" class="form-label">Medio de Pago</label>
             <select id="medio_pago" name="medio_pago" class="form-select">
                 <?php
@@ -55,13 +55,46 @@ $action = $isEdit ? BASE_URL . "/gastos/update/{$gasto['id']}" : BASE_URL . '/ga
             </select>
         </div>
 
-        <!-- Monto -->
-        <div class="col-md-3 mb-3">
-            <label for="monto_total" class="form-label">Monto Total *</label>
+        <!-- IVA / Impuesto -->
+        <div class="col-md-2 mb-3">
+            <label for="impuesto_id" class="form-label">Impuesto</label>
+            <select id="impuesto_id" name="impuesto_id" class="form-select">
+                <option value="">Sin impuesto</option>
+                <?php foreach ($impuestos as $imp): ?>
+                    <option value="<?= $imp['id'] ?>"
+                            data-porcentaje="<?= $imp['porcentaje'] ?>"
+                        <?= (int)($gasto['impuesto_id'] ?? 0) === (int)$imp['id'] ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($imp['nombre']) ?> (<?= number_format($imp['porcentaje'], 1) ?>%)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <!-- Monto Total -->
+        <div class="col-md-2 mb-3">
+            <label for="monto_total" class="form-label">Monto Total (IVA incl.) *</label>
             <input type="number" id="monto_total" name="monto_total" class="form-control"
                    step="0.01" min="0.01" required
                    value="<?= htmlspecialchars($gasto['monto_total'] ?? '') ?>">
             <div id="saldoInfo" class="form-text text-muted" style="display:none;"></div>
+        </div>
+
+        <!-- Monto Base (calculado) -->
+        <div class="col-md-2 mb-3">
+            <label for="monto_base" class="form-label">Monto Base</label>
+            <input type="number" id="monto_base" name="monto_base" class="form-control"
+                   step="0.01" readonly
+                   value="<?= htmlspecialchars($gasto['monto_base'] ?? '') ?>">
+            <div class="form-text text-muted">Base imponible</div>
+        </div>
+
+        <!-- Monto IVA (calculado) -->
+        <div class="col-md-2 mb-3">
+            <label for="monto_impuesto" class="form-label">Monto IVA</label>
+            <input type="number" id="monto_impuesto" name="monto_impuesto" class="form-control"
+                   step="0.01" readonly
+                   value="<?= htmlspecialchars($gasto['monto_impuesto'] ?? '') ?>">
+            <div class="form-text text-muted">Importe del impuesto</div>
         </div>
     </div>
 
@@ -126,9 +159,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const saldoInfo = document.getElementById('saldoInfo');
     const ocDetalle = document.getElementById('ocDetalle');
     const form = document.getElementById('formGasto');
+    const selectImpuesto = document.getElementById('impuesto_id');
+    const inputBase = document.getElementById('monto_base');
+    const inputIva = document.getElementById('monto_impuesto');
 
     function formatMoney(val) {
         return '$ ' + val.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function calcularIva() {
+        const montoTotal = parseFloat(inputMonto.value) || 0;
+        const selectedOpt = selectImpuesto.options[selectImpuesto.selectedIndex];
+        const porcentaje = selectedOpt && selectedOpt.value ? parseFloat(selectedOpt.dataset.porcentaje) || 0 : 0;
+
+        if (porcentaje === 0 || !selectedOpt.value) {
+            inputBase.value = montoTotal > 0 ? montoTotal.toFixed(2) : '';
+            inputIva.value = montoTotal > 0 ? '0.00' : '';
+        } else {
+            const base = montoTotal / (1 + porcentaje / 100);
+            const iva = montoTotal - base;
+            inputBase.value = base.toFixed(2);
+            inputIva.value = iva.toFixed(2);
+        }
     }
 
     function actualizarInfoOC() {
@@ -160,10 +212,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const montoActual = parseFloat(inputMonto.value) || 0;
         if (montoActual > saldo) {
             inputMonto.value = saldo.toFixed(2);
+            calcularIva();
         }
     }
 
     selectOC.addEventListener('change', actualizarInfoOC);
+    selectImpuesto.addEventListener('change', calcularIva);
+    inputMonto.addEventListener('input', calcularIva);
 
     form.addEventListener('submit', function(e) {
         const selected = selectOC.options[selectOC.selectedIndex];
@@ -191,6 +246,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    calcularIva();
     actualizarInfoOC();
 });
 </script>

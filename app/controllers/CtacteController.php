@@ -4,18 +4,24 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Pago.php';
+require_once BASE_PATH.'/app/models/CajaBanco.php';
+require_once BASE_PATH.'/app/helpers/AsientoAutomatico.php';
 
 class CtaCteController extends Controller
 {
     private CuentaCorrienteCliente $model;
     private Cliente $cliente;
     private Pago $pago;
+    private CajaBanco $cajaModel;
+    private AsientoAutomatico $asientoAuto;
 
     public function __construct()
     {
         $this->model   = new CuentaCorrienteCliente();
         $this->cliente = new Cliente();
         $this->pago = new Pago();
+        $this->cajaModel = new CajaBanco();
+        $this->asientoAuto = new AsientoAutomatico();
     }
 
     /**
@@ -74,13 +80,15 @@ class CtaCteController extends Controller
         $cliente_mov=$this->model->deudasActualCliente((int)$clienteId);
         $deudas = $this->model->deudasPorCliente((int)$clienteId); //busca en el modelo las deudas del cliente, muestra remitos y montos
         $cliente = $this->cliente->find((int)$clienteId); //trae los datos del cliente
+        $cajasBancos = $this->cajaModel->getActivas();
         if($_SERVER['REQUEST_METHOD'] === 'POST'){
             $this->registrarPago();
         }
         $this->view('cta_cte/pago_deudas', [ //muestra la vista de pago de deudas el form para ingresar el monto a pagar
             'cliente' => $cliente,
             'deudas'  => $deudas,
-            'cliente_mov' => $cliente_mov
+            'cliente_mov' => $cliente_mov,
+            'cajasBancos' => $cajasBancos,
         ]);
     }
 
@@ -94,22 +102,46 @@ class CtaCteController extends Controller
             exit;
         }
 
-        try { //EN LA VISTA DE PAGO CUANDO REGISTRO SE LLAMA AL MODELO registrarCredito con el id del cliente, monto, tipo PAGO, referencia 0, user_id y observaciones
+        try {
+            $clienteId = (int)$_POST['cliente_id'];
+            $monto = (float)$_POST['monto'];
+            $cajaBancoId = !empty($_POST['caja_banco_id']) ? (int)$_POST['caja_banco_id'] : null;
+
+            // Registrar crédito en ctacte
             $this->model->registrarCredito(
-                (int)$_POST['cliente_id'],
-                (float)$_POST['monto'],
+                $clienteId,
+                $monto,
                 'PAGO',
                 0,
                 $_SESSION['user_id'],
                 $_POST['observaciones'] ?? null
             );
-            $id = $this->pago->registrar([ //nueva funcion que registra el pago en la tabla de pagos y envia el comprobante por mail y lo gaurda tambien
-                    'cliente_id' => $_POST['cliente_id'],
-                    'usuario_id' => $_SESSION['user_id'],
-                    'monto'      => (float)$_POST['monto'],
-                    'medio_pago' => $_POST['medio_pago'] ?? null,
-                    'observaciones' => $_POST['observaciones'] ?? null
-                ]);            
+
+            // Registrar pago en tabla pagos
+            $id = $this->pago->registrar([
+                'cliente_id' => $clienteId,
+                'usuario_id' => $_SESSION['user_id'],
+                'monto'      => $monto,
+                'medio_pago' => $_POST['medio_pago'] ?? null,
+                'observaciones' => $_POST['observaciones'] ?? null
+            ]);
+
+            // Generar asiento contable automático
+            try {
+                $this->asientoAuto->ventaCredito(
+                    $clienteId,
+                    $monto,
+                    'PAGO',
+                    $id ?? 0,
+                    $_SESSION['user_id'],
+                    $cajaBancoId
+                );
+                $_SESSION['success'] = 'Pago registrado y asiento contable generado.';
+            } catch (Exception $e) {
+                error_log("Error generando asiento para pago ctacte: " . $e->getMessage());
+                $_SESSION['success'] = 'Pago registrado (error al generar asiento: ' . $e->getMessage() . ')';
+            }
+
             header('Location: '.BASE_URL.'/ctacte');
 
         } catch (Exception $e) {

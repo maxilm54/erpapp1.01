@@ -115,12 +115,24 @@ Movimientos
 <!-- CONTABILIDAD -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-Contabilidad
+<i class="bi bi-wallet2"></i> Contabilidad
 </a>
 <ul class="dropdown-menu">
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/dashboard"><i class="bi bi-graph-up"></i> Dashboard</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/dashboard"><i class="bi bi-graph-up"></i> Dashboard Gastos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos"><i class="bi bi-list-ul"></i> Gastos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/create"><i class="bi bi-plus-lg"></i> Nuevo Gasto</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/asientos"><i class="bi bi-journal-text"></i> Libro Diario</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/asientos/create"><i class="bi bi-plus-circle"></i> Nuevo Asiento</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/plan-cuentas"><i class="bi bi-diagram-3"></i> Plan de Cuentas</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/cajas"><i class="bi bi-bank"></i> Cajas y Bancos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/conciliacion"><i class="bi bi-check2-all"></i> Conciliación</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/balance"><i class="bi bi-balance-scale"></i> Balance General</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/resultados"><i class="bi bi-graph-up-arrow"></i> Estado de Resultados</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/impuestos"><i class="bi bi-receipt"></i> Impuestos (IVA)</a></li>
 </ul>
 </li>
 <?php endif; ?>

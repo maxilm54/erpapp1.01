@@ -69,7 +69,7 @@
     foreach ($badgeClasses as $est => $cls):
         $cnt = $estadosCount[$est] ?? 0;
     ?>
-        <span class="badge <?= $cls ?> me-1"><?= $estado ?>: <?= $cnt ?></span>
+        <span class="badge <?= $cls ?> me-1"><?= $est ?>: <?= $cnt ?></span>
     <?php endforeach; ?>
 </div>
 
@@ -96,7 +96,11 @@
             <td><?= date('d/m/Y', strtotime($g['fecha'])) ?></td>
             <td><span class="badge bg-info text-dark"><?= $g['categoria'] ?></span></td>
             <td><?= htmlspecialchars(mb_substr($g['descripcion'], 0, 50)) ?></td>
-            <td class="text-end fw-bold">$ <?= number_format($g['monto_total'], 2, ',', '.') ?></td>
+            <td class="text-end fw-bold">$ <?= number_format($g['monto_total'], 2, ',', '.') ?>
+                <?php if (!empty($g['impuesto_nombre'])): ?>
+                    <br><small class="text-muted"><?= htmlspecialchars($g['impuesto_nombre']) ?></small>
+                <?php endif; ?>
+            </td>
             <td><?= $g['medio_pago'] ?></td>
             <td>
                 <?php

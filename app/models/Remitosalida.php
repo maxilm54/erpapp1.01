@@ -3,6 +3,7 @@
     use Dompdf\Options;
 require_once BASE_PATH.'/app/models/CuentaCorrienteCliente.php';
 require_once BASE_PATH.'/app/models/Numerador.php';
+require_once BASE_PATH.'/app/helpers/AsientoAutomatico.php';
 class RemitoSalida extends Model
 {
     protected string $table = 'remitos_salida';
@@ -303,6 +304,13 @@ class RemitoSalida extends Model
                     $usuarioId,
                     'Remito generado desde NP #' . $notaPedidoId
                 );
+                // Generar asiento contable automático
+                try {
+                    $asientoAuto = new AsientoAutomatico();
+                    $asientoAuto->ventaDebito($cliente_id, $subtotal, 'REMITO', $remitoId, $usuarioId);
+                } catch (Exception $e) {
+                    error_log("Error generando asiento para remito #{$remitoId}: " . $e->getMessage());
+                }
                 // Movimiento de stock (salida)
                 $this->db->prepare("
                     INSERT INTO movimientos_stock
