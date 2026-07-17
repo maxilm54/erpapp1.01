@@ -271,7 +271,7 @@ class ContabilidadController extends Controller{
     }
 
     // =====================================================
-    // CONCILIACIÓN BANCARIA
+    // CONCILIACIÓN BANCARIA / CONTROL DE CAJA
     // =====================================================
 
     public function conciliacion(): void{
@@ -280,19 +280,132 @@ class ContabilidadController extends Controller{
         $cajaId = (int)($_GET['caja_id'] ?? 0);
         $conciliaciones = [];
         $movimientos = [];
+        $cajaInfo = null;
+        $saldoSistema = 0;
+        $resumenDia = null;
+        $fechaControl = $_GET['fecha'] ?? date('Y-m-d');
 
         if ($cajaId) {
+            $cajaInfo = $this->cajaModel->findById($cajaId);
             $conciliaciones = $this->conciliacionModel->getAll($cajaId);
-            $movimientos = $this->conciliacionModel->getMovimientosNoConciliados($cajaId);
+
+            if ($cajaInfo && $cajaInfo['tipo'] === 'BANCO') {
+                // Conciliación bancaria: movimientos no conciliados
+                $movimientos = $this->conciliacionModel->getMovimientosNoConciliados($cajaId);
+                $saldoSistema = $this->conciliacionModel->calcularSaldoSegunSistema($cajaId, date('Y-m-d'));
+            } elseif ($cajaInfo && $cajaInfo['tipo'] === 'CAJA') {
+                // Control de caja diario: movimientos del día
+                $movimientos = $this->conciliacionModel->getMovimientosDelDia($cajaId, $fechaControl);
+                $resumenDia = $this->conciliacionModel->getResumenDelDia($cajaId, $fechaControl);
+            }
         }
 
         $this->view('contabilidad/conciliacion', [
-            'title'         => 'Conciliación Bancaria',
+            'title'         => 'Conciliación Bancaria / Control de Caja',
             'cajas'         => $cajas,
             'cajaId'        => $cajaId,
+            'cajaInfo'      => $cajaInfo,
             'conciliaciones'=> $conciliaciones,
             'movimientos'   => $movimientos,
+            'saldoSistema'  => $saldoSistema,
+            'resumenDia'    => $resumenDia,
+            'fechaControl'  => $fechaControl,
         ]);
+    }
+
+    /**
+     * Procesar conciliación: recibe los movimientos seleccionados y el saldo del banco/arqueo.
+     */
+    public function conciliacionStore(): void{
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header("Location: " . BASE_URL . "/contabilidad/conciliacion");
+            exit;
+        }
+
+        try {
+            $cajaId = (int)($_POST['caja_id'] ?? 0);
+            $saldoBanco = (float)($_POST['saldo_banco'] ?? 0);
+            $fecha = $_POST['fecha_conciliacion'] ?? date('Y-m-d');
+            $observaciones = trim($_POST['observaciones'] ?? '');
+            $tipoConciliacion = $_POST['tipo_conciliacion'] ?? 'BANCO';
+
+            if ($cajaId <= 0) throw new Exception('Debe seleccionar una caja/banco.');
+
+            $cajaInfo = $this->cajaModel->findById($cajaId);
+            if (!$cajaInfo) throw new Exception('Caja/Banco no encontrado.');
+
+            // Recoger movimientos seleccionados
+            $movimientosSeleccionados = $_POST['movimientos'] ?? [];
+            if (empty($movimientosSeleccionados)) {
+                throw new Exception('Debe seleccionar al menos un movimiento para conciliar.');
+            }
+
+            // Traer datos de cada movimiento seleccionado + número de transacción
+            $movimientosData = [];
+            foreach ($movimientosSeleccionados as $movId) {
+                $movId = (int)$movId;
+                $mov = $this->cajaModel->findMovimiento($movId);
+                if ($mov) {
+                    $numTransaccion = null;
+                    if ($tipoConciliacion === 'BANCO') {
+                        $numTransaccion = trim($_POST['num_transaccion'][$movId] ?? '') ?: null;
+                    }
+                    $movimientosData[] = [
+                        'movimiento_caja_id' => $mov['id'],
+                        'fecha_movimiento'   => $mov['fecha'],
+                        'descripcion'        => $mov['descripcion'],
+                        'monto'              => $mov['monto'],
+                        'conciliado'         => 1,
+                        'numero_transaccion' => $numTransaccion,
+                    ];
+                }
+            }
+
+            // Calcular saldo según sistema
+            $saldoSistema = $this->conciliacionModel->calcularSaldoSegunSistema($cajaId, $fecha);
+            $diferencia = $saldoBanco - $saldoSistema;
+
+            $obs = $observaciones;
+            if ($tipoConciliacion === 'CAJA') {
+                $obs = ($obs ? $obs . ' | ' : '') . "Control de caja - Saldo arqueo: $" . number_format($saldoBanco, 2, ',', '.');
+            }
+
+            $conciliacionId = $this->conciliacionModel->create([
+                'caja_banco_id'      => $cajaId,
+                'fecha_conciliacion' => $fecha,
+                'saldo_segun_banco'  => $saldoBanco,
+                'observaciones'      => $obs,
+                'usuario_id'         => $_SESSION['user_id'],
+            ], $movimientosData);
+
+            if (abs($diferencia) < 0.01) {
+                $_SESSION['success'] = "Conciliación #{$conciliacionId} completada. Saldo conciliado ✓";
+            } else {
+                $_SESSION['warning'] = "Conciliación #{$conciliacionId} registrada con diferencia de $" . number_format($diferencia, 2, ',', '.');
+            }
+
+            header("Location: " . BASE_URL . "/contabilidad/conciliacion?caja_id=" . $cajaId);
+            exit;
+
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            header("Location: " . BASE_URL . "/contabilidad/conciliacion?caja_id=" . $cajaId);
+            exit;
+        }
+    }
+
+    /**
+     * AJAX: Obtener detalle de una conciliación (registros conciliados + nros transacción).
+     */
+    public function conciliacionDetalle(int $id): void
+    {
+        header('Content-Type: application/json');
+        $conciliacion = $this->conciliacionModel->findById($id);
+        if (!$conciliacion) {
+            echo json_encode(['error' => 'Conciliación no encontrada']);
+            exit;
+        }
+        echo json_encode($conciliacion);
     }
 
     // =====================================================

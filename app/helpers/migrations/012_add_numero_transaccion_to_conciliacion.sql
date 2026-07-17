@@ -1,0 +1,8 @@
+-- =====================================================
+-- Migración 012: Agregar número de transacción a conciliaciones
+-- =====================================================
+-- Campo para almacenar el número de transacción del banco
+-- Permite rastrear a qué movimiento del extracto corresponde cada registro
+
+ALTER TABLE `conciliaciones_detalle` 
+ADD COLUMN `numero_transaccion` varchar(100) DEFAULT NULL AFTER `conciliado`;

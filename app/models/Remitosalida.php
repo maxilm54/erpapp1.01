@@ -73,9 +73,9 @@ class RemitoSalida extends Model
         // Cabecera (soporta remitos con o sin NP)
         $stmt = $this->db->prepare("
             SELECT r.id, r.created_at, r.observaciones, r.numero, r.pdf_path,
-                COALESCE(c.razon_social, r.cliente_nombre) AS cliente,
-                COALESCE(c.direccion, r.cliente_direccion) AS direccion,
-                COALESCE(c.cuit, r.cliente_cuit) AS cuit
+                COALESCE(r.cliente_nombre, c.razon_social) AS cliente,
+                COALESCE(r.cliente_direccion, c.direccion) AS direccion,
+                COALESCE(r.cliente_cuit, c.cuit) AS cuit
             FROM remitos_salida r
             LEFT JOIN notas_pedido np ON np.id = r.nota_pedido_id
             LEFT JOIN clientes c ON c.id = r.cliente_id OR (np.id IS NOT NULL AND c.id = np.cliente_id)
@@ -513,6 +513,11 @@ class RemitoSalida extends Model
                 }
             }
 
+            // Si es cliente ocasional, usar el cliente genérico OCASIONAL (id 9999)
+            if (empty($clienteId) && !empty($clienteNombre)) {
+                $clienteId = 9999;
+            }
+
             // Validar nombre obligatorio
             if (empty($clienteNombre)) {
                 throw new Exception('El nombre o razón social del cliente es obligatorio.');
@@ -545,6 +550,9 @@ class RemitoSalida extends Model
             ]);
 
             $remitoId = (int)$this->db->lastInsertId();
+
+            // Acumular total para ctacte
+            $totalRemito = 0;
 
             // 2️⃣ Detalle + impacto stock
             foreach ($items as $productoId => $itemData) {
@@ -585,6 +593,9 @@ class RemitoSalida extends Model
                     $precioUnitario
                 ]);
 
+                // Acumular total
+                $totalRemito += $precioUnitario * $cantidad;
+
                 // Movimiento de stock (salida)
                 $this->db->prepare("
                     INSERT INTO movimientos_stock
@@ -597,6 +608,30 @@ class RemitoSalida extends Model
                     'Remito manual #' . $remitoId,
                     $usuarioId
                 ]);
+            }
+
+            // 3️⃣ Registrar débito en cuenta corriente del cliente
+            if ($clienteId && $totalRemito > 0) {
+                require_once BASE_PATH . '/app/models/Cuentacorrientecliente.php';
+                $ccModel = new CuentaCorrienteCliente();
+                $ccModel->registrarDebito(
+                    $clienteId,
+                    $totalRemito,
+                    'REMITO',
+                    $remitoId,
+                    $usuarioId,
+                    'Remito manual #' . $remitoId,
+                    $clienteNombre
+                );
+
+                // 4️⃣ Generar asiento contable automático (DEBE ctacte / HABER ventas)
+                try {
+                    require_once BASE_PATH . '/app/helpers/AsientoAutomatico.php';
+                    $asientoAuto = new AsientoAutomatico();
+                    $asientoAuto->ventaDebito($clienteId, $totalRemito, 'REMITO', $remitoId, $usuarioId, $clienteNombre);
+                } catch (Exception $e) {
+                    error_log("Error generando asiento para remito manual #{$remitoId}: " . $e->getMessage());
+                }
             }
 
             $this->db->commit();

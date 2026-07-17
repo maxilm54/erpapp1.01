@@ -70,7 +70,7 @@
             <td class="text-end">$ <?= number_format($a['total_haber'] ?? 0, 2, ',', '.') ?></td>
             <td><?= htmlspecialchars($a['usuario_nombre']) ?></td>
             <td>
-                <a href="<?= BASE_URL ?>/contabilidad/asientos/show/<?= $a['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                <a href="<?= BASE_URL ?>/contabilidad/asiento-show/<?= $a['id'] ?>" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-eye"></i>
                 </a>
             </td>

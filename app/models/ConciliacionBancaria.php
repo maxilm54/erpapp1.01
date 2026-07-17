@@ -27,7 +27,7 @@ class ConciliacionBancaria extends Model{
         if (!$conciliacion) return null;
 
         $stmt2 = $this->db->prepare("
-            SELECT cd.*, mc.descripcion AS mov_descripcion, mc.fecha AS mov_fecha
+            SELECT cd.*, mc.descripcion AS mov_descripcion, mc.fecha AS mov_fecha, mc.tipo AS mov_tipo
             FROM conciliaciones_detalle cd
             LEFT JOIN movimientos_caja mc ON mc.id = cd.movimiento_caja_id
             WHERE cd.conciliacion_id = :conciliacion_id
@@ -41,13 +41,12 @@ class ConciliacionBancaria extends Model{
 
     /**
      * Crear conciliación con sus movimientos.
-     * $movimientos = [['movimiento_caja_id' => N, 'conciliado' => 1/0], ...]
+     * $movimientos = [['movimiento_caja_id' => N, 'conciliado' => 1, 'numero_transaccion' => '...'], ...]
      */
     public function create(array $data, array $movimientos): int{
         $this->db->beginTransaction();
 
         try {
-            // Calcular saldo según sistema (movimientos no conciliados hasta la fecha)
             $saldoSistema = $this->calcularSaldoSegunSistema(
                 $data['caja_banco_id'],
                 $data['fecha_conciliacion']
@@ -55,7 +54,6 @@ class ConciliacionBancaria extends Model{
 
             $diferencia = (float)$data['saldo_segun_banco'] - $saldoSistema;
 
-            // Crear cabecera
             $stmt = $this->db->prepare("
                 INSERT INTO conciliaciones_bancarias
                 (caja_banco_id, fecha_conciliacion, saldo_segun_banco, saldo_segun_sistema, diferencia, observaciones, estado, usuario_id)
@@ -73,11 +71,10 @@ class ConciliacionBancaria extends Model{
             ]);
             $conciliacionId = (int)$this->db->lastInsertId();
 
-            // Insertar detalle
             $stmt2 = $this->db->prepare("
                 INSERT INTO conciliaciones_detalle
-                (conciliacion_id, movimiento_caja_id, fecha_movimiento, descripcion, monto, conciliado)
-                VALUES (:conciliacion_id, :movimiento_caja_id, :fecha_movimiento, :descripcion, :monto, :conciliado)
+                (conciliacion_id, movimiento_caja_id, fecha_movimiento, descripcion, monto, conciliado, numero_transaccion)
+                VALUES (:conciliacion_id, :movimiento_caja_id, :fecha_movimiento, :descripcion, :monto, :conciliado, :numero_transaccion)
             ");
 
             foreach ($movimientos as $mov) {
@@ -88,6 +85,7 @@ class ConciliacionBancaria extends Model{
                     ':descripcion'          => $mov['descripcion'],
                     ':monto'                => $mov['monto'],
                     ':conciliado'           => $mov['conciliado'] ?? 0,
+                    ':numero_transaccion'   => $mov['numero_transaccion'] ?? null,
                 ]);
             }
 
@@ -101,7 +99,7 @@ class ConciliacionBancaria extends Model{
     }
 
     /**
-     * Obtener movimientos no conciliados de una caja.
+     * Obtener movimientos no conciliados de una caja/banco.
      */
     public function getMovimientosNoConciliados(int $cajaBancoId): array{
         $stmt = $this->db->prepare("
@@ -121,17 +119,96 @@ class ConciliacionBancaria extends Model{
     }
 
     /**
-     * Calcular saldo del sistema (suma de movimientos hasta una fecha).
+     * Obtener movimientos del día de una caja (para control de caja diario).
      */
-    private function calcularSaldoSegunSistema(int $cajaBancoId, string $fecha): float{
+    public function getMovimientosDelDia(int $cajaBancoId, string $fecha): array{
         $stmt = $this->db->prepare("
-            SELECT
-                COALESCE(SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE 0 END), 0) -
-                COALESCE(SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END), 0) AS saldo
-            FROM movimientos_caja
-            WHERE caja_banco_id = :caja_banco_id AND fecha <= :fecha
+            SELECT mc.*
+            FROM movimientos_caja mc
+            WHERE mc.caja_banco_id = :caja_banco_id
+              AND mc.fecha = :fecha
+            ORDER BY mc.tipo ASC, mc.id ASC
         ");
         $stmt->execute([':caja_banco_id' => $cajaBancoId, ':fecha' => $fecha]);
-        return (float)$stmt->fetchColumn();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Calcular saldo del sistema: saldo_inicial + movimientos no conciliados hasta una fecha.
+     * Incluye el saldo_inicial de la caja/banco.
+     */
+    public function calcularSaldoSegunSistema(int $cajaBancoId, string $fecha): float{
+        // Obtener saldo_inicial de la caja
+        $stmtCaja = $this->db->prepare("SELECT saldo_inicial FROM cajas_bancos WHERE id = :id");
+        $stmtCaja->execute([':id' => $cajaBancoId]);
+        $saldoInicial = (float)$stmtCaja->fetchColumn();
+
+        // Sumar movimientos no conciliados hasta la fecha
+        $stmt = $this->db->prepare("
+            SELECT
+                COALESCE(SUM(CASE WHEN mc.tipo = 'INGRESO' THEN mc.monto ELSE 0 END), 0) -
+                COALESCE(SUM(CASE WHEN mc.tipo = 'EGRESO' THEN mc.monto ELSE 0 END), 0) AS saldo_movimientos
+            FROM movimientos_caja mc
+            WHERE mc.caja_banco_id = :caja_banco_id 
+              AND mc.fecha <= :fecha
+              AND mc.id NOT IN (
+                  SELECT cd.movimiento_caja_id
+                  FROM conciliaciones_detalle cd
+                  WHERE cd.movimiento_caja_id IS NOT NULL
+                    AND cd.conciliado = 1
+              )
+        ");
+        $stmt->execute([':caja_banco_id' => $cajaBancoId, ':fecha' => $fecha]);
+        $saldoMovimientos = (float)$stmt->fetchColumn();
+
+        return $saldoInicial + $saldoMovimientos;
+    }
+
+    /**
+     * Calcular resumen de movimientos del día (para control de caja).
+     * Retorna [ingresos, egresos, saldoCalculado]
+     */
+    public function getResumenDelDia(int $cajaBancoId, string $fecha): array{
+        // Obtener saldo del día anterior (o saldo_inicial si no hay movimientos anteriores)
+        $stmtAnterior = $this->db->prepare("
+            SELECT saldo_posterior
+            FROM movimientos_caja
+            WHERE caja_banco_id = :caja_banco_id AND fecha < :fecha
+            ORDER BY fecha DESC, id DESC
+            LIMIT 1
+        ");
+        $stmtAnterior->execute([':caja_banco_id' => $cajaBancoId, ':fecha' => $fecha]);
+        $saldoAnterior = $stmtAnterior->fetchColumn();
+
+        if ($saldoAnterior === false) {
+            // No hay movimientos anteriores, usar saldo_inicial
+            $stmtCaja = $this->db->prepare("SELECT saldo_inicial FROM cajas_bancos WHERE id = :id");
+            $stmtCaja->execute([':id' => $cajaBancoId]);
+            $saldoApertura = (float)$stmtCaja->fetchColumn();
+        } else {
+            $saldoApertura = (float)$saldoAnterior;
+        }
+
+        // Movimientos del día
+        $stmt = $this->db->prepare("
+            SELECT
+                COALESCE(SUM(CASE WHEN tipo = 'INGRESO' THEN monto ELSE 0 END), 0) AS ingresos,
+                COALESCE(SUM(CASE WHEN tipo = 'EGRESO' THEN monto ELSE 0 END), 0) AS egresos
+            FROM movimientos_caja
+            WHERE caja_banco_id = :caja_banco_id AND fecha = :fecha
+        ");
+        $stmt->execute([':caja_banco_id' => $cajaBancoId, ':fecha' => $fecha]);
+        $totals = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $ingresos = (float)$totals['ingresos'];
+        $egresos = (float)$totals['egresos'];
+        $saldoCalculado = $saldoApertura + $ingresos - $egresos;
+
+        return [
+            'saldo_apertura'    => $saldoApertura,
+            'ingresos'          => $ingresos,
+            'egresos'           => $egresos,
+            'saldo_calculado'   => $saldoCalculado,
+        ];
     }
 }

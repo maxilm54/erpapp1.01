@@ -113,6 +113,18 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ctacte/cliente">Mov Cliente</a></li>
 </ul>
 </li>
+<!-- COBROS -->
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+<i class="bi bi-cash-stack"></i> Cobros
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/cobros"><i class="bi bi-list-ul"></i> Cobros</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/cobros/create"><i class="bi bi-plus-lg"></i> Nuevo Cobro</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/cobros/ventas-no-cobradas"><i class="bi bi-exclamation-triangle"></i> Ventas No Cobradas</a></li>
+</ul>
+</li>
 <!-- CONTABILIDAD -->
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">

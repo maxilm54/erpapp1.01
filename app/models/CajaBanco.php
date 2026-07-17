@@ -79,8 +79,6 @@ class CajaBanco extends Model{
      * Registrar un movimiento en caja/banco y actualizar saldo.
      */
     public function registrarMovimiento(array $data): int{
-        $this->db->beginTransaction();
-
         try {
             $caja = $this->findById($data['caja_banco_id']);
             if (!$caja) throw new Exception("Caja/Banco no encontrado");
@@ -122,11 +120,9 @@ class CajaBanco extends Model{
             $stmt2 = $this->db->prepare("UPDATE cajas_bancos SET saldo_actual = :saldo WHERE id = :id");
             $stmt2->execute([':saldo' => $saldoPosterior, ':id' => $data['caja_banco_id']]);
 
-            $this->db->commit();
             return $movimientoId;
 
         } catch (Exception $e) {
-            $this->db->rollBack();
             throw $e;
         }
     }
@@ -134,6 +130,16 @@ class CajaBanco extends Model{
     /**
      * Obtener movimientos de una caja/banco.
      */
+    /**
+     * Buscar un movimiento de caja por ID.
+     */
+    public function findMovimiento(int $id): ?array{
+        $stmt = $this->db->prepare("SELECT * FROM movimientos_caja WHERE id = ?");
+        $stmt->execute([$id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
     public function getMovimientos(int $cajaBancoId, array $filters = []): array{
         $sql = "
             SELECT mc.*, u.nombre AS usuario_nombre

@@ -22,7 +22,7 @@
             <?php foreach ($movimientos as $m): ?>
             <tr>
                 <td><?= date('d/m/Y', strtotime($m['fecha'])) ?></td>
-                <td><?= htmlspecialchars($m['razon_social']) ?></td>
+                <td><?= htmlspecialchars($m['nombre_cliente'] ?? $m['razon_social'] ?? 'N/D') ?></td>
                 <td>
                     <span class="badge bg-<?= $m['tipo']=='DEBITO'?'danger':'success' ?>">
                         <?= $m['tipo'] ?>

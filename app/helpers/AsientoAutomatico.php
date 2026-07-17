@@ -163,7 +163,7 @@ class AsientoAutomatico{
      * DEBE:  1400 Cuentas Corrientes Clientes
      * HABER: 4100 Ventas de Productos
      */
-    public function ventaDebito(int $clienteId, float $monto, string $origen, int $referenciaId, int $usuarioId): int{
+    public function ventaDebito(int $clienteId, float $monto, string $origen, int $referenciaId, int $usuarioId, ?string $clienteNombre = null): int{
         $cuentaCtacte = $this->cuentaModel->findByCodigo('1400');
         $cuentaVentas = $this->cuentaModel->findByCodigo('4100');
 
@@ -180,9 +180,11 @@ class AsientoAutomatico{
             ],
         ];
 
+        $descCliente = $clienteNombre ?: "Cliente #{$clienteId}";
+
         return $this->asientoModel->create([
             'fecha'          => date('Y-m-d'),
-            'descripcion'    => "Venta {$origen} #{$referenciaId} - Cliente #{$clienteId}",
+            'descripcion'    => "Venta {$origen} #{$referenciaId} - {$descCliente}",
             'tipo'           => 'OPERACION',
             'origen_modulo'  => 'CTACTE',
             'origen_tipo'    => 'DEBITO',
@@ -198,7 +200,7 @@ class AsientoAutomatico{
      * DEBE:  1101 Caja General (o la caja/banco indicada)
      * HABER: 1400 Cuentas Corrientes Clientes
      */
-    public function ventaCredito(int $clienteId, float $monto, string $origen, int $referenciaId, int $usuarioId, ?int $cajaBancoId = null): int{
+    public function ventaCredito(int $clienteId, float $monto, string $origen, int $referenciaId, int $usuarioId, ?int $cajaBancoId = null, ?string $clienteNombre = null): int{
         $cuentaCtacte = $this->cuentaModel->findByCodigo('1400');
 
         // Determinar cuenta de caja/banco
@@ -221,9 +223,11 @@ class AsientoAutomatico{
             ],
         ];
 
+        $descCliente = $clienteNombre ?: "Cliente #{$clienteId}";
+
         $asientoId = $this->asientoModel->create([
             'fecha'          => date('Y-m-d'),
-            'descripcion'    => "Pago cliente #{$clienteId} - {$origen}",
+            'descripcion'    => "Pago {$descCliente} - {$origen}",
             'tipo'           => 'OPERACION',
             'origen_modulo'  => 'CTACTE',
             'origen_tipo'    => 'CREDITO',

@@ -8,9 +8,12 @@ class AsientoContable extends Model{
      */
     public function getAll(array $filters = []): array{
         $sql = "
-            SELECT a.*, u.nombre AS usuario_nombre
+            SELECT a.*, u.nombre AS usuario_nombre,
+                   COALESCE(SUM(ad.debe), 0) AS total_debe,
+                   COALESCE(SUM(ad.haber), 0) AS total_haber
             FROM asientos_contables a
             LEFT JOIN users u ON u.id = a.usuario_id
+            LEFT JOIN asientos_detalle ad ON ad.asiento_id = a.id
             WHERE 1=1
         ";
         $params = [];
@@ -33,7 +36,7 @@ class AsientoContable extends Model{
             $params[':buscar2'] = '%' . $filters['buscar'] . '%';
         }
 
-        $sql .= " ORDER BY a.fecha DESC, a.numero DESC";
+        $sql .= " GROUP BY a.id ORDER BY a.fecha DESC, a.numero DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -82,8 +85,6 @@ class AsientoContable extends Model{
      * $lineas = [['cuenta_contable_id' => N, 'debe' => X, 'haber' => Y], ...]
      */
     public function create(array $data, array $lineas): int{
-        $this->db->beginTransaction();
-
         try {
             // Generar número de asiento
             $numero = $this->proximoNumero();
@@ -135,15 +136,12 @@ class AsientoContable extends Model{
 
             // Verificar que esté balanceado
             if (abs($totalDebe - $totalHaber) >= 0.01) {
-                $this->db->rollBack();
                 throw new Exception("El asiento no está balanceado. Debe: \$" . number_format($totalDebe, 2) . " | Haber: \$" . number_format($totalHaber, 2));
             }
 
-            $this->db->commit();
             return $asientoId;
 
         } catch (Exception $e) {
-            $this->db->rollBack();
             throw $e;
         }
     }
