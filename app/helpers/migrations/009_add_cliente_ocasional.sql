@@ -1,6 +1,11 @@
+-- =====================================================
 -- Migración 009: Cliente genérico OCASIONAL + nullable en cuit
 -- Permite clientes ocasionales sin CUIT propio
-
+-- =====================================================
+--BEGIN;
+INSERT INTO act_bd (id,descripcion) VALUES (9,'Cliente genérico OCASIONAL + nullable en cuit');
+-- COMMIT;
+-- ROLLBACK;
 -- Hacer cuit nullable (el genérico no tiene CUIT real)
 ALTER TABLE `clientes` MODIFY COLUMN `cuit` varchar(20) DEFAULT NULL;
 

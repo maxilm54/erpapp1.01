@@ -1,7 +1,10 @@
 -- =====================================================
 -- Migración 005: Agregar caja_banco_id a gastos
 -- =====================================================
-
+-- BEGIN;
+INSERT INTO act_bd (id,descripcion) VALUES (5,'Agregar caja_banco_id a gastos');
+-- COMMIT;
+-- ROLLBACK;
 -- -----------------------------------------------------
 -- Agregar columna de caja/banco para rastrear de dónde se paga
 -- -----------------------------------------------------

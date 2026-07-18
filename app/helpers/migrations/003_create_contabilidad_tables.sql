@@ -1,7 +1,10 @@
 -- =====================================================
 -- Migración 003: Módulo Contable - Partida Doble
 -- =====================================================
-
+-- BEGIN;
+INSERT INTO act_bd (id,descripcion) VALUES (3,'Contable-Plan de Cuentas-Asientos Contables(cabecera)-Detalle de Asientos (debe/haber)-Cajas, Bancos y Fondos-Movimientos de Caja/Banco-Conciliación Bancaria-Detalle de Conciliación-Insert');
+-- COMMIT;
+-- ROLLBACK;
 -- -----------------------------------------------------
 -- 1. Plan de Cuentas
 -- -----------------------------------------------------
