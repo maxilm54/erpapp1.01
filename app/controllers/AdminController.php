@@ -6,28 +6,46 @@ require_once BASE_PATH.'/app/core/Csrf.php';
 require_once BASE_PATH.'/app/core/Role.php';
 require_once BASE_PATH.'/app/helpers/MigrationManager.php';
 
+/**
+ * Panel de Administracion - Solo SuperAdmin.
+ * Gestion global de tenants, usuarios y migraciones.
+ */
 class AdminController extends Controller{
 
     private function requireAdmin(): void{
-        Auth::requireLogin();
-        if (!Auth::isSuperAdmin()) {
-            $_SESSION['error'] = 'No tienes permisos de administrador.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
+        Auth::requireAdminPanel();
     }
 
     /**
-     * Lista de tenants.
+     * Dashboard del panel admin.
      */
     public function index(): void{
         $this->requireAdmin();
 
         $tenantModel = new Tenant();
         $tenants = $tenantModel->getAll();
+        $userModel = new User();
+        $totalUsers = count($userModel->getAllUsers());
 
-        $this->view('admin/tenants', [
-            'title' => 'Gestión de Empresas (Tenants)',
+        $this->adminView('admin/dashboard', [
+            'title' => 'Panel de Administracion',
+            'tenants' => $tenants,
+            'totalTenants' => count($tenants),
+            'totalUsers' => $totalUsers
+        ]);
+    }
+
+    /**
+     * Lista de tenants.
+     */
+    public function tenants(): void{
+        $this->requireAdmin();
+
+        $tenantModel = new Tenant();
+        $tenants = $tenantModel->getAll();
+
+        $this->adminView('admin/tenants', [
+            'title' => 'Gestion de Empresas',
             'tenants' => $tenants
         ]);
     }
@@ -40,7 +58,7 @@ class AdminController extends Controller{
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
-                $_SESSION['error'] = 'CSRF inválido.';
+                $_SESSION['error'] = 'CSRF invalido.';
                 header('Location: ' . BASE_URL . '/admin/create');
                 exit;
             }
@@ -54,16 +72,14 @@ class AdminController extends Controller{
                 exit;
             }
 
-            // Validar nombre de BD (solo letras, números, guiones bajos)
             if (!preg_match('/^[a-zA-Z0-9_]+$/', $dbname)) {
-                $_SESSION['error'] = 'El nombre de la BD solo puede contener letras, números y guiones bajos.';
+                $_SESSION['error'] = 'El nombre de la BD solo puede contener letras, numeros y guiones bajos.';
                 header('Location: ' . BASE_URL . '/admin/create');
                 exit;
             }
 
             $tenantModel = new Tenant();
 
-            // Verificar que no exista
             $existing = $tenantModel->getActives();
             foreach ($existing as $t) {
                 if ($t['dbname'] === $dbname) {
@@ -73,27 +89,27 @@ class AdminController extends Controller{
                 }
             }
 
-            // Crear la BD del tenant con el esquema template
             if (!$tenantModel->createDatabase($dbname)) {
                 $_SESSION['error'] = 'Error al crear la base de datos del tenant.';
                 header('Location: ' . BASE_URL . '/admin/create');
                 exit;
             }
 
-            // Crear registro del tenant
             $tenantId = $tenantModel->create([
                 'nombre' => $nombre,
                 'dbname' => $dbname,
                 'host'   => 'localhost'
             ]);
 
+            $tenantModel->crearDirectorios($tenantId);
+
             $_SESSION['success'] = "Tenant '{$nombre}' creado exitosamente.";
-            header('Location: ' . BASE_URL . '/admin');
+            header('Location: ' . BASE_URL . '/admin/tenants');
             exit;
         }
 
-        $this->view('admin/tenant_form', [
-            'title' => 'Nueva Empresa (Tenant)',
+        $this->adminView('admin/tenant_form', [
+            'title' => 'Nueva Empresa',
             'tenant' => null,
             'csrf' => Csrf::generate()
         ]);
@@ -110,13 +126,13 @@ class AdminController extends Controller{
 
         if (!$tenant) {
             $_SESSION['error'] = 'Tenant no encontrado.';
-            header('Location: ' . BASE_URL . '/admin');
+            header('Location: ' . BASE_URL . '/admin/tenants');
             exit;
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
-                $_SESSION['error'] = 'CSRF inválido.';
+                $_SESSION['error'] = 'CSRF invalido.';
                 header('Location: ' . BASE_URL . "/admin/edit/{$id}");
                 exit;
             }
@@ -128,11 +144,11 @@ class AdminController extends Controller{
             ]);
 
             $_SESSION['success'] = 'Tenant actualizado.';
-            header('Location: ' . BASE_URL . '/admin');
+            header('Location: ' . BASE_URL . '/admin/tenants');
             exit;
         }
 
-        $this->view('admin/tenant_form', [
+        $this->adminView('admin/tenant_form', [
             'title' => 'Editar Empresa',
             'tenant' => $tenant,
             'csrf' => Csrf::generate()
@@ -150,13 +166,13 @@ class AdminController extends Controller{
 
         if (!$tenant) {
             $_SESSION['error'] = 'Tenant no encontrado.';
-            header('Location: ' . BASE_URL . '/admin');
+            header('Location: ' . BASE_URL . '/admin/tenants');
             exit;
         }
 
         $tenantUsers = $tenantModel->getUsers($id);
 
-        $this->view('admin/tenant_show', [
+        $this->adminView('admin/tenant_show', [
             'title' => 'Datos de la Empresa',
             'tenant' => $tenant,
             'tenantUsers' => $tenantUsers
@@ -173,7 +189,7 @@ class AdminController extends Controller{
         $tenantModel->delete($id);
 
         $_SESSION['success'] = 'Tenant eliminado.';
-        header('Location: ' . BASE_URL . '/admin');
+        header('Location: ' . BASE_URL . '/admin/tenants');
         exit;
     }
 
@@ -188,7 +204,7 @@ class AdminController extends Controller{
 
         if (!$tenant) {
             $_SESSION['error'] = 'Tenant no encontrado.';
-            header('Location: ' . BASE_URL . '/admin');
+            header('Location: ' . BASE_URL . '/admin/tenants');
             exit;
         }
 
@@ -198,7 +214,7 @@ class AdminController extends Controller{
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
-                $_SESSION['error'] = 'CSRF inválido.';
+                $_SESSION['error'] = 'CSRF invalido.';
                 header('Location: ' . BASE_URL . "/admin/users/{$tenantId}");
                 exit;
             }
@@ -208,7 +224,6 @@ class AdminController extends Controller{
 
             if ($action === 'assign' && $userId > 0) {
                 $tenantModel->assignUser($tenantId, $userId);
-                // Sincronizar el usuario al tenant para foreign keys
                 $userModel->syncToTenant($userId, $tenant['dbname'], $tenant['host'] ?? 'localhost');
                 $_SESSION['success'] = 'Usuario asignado.';
             } elseif ($action === 'remove' && $userId > 0) {
@@ -220,7 +235,7 @@ class AdminController extends Controller{
             exit;
         }
 
-        $this->view('admin/tenant_users', [
+        $this->adminView('admin/tenant_users', [
             'title' => "Usuarios del Tenant: {$tenant['nombre']}",
             'tenant' => $tenant,
             'tenantUsers' => $tenantUsers,
@@ -230,102 +245,33 @@ class AdminController extends Controller{
     }
 
     /**
-     * Selector de tenant para superadmin (acceso rápido).
+     * Lista de todos los usuarios del sistema.
      */
-    public function selectTenant(): void{
-        Auth::requireLogin();
-        if (!Auth::isSuperAdmin()) {
-            $_SESSION['error'] = 'No tienes permisos.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
+    public function allUsers(): void{
+        $this->requireAdmin();
 
-        $tenantModel = new Tenant();
-        $tenants = $tenantModel->getActives();
+        $userModel = new User();
+        $users = $userModel->getAllUsers();
 
-        $this->view('admin/select_tenant', [
-            'title' => 'Seleccionar Empresa (SuperAdmin)',
-            'tenants' => $tenants
-        ]);
-    }
-
-    // =====================================================
-    // MÉTODOS PARA OPERARIO: Gestión de su propia empresa
-    // =====================================================
-
-    /**
-     * Ver datos de la empresa del usuario actual (ADMIN o USUARIO).
-     */
-    public function empresa(): void{
-        Auth::requireLogin();
-        Auth::requireTenant();
-
-        $tenantId = Auth::getTenantId();
-        $tenantModel = new Tenant();
-        $tenant = $tenantModel->findById($tenantId);
-
-        if (!$tenant) {
-            $_SESSION['error'] = 'Empresa no encontrada.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
-
-        $tenantUsers = $tenantModel->getUsers($tenantId);
-
-        $this->view('admin/empresa', [
-            'title' => 'Mi Empresa',
-            'tenant' => $tenant,
-            'tenantUsers' => $tenantUsers
+        $this->adminView('admin/all_users', [
+            'title' => 'Todos los Usuarios',
+            'users' => $users
         ]);
     }
 
     /**
-     * Ver y gestionar usuarios de la empresa del usuario actual.
+     * Crear nuevo usuario y asignarlo a un tenant.
      */
-    public function empresaUsers(): void{
-        Auth::requireLogin();
-        Auth::requireTenant();
+    public function createUser(): void{
+        $this->requireAdmin();
 
-        $tenantId = Auth::getTenantId();
         $tenantModel = new Tenant();
-        $tenant = $tenantModel->findById($tenantId);
-
-        if (!$tenant) {
-            $_SESSION['error'] = 'Empresa no encontrada.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
-
-        $tenantUsers = $tenantModel->getUsers($tenantId);
-
-        $this->view('admin/empresa_users', [
-            'title' => 'Usuarios de mi Empresa',
-            'tenant' => $tenant,
-            'tenantUsers' => $tenantUsers
-        ]);
-    }
-
-    /**
-     * Crear un nuevo usuario y asignarlo automáticamente a la empresa del usuario actual.
-     */
-    public function empresaCreateUser(): void{
-        Auth::requireLogin();
-        Auth::requireTenant();
-
-        $tenantId = Auth::getTenantId();
-        $tenantModel = new Tenant();
-        $tenant = $tenantModel->findById($tenantId);
-
-        if (!$tenant) {
-            $_SESSION['error'] = 'Empresa no encontrada.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
+        $tenants = $tenantModel->getAll();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
-                $_SESSION['error'] = 'CSRF inválido.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                $_SESSION['error'] = 'CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
@@ -333,35 +279,29 @@ class AdminController extends Controller{
             $email    = trim($_POST['email'] ?? '');
             $password = $_POST['password'] ?? '';
             $rol      = strtoupper($_POST['rol'] ?? 'USUARIO');
+            $tenantId = (int)($_POST['tenant_id'] ?? 0);
 
             if (empty($nombre) || empty($email) || empty($password)) {
-                $_SESSION['error'] = 'Nombre, email y contraseña son obligatorios.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                $_SESSION['error'] = 'Nombre, email y contrasena son obligatorios.';
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $_SESSION['error'] = 'El email no es válido.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                $_SESSION['error'] = 'El email no es valido.';
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
             if (strlen($password) < 6) {
-                $_SESSION['error'] = 'La contraseña debe tener al menos 6 caracteres.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                $_SESSION['error'] = 'La contrasena debe tener al menos 6 caracteres.';
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
             if (!Role::isValidRole($rol)) {
-                $_SESSION['error'] = 'Rol inválido.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
-                exit;
-            }
-
-            // Solo permitir crear roles OPERARIO o VISOR (no ADMIN global)
-            if ($rol === 'ADMIN') {
-                $_SESSION['error'] = 'No puedes asignar el rol de Administrador Global desde aquí.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                $_SESSION['error'] = 'Rol invalido.';
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
@@ -369,7 +309,7 @@ class AdminController extends Controller{
 
             if ($userModel->emailExists($email)) {
                 $_SESSION['error'] = 'Ya existe un usuario con ese email.';
-                header('Location: ' . BASE_URL . '/admin/empresa-create-user');
+                header('Location: ' . BASE_URL . '/admin/create-user');
                 exit;
             }
 
@@ -380,88 +320,52 @@ class AdminController extends Controller{
                 'rol'      => $rol
             ]);
 
-            // Asignar automáticamente a la empresa actual
-            $userModel->assignTenant($userId, $tenantId);
+            // Asignar al tenant si se selecciono uno
+            if ($tenantId > 0) {
+                $tenant = $tenantModel->findById($tenantId);
+                if ($tenant) {
+                    $tenantModel->assignUser($tenantId, $userId);
+                    $userModel->syncToTenant($userId, $tenant['dbname'], $tenant['host'] ?? 'localhost');
+                }
+            }
 
-            // Sincronizar el usuario al tenant para foreign keys
-            $tenantHost = $tenant['host'] ?? 'localhost';
-            $userModel->syncToTenant($userId, $tenant['dbname'], $tenantHost);
-
-            $_SESSION['success'] = "Usuario '{$nombre}' creado y asignado a {$tenant['nombre']}.";
-            header('Location: ' . BASE_URL . '/admin/empresa-users');
+            $_SESSION['success'] = "Usuario '{$nombre}' creado exitosamente.";
+            header('Location: ' . BASE_URL . '/admin/all-users');
             exit;
         }
 
-        $this->view('admin/empresa_user_form', [
-            'title'   => 'Nuevo Usuario - ' . $tenant['nombre'],
-            'tenant'  => $tenant,
+        $this->adminView('admin/user_form', [
+            'title'   => 'Nuevo Usuario',
+            'tenants' => $tenants,
             'user'    => null,
             'csrf'    => Csrf::generate()
         ]);
     }
 
     /**
-     * Eliminar (desasignar) un usuario de la empresa del usuario actual.
+     * Editar usuario existente.
      */
-    public function empresaRemoveUser(int $userId): void{
-        Auth::requireLogin();
-        Auth::requireTenant();
-
-        $tenantId = Auth::getTenantId();
-
-        if ($userId === (int)$_SESSION['user_id']) {
-            $_SESSION['error'] = 'No puedes eliminarte a ti mismo.';
-            header('Location: ' . BASE_URL . '/admin/empresa-users');
-            exit;
-        }
-
-        $userModel = new User();
-        $userModel->removeTenant($userId, $tenantId);
-
-        $_SESSION['success'] = 'Usuario removido de la empresa.';
-        header('Location: ' . BASE_URL . '/admin/empresa-users');
-        exit;
-    }
-
-    /**
-     * Editar un usuario de la empresa del usuario actual.
-     */
-    public function empresaEditUser(int $userId): void{
-        Auth::requireLogin();
-        Auth::requireTenant();
-
-        $tenantId = Auth::getTenantId();
-        $tenantModel = new Tenant();
-        $tenant = $tenantModel->findById($tenantId);
-
-        if (!$tenant) {
-            $_SESSION['error'] = 'Empresa no encontrada.';
-            header('Location: ' . BASE_URL . '/home');
-            exit;
-        }
+    public function editUser(int $userId): void{
+        $this->requireAdmin();
 
         $userModel = new User();
         $user = $userModel->findById($userId);
 
         if (!$user) {
             $_SESSION['error'] = 'Usuario no encontrado.';
-            header('Location: ' . BASE_URL . '/admin/empresa-users');
+            header('Location: ' . BASE_URL . '/admin/all-users');
             exit;
         }
 
-        // Verificar que el usuario pertenece a esta empresa
+        $tenantModel = new Tenant();
+        $tenants = $tenantModel->getAll();
         $userTenants = $userModel->getTenantsForUser($userId);
-        $tenantIds = array_column($userTenants, 'id');
-        if (!in_array($tenantId, $tenantIds)) {
-            $_SESSION['error'] = 'Este usuario no pertenece a tu empresa.';
-            header('Location: ' . BASE_URL . '/admin/empresa-users');
-            exit;
-        }
+        $userTenantIds = array_column($userTenants, 'id');
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
-                $_SESSION['error'] = 'CSRF inválido.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
+                $_SESSION['error'] = 'CSRF invalido.';
+                header('Location: ' . BASE_URL . "/admin/edit-user/{$userId}");
                 exit;
             }
 
@@ -472,32 +376,25 @@ class AdminController extends Controller{
 
             if (empty($nombre) || empty($email)) {
                 $_SESSION['error'] = 'Nombre y email son obligatorios.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
+                header('Location: ' . BASE_URL . "/admin/edit-user/{$userId}");
                 exit;
             }
 
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $_SESSION['error'] = 'El email no es válido.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
+                $_SESSION['error'] = 'El email no es valido.';
+                header('Location: ' . BASE_URL . "/admin/edit-user/{$userId}");
                 exit;
             }
 
             if (!Role::isValidRole($rol)) {
-                $_SESSION['error'] = 'Rol inválido.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
-                exit;
-            }
-
-            // No permitir asignar rol ADMIN global
-            if ($rol === 'ADMIN') {
-                $_SESSION['error'] = 'No puedes asignar el rol de Administrador Global desde aquí.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
+                $_SESSION['error'] = 'Rol invalido.';
+                header('Location: ' . BASE_URL . "/admin/edit-user/{$userId}");
                 exit;
             }
 
             if (!empty($password) && strlen($password) < 6) {
-                $_SESSION['error'] = 'La contraseña debe tener al menos 6 caracteres.';
-                header('Location: ' . BASE_URL . "/admin/empresa-edit-user/{$userId}");
+                $_SESSION['error'] = 'La contrasena debe tener al menos 6 caracteres.';
+                header('Location: ' . BASE_URL . "/admin/edit-user/{$userId}");
                 exit;
             }
 
@@ -508,28 +405,54 @@ class AdminController extends Controller{
                 'rol'      => $rol
             ]);
 
+            // Sincronizar permisos de tenant
+            $selectedTenants = $_POST['tenants'] ?? [];
+            foreach ($tenants as $t) {
+                if (in_array($t['id'], $selectedTenants) && !in_array($t['id'], $userTenantIds)) {
+                    $tenantModel->assignUser($t['id'], $userId);
+                    $userModel->syncToTenant($userId, $t['dbname'], $t['host'] ?? 'localhost');
+                } elseif (!in_array($t['id'], $selectedTenants) && in_array($t['id'], $userTenantIds)) {
+                    $tenantModel->removeUser($t['id'], $userId);
+                }
+            }
+
             $_SESSION['success'] = 'Usuario actualizado.';
-            header('Location: ' . BASE_URL . '/admin/empresa-users');
+            header('Location: ' . BASE_URL . '/admin/all-users');
             exit;
         }
 
-        $this->view('admin/empresa_user_form', [
-            'title'   => 'Editar Usuario - ' . $tenant['nombre'],
-            'tenant'  => $tenant,
-            'user'    => $user,
-            'csrf'    => Csrf::generate()
+        $this->adminView('admin/user_form', [
+            'title'        => 'Editar Usuario',
+            'tenants'      => $tenants,
+            'user'         => $user,
+            'userTenants'  => $userTenantIds,
+            'csrf'         => Csrf::generate()
         ]);
     }
 
+    /**
+     * Eliminar usuario.
+     */
+    public function deleteUser(int $userId): void{
+        $this->requireAdmin();
+
+        $userModel = new User();
+        $userModel->deleteUser($userId);
+
+        $_SESSION['success'] = 'Usuario eliminado.';
+        header('Location: ' . BASE_URL . '/admin/all-users');
+        exit;
+    }
+
     // =====================================================
-    // MIGRACIONES (solo superadmin)
+    // MIGRACIONES
     // =====================================================
 
     /**
      * Panel de migraciones: estado de todos los tenants.
      */
     public function migrations(): void{
-        $this->requireAdmin(); //solicta permiso admin, sino alerta
+        $this->requireAdmin();
 
         $mm = new MigrationManager();
         $allMigrations = $mm->getAllMigrations();
@@ -543,7 +466,7 @@ class AdminController extends Controller{
             $t['applied'] = $mm->getApplied($t['id']);
         }
 
-        $this->view('admin/migrations', [
+        $this->adminView('admin/migrations', [
             'title'         => 'Migraciones de Base de Datos',
             'tenants'       => $tenants,
             'allMigrations' => $allMigrations,
@@ -552,7 +475,7 @@ class AdminController extends Controller{
     }
 
     /**
-     * Ejecuta migraciones pendientes para un tenant específico.
+     * Ejecuta migraciones pendientes para un tenant especifico.
      */
     public function migrationsRun(int $tenantId): void{
         $this->requireAdmin();
@@ -587,7 +510,7 @@ class AdminController extends Controller{
         if ($totalApplied > 0) {
             $_SESSION['success'] = "Migraciones completadas. Total aplicadas: {$totalApplied}";
         } else {
-            $_SESSION['info'] = 'Todos los tenants están actualizados.';
+            $_SESSION['info'] = 'Todos los tenants estan actualizados.';
         }
 
         header('Location: ' . BASE_URL . '/admin/migrations');

@@ -24,7 +24,16 @@
 
 <?php if (Auth::hasTenant()): ?>
 <span class="navbar-text text-light me-3 d-none d-md-inline-block">
-    <i class="bi bi-building"></i> <?= htmlspecialchars(Auth::getTenantName()) ?>
+    <?php
+    $logoPath = empresaLogoPath();
+    if ($logoPath && file_exists($logoPath)):
+    ?>
+        <img src="<?= empresaUploadUrl('img_config') ?>/<?= htmlspecialchars(config('empresa')['logo'] ?? '') ?>"
+             alt="Logo" style="height: 30px; margin-right: 5px; vertical-align: middle;">
+    <?php else: ?>
+        <i class="bi bi-building"></i>
+    <?php endif; ?>
+    <?= htmlspecialchars(Auth::getTenantName()) ?>
 </span>
 <?php endif; ?>
 
@@ -140,7 +149,9 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/plan-cuentas"><i class="bi bi-diagram-3"></i> Plan de Cuentas</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/cajas"><i class="bi bi-bank"></i> Cajas y Bancos</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/conciliacion"><i class="bi bi-check2-all"></i> Conciliación</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/creditos/dashboard"><i class="bi bi-cash-stack"></i> Dashboard Creditos</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/creditos"><i class="bi bi-bank"></i> Creditos Bancarios</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/conciliacion"><i class="bi bi-check2-all"></i> Conciliacion</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/balance"><i class="bi bi-balance-scale"></i> Balance General</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/resultados"><i class="bi bi-graph-up-arrow"></i> Estado de Resultados</a></li>
@@ -148,37 +159,39 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/impuestos"><i class="bi bi-receipt"></i> Impuestos (IVA)</a></li>
 </ul>
 </li>
+<!-- SDCOMP (solo ADMIN y GERENTE_FINANCIERO) -->
+<?php if (Auth::check() && Auth::canSeeSdcomp()): ?>
+<li class="nav-item dropdown">
+<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
+<i class="bi bi-file-earmark-text"></i> Comprobantes
+</a>
+<ul class="dropdown-menu">
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/sdcomp/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/sdcomp"><i class="bi bi-list-ul"></i> Comprobantes</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/sdcomp/create"><i class="bi bi-plus-lg"></i> Nuevo Comprobante</a></li>
+</ul>
+</li>
+<?php endif; ?>
 <?php endif; ?>
 
-<!-- EMPRESA (ADMIN + OPERARIO: ven su propia empresa) -->
-<?php if (Auth::check() && Auth::hasTenant() && Auth::isEmpresaAdmin()): ?>
+<!-- EMPRESA (solo tenant admins: gestion de su empresa) -->
+<?php if (Auth::check() && Auth::hasTenant() && !Auth::isSuperAdmin() && Auth::isEmpresaAdmin()): ?>
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
 Empresa
 </a>
 <ul class="dropdown-menu">
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa"><i class="bi bi-info-circle"></i> Mi Empresa</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa-users"><i class="bi bi-people"></i> Usuarios de mi Empresa</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/empresa-create-user"><i class="bi bi-person-plus"></i> Nuevo Usuario</a></li>
-</ul>
-</li>
-<?php endif; ?>
-
-<!-- ADMIN (solo superadmins: gestión global de tenants + usuarios) -->
-<?php if (Auth::check() && Auth::isSuperAdmin()): ?>
-<li class="nav-item dropdown">
-<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#">
-Admin
-</a>
-<ul class="dropdown-menu">
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin"><i class="bi bi-building"></i> Empresas (Tenants)</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/create"><i class="bi bi-plus-lg"></i> Nueva Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/empresa"><i class="bi bi-info-circle"></i> Mi Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/empresa/edit"><i class="bi bi-pencil"></i> Editar Empresa</a></li>
 <li><hr class="dropdown-divider"></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/users"><i class="bi bi-people"></i> Todos los Usuarios</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/users/create"><i class="bi bi-person-plus"></i> Nuevo Usuario Global</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/empresa/users"><i class="bi bi-people"></i> Usuarios de mi Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/empresa/create-user"><i class="bi bi-person-plus"></i> Nuevo Usuario</a></li>
 <li><hr class="dropdown-divider"></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/migrations"><i class="bi bi-database"></i> Migraciones</a></li>
-<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin/select-tenant"><i class="bi bi-arrow-left-right"></i> Cambiar Empresa</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/numeradores"><i class="bi bi-list-ol"></i> Numeradores</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/email/config"><i class="bi bi-envelope-gear"></i> Config Email (SMTP)</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/email/templates"><i class="bi bi-envelope-paper"></i> Templates Email</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/email/historial"><i class="bi bi-clock-history"></i> Historial Envíos</a></li>
 </ul>
 </li>
 <?php endif; ?>
@@ -192,6 +205,9 @@ Admin
 </a>
 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/perfil">Mi Perfil</a></li>
+<?php if (Auth::isSuperAdmin()): ?>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/admin"><i class="bi bi-shield-lock"></i> Panel Admin</a></li>
+<?php endif; ?>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/auth/logout">Salir</a></li>
 </ul>

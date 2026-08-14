@@ -87,20 +87,26 @@ $clientes = $clientes ?? [];
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-box"></i> Productos a Remitar</h5>
-            <button type="button" class="btn btn-sm btn-primary" onclick="abrirModalProductos()">
-                <i class="bi bi-search"></i> Agregar Producto
-            </button>
+            <div>
+                <button type="button" class="btn btn-sm btn-primary me-1" onclick="abrirModalProductos()">
+                    <i class="bi bi-search"></i> Buscar Producto
+                </button>
+                <button type="button" class="btn btn-sm btn-success" onclick="agregarItemManual()">
+                    <i class="bi bi-plus-lg"></i> Agregar Servicio
+                </button>
+            </div>
         </div>
         <div class="card-body">
             <div id="sinProductos" class="text-center text-muted py-4">
                 <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                <p class="mt-2">No hay productos seleccionados. Haga clic en "Agregar Producto" para buscar.</p>
+                <p class="mt-2">No hay items seleccionados. Haga clic en "Buscar Producto" o "Agregar Servicio".</p>
             </div>
             <div class="table-responsive" id="contenedorTabla" style="display:none;">
                 <table class="table table-striped" id="tablaProductos">
                     <thead class="table-dark">
                         <tr>
-                            <th>Producto</th>
+                            <th>Concepto</th>
+                            <th class="text-end">Tipo</th>
                             <th class="text-end">Precio U.</th>
                             <th>Stock</th>
                             <th width="120">Cantidad</th>
@@ -112,12 +118,44 @@ $clientes = $clientes ?? [];
                     </tbody>
                     <tfoot>
                         <tr class="table-success fw-bold">
-                            <td colspan="4" class="text-end">TOTAL:</td>
+                            <td colspan="5" class="text-end">TOTAL:</td>
                             <td class="text-end" id="totalGeneral">$ 0,00</td>
                             <td></td>
                         </tr>
                     </tfoot>
                 </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para agregar item manual (servicio) -->
+    <div class="modal fade" id="modalItemManual" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Agregar Servicio/Concepto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" id="descripcionManual" class="form-control" placeholder="Ej: Servicio de instalación, Envío, etc.">
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <label class="form-label">Cantidad</label>
+                            <input type="number" id="cantidadManual" class="form-control" step="0.01" min="0.01" value="1">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Precio Unitario ($)</label>
+                            <input type="number" id="precioManual" class="form-control" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" onclick="guardarItemManual()">Agregar</button>
+                </div>
             </div>
         </div>
     </div>
@@ -152,7 +190,7 @@ $clientes = $clientes ?? [];
     <div class="modal-body">
         <div class="mb-3">
             <input type="text" id="buscadorProducto" class="form-control form-control-lg"
-                   placeholder="Buscar por nombre o SKU..." autofocus>
+                   placeholder="Buscar por nombre, SKU o codigo de barra..." autofocus>
         </div>
         <div id="resultadosBusqueda" class="list-group" style="max-height: 400px; overflow-y: auto;">
             <div class="text-center text-muted py-3">Escriba al menos 2 caracteres para buscar</div>
@@ -180,6 +218,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Productos seleccionados: {id: {id, nombre, sku, precio, stock, cantidad}}
     let productosSeleccionados = {};
+    // Items manuales (servicios sin producto): array de {descripcion, cantidad, precio}
+    let itemsManuales = [];
 
     function formatMoney(val) {
         return '$ ' + val.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -196,6 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
             divExistente.style.display = 'none';
             divOcasional.style.display = 'block';
             selectCliente.required = false;
+            selectCliente.value = '';
             document.getElementById('cliente_nombre').required = true;
         }
     }
@@ -222,19 +263,42 @@ document.addEventListener('DOMContentLoaded', function() {
                     let html = '';
                     data.forEach(function(p) {
                         const precio = parseFloat(p.precio_venta) || 0;
+                        const stock = parseFloat(p.stock) || 0;
+                        const sinStock = stock <= 0;
                         const yaSeleccionado = productosSeleccionados[p.id];
-                        const disabledClass = yaSeleccionado ? 'list-group-item-secondary' : '';
-                        const badge = yaSeleccionado ? '<span class="badge bg-warning ms-2">Ya agregado</span>' : '';
-                        html += '<a href="#" class="list-group-item list-group-item-action ' + disabledClass + '" '
+                        const codigosBarra = p.codigos_barra ? ' <small class="text-muted">(CB: ' + escHtml(p.codigos_barra) + ')</small>' : '';
+
+                        let itemClass = 'list-group-item list-group-item-action';
+                        let badgeHtml = '';
+                        let stockBadge = '';
+
+                        if (sinStock) {
+                            itemClass += ' border-danger';
+                            badgeHtml = '<span class="badge bg-danger ms-2">Sin Stock</span>';
+                            stockBadge = '<span class="badge bg-danger">Stock: 0</span>';
+                        } else {
+                            if (yaSeleccionado) {
+                                itemClass += ' list-group-item-secondary';
+                                badgeHtml = '<span class="badge bg-warning ms-2">Ya agregado</span>';
+                            }
+                            stockBadge = '<span class="badge bg-success">Stock: ' + stock.toFixed(2) + '</span>';
+                        }
+
+                        const nameStyle = sinStock ? ' style="text-decoration: line-through; color: #dc3545;"' : '';
+                        const precioStyle = sinStock ? ' style="color: #dc3545;"' : ' style="color: #198754;"';
+
+                        html += '<a href="#" class="' + itemClass + '" '
                             + 'data-id="' + p.id + '" data-nombre="' + escHtml(p.nombre) + '" '
-                            + 'data-sku="' + escHtml(p.sku || '') + '" data-stock="' + p.stock + '" '
-                            + 'data-precio="' + precio + '">'
+                            + 'data-sku="' + escHtml(p.sku || '') + '" data-stock="' + stock + '" '
+                            + 'data-precio="' + precio + '"'
+                            + (sinStock ? ' style="pointer-events: none; opacity: 0.7;"' : '') + '>'
                             + '<div class="d-flex justify-content-between align-items-center">'
-                            + '<div><strong>' + escHtml(p.nombre) + '</strong>'
+                            + '<div><strong' + nameStyle + '>' + escHtml(p.nombre) + '</strong>'
                             + (p.sku ? ' <small class="text-muted">(SKU: ' + escHtml(p.sku) + ')</small>' : '')
-                            + ' <span class="text-success fw-bold">' + formatMoney(precio) + '</span></div>'
-                            + '<span class="badge bg-success">Stock: ' + parseFloat(p.stock).toFixed(2) + '</span>'
-                            + badge
+                            + codigosBarra
+                            + ' <span class="fw-bold"' + precioStyle + '>' + formatMoney(precio) + '</span>'
+                            + badgeHtml + '</div>'
+                            + stockBadge
                             + '</div></a>';
                     });
                     resultados.innerHTML = html;
@@ -309,10 +373,50 @@ document.addEventListener('DOMContentLoaded', function() {
         updateHiddenInputs();
     }
 
-    // Renderizar tabla
+    // Helper functions para items manuales
+    window.actualizarPrecioManual = function(manualId, valor) {
+        const idx = manualId.replace('manual_', '');
+        const precio = parseFloat(valor) || 0;
+        if (itemsManuales[idx] !== undefined) {
+            itemsManuales[idx].precio = precio;
+            actualizarTotalManual();
+        }
+    };
+
+    window.actualizarCantidadManual = function(manualId, valor) {
+        const idx = manualId.replace('manual_', '');
+        const cant = parseFloat(valor) || 0;
+        if (itemsManuales[idx] !== undefined) {
+            itemsManuales[idx].cantidad = cant;
+            actualizarTotalManual();
+        }
+    };
+
+    window.quitarManual = function(manualId) {
+        const idx = manualId.replace('manual_', '');
+        itemsManuales.splice(idx, 1);
+        renderTabla();
+    };
+
+    function actualizarTotalManual() {
+        let totalGeneral = 0;
+        Object.keys(productosSeleccionados).forEach(function(k) {
+            const pp = productosSeleccionados[k];
+            totalGeneral += pp.precio * pp.cantidad;
+        });
+        itemsManuales.forEach(function(m) {
+            totalGeneral += m.precio * m.cantidad;
+        });
+        totalGeneralEl.textContent = formatMoney(totalGeneral);
+        updateHiddenInputs();
+    }
+
+    // Renderizar tabla (productos + items manuales)
     function renderTabla() {
         const ids = Object.keys(productosSeleccionados);
-        if (ids.length === 0) {
+        const manuales = itemsManuales.filter(m => m.cantidad > 0);
+        
+        if (ids.length === 0 && manuales.length === 0) {
             sinProductos.style.display = 'block';
             contenedorTabla.style.display = 'none';
             productosHidden.innerHTML = '';
@@ -326,6 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = '';
         let totalGeneral = 0;
 
+        // Productos normales
         ids.forEach(function(id) {
             const p = productosSeleccionados[id];
             const subtotal = p.precio * p.cantidad;
@@ -334,6 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<tr>'
                 + '<td><strong>' + escHtml(p.nombre) + '</strong>'
                 + (p.sku ? ' <small class="text-muted">(SKU: ' + escHtml(p.sku) + ')</small>' : '') + '</td>'
+                + '<td class="text-center"><span class="badge bg-info">PRODUCTO</span></td>'
                 + '<td><input type="number" step="0.01" min="0" '
                 + 'value="' + p.precio + '" class="form-control form-control-sm text-end" '
                 + 'onchange="actualizarPrecio(' + id + ', this.value)" '
@@ -348,6 +454,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 + 'onclick="quitarProducto(' + id + ')"><i class="bi bi-x-lg"></i></button></td>'
                 + '</tr>';
         });
+
+        // Items manuales (servicios)
+        manuales.forEach(function(m, index) {
+            const subtotal = m.precio * m.cantidad;
+            totalGeneral += subtotal;
+            const manualId = 'manual_' + index;
+
+            html += '<tr>'
+                + '<td><strong>' + escHtml(m.descripcion) + '</strong>'
+                + ' <small class="text-muted">(Servicio)</small></td>'
+                + '<td class="text-center"><span class="badge bg-warning">MANUAL</span></td>'
+                + '<td><input type="number" step="0.01" min="0" '
+                + 'value="' + m.precio + '" class="form-control form-control-sm text-end" '
+                + 'onchange="actualizarPrecioManual(' + manualId + ', this.value)" '
+                + 'oninput="actualizarPrecioManual(' + manualId + ', this.value)"></td>'
+                + '<td class="text-center">-</td>'
+                + '<td><input type="number" step="0.01" min="0.01" '
+                + 'value="' + m.cantidad + '" class="form-control form-control-sm" '
+                + 'onchange="actualizarCantidadManual(' + manualId + ', this.value)" '
+                + 'oninput="actualizarCantidadManual(' + manualId + ', this.value)"></td>'
+                + '<td class="text-end fw-bold" id="subtotal-' + manualId + '">' + formatMoney(subtotal) + '</td>'
+                + '<td><button type="button" class="btn btn-sm btn-outline-danger" '
+                + 'onclick="quitarManual(' + manualId + ')"><i class="bi bi-x-lg"></i></button></td>'
+                + '</tr>';
+        });
+
         tbody.innerHTML = html;
         totalGeneralEl.textContent = formatMoney(totalGeneral);
         updateHiddenInputs();
@@ -356,13 +488,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Actualizar hidden inputs para el submit
     function updateHiddenInputs() {
         let html = '';
+
+        // Productos desde busqueda
         Object.keys(productosSeleccionados).forEach(function(id) {
             const p = productosSeleccionados[id];
             if (p.cantidad > 0) {
+                html += '<input type="hidden" name="items[' + id + '][producto_id]" value="' + p.id + '">';
+                html += '<input type="hidden" name="items[' + id + '][nombre]" value="' + escHtml(p.nombre) + '">';
+                html += '<input type="hidden" name="items[' + id + '][sku]" value="' + escHtml(p.sku) + '">';
                 html += '<input type="hidden" name="items[' + id + '][cantidad]" value="' + p.cantidad + '">';
                 html += '<input type="hidden" name="items[' + id + '][precio]" value="' + p.precio + '">';
             }
         });
+
+        // Items manuales (servicios)
+        itemsManuales.forEach(function(m) {
+            if (m.cantidad > 0) {
+                html += '<input type="hidden" name="items_manual[]" value="' + btoa(m.descripcion + '|' + m.cantidad + '|' + m.precio) + '">';
+            }
+        });
+
         productosHidden.innerHTML = html;
     }
 
@@ -382,6 +527,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Validar antes de enviar
     form.addEventListener('submit', function(e) {
         const ids = Object.keys(productosSeleccionados);
+        const manuales = itemsManuales.filter(m => m.cantidad > 0);
+
         let tieneProductos = false;
         ids.forEach(function(id) {
             if (productosSeleccionados[id].cantidad > 0) {
@@ -389,17 +536,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        if (!tieneProductos) {
+        if (!tieneProductos && manuales.length === 0) {
             e.preventDefault();
             Swal.fire({
                 icon: 'error',
-                title: 'Sin productos',
-                text: 'Debe agregar al menos un producto para remitar.'
+                title: 'Sin items',
+                text: 'Debe agregar al menos un producto o servicio para remitar.'
             });
             return false;
         }
 
-        // Validar cantidades vs stock
+        // Validar cantidades vs stock solo para productos (no para manuales)
         let errores = [];
         ids.forEach(function(id) {
             const p = productosSeleccionados[id];
@@ -420,9 +567,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Confirmar
         e.preventDefault();
+        let textoConfirmacion = 'Se descontará el stock de los productos seleccionados.';
+        if (manuales.length > 0) {
+            textoConfirmacion += ' Se agregarán ' + manuales.length + (manuales.length === 1 ? ' servicio' : ' servicios') + '.';
+        }
+
         Swal.fire({
             title: '¿Crear remito manual?',
-            text: 'Se descontará el stock de los productos seleccionados.',
+            text: textoConfirmacion,
             icon: 'question',
             showCancelButton: true,
             confirmButtonColor: '#28a745',
@@ -433,6 +585,42 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Funciones para items manuales (servicios sin producto)
+    window.agregarItemManual = function() {
+        const modal = new bootstrap.Modal(document.getElementById('modalItemManual'));
+        modal.show();
+    };
+
+    window.guardarItemManual = function() {
+        const descripcion = document.getElementById('descripcionManual').value.trim();
+        const cantidad = parseFloat(document.getElementById('cantidadManual').value) || 0;
+        const precio = parseFloat(document.getElementById('precioManual').value) || 0;
+
+        if (!descripcion) {
+            Swal.fire('Error', 'La descripción es obligatoria', 'error');
+            return;
+        }
+
+        const idManual = 'manual_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+        itemsManuales.push({
+            id: idManual,
+            descripcion: descripcion,
+            cantidad: cantidad,
+            precio: precio
+        });
+
+        document.getElementById('descripcionManual').value = '';
+        document.getElementById('cantidadManual').value = 1;
+        document.getElementById('precioManual').value = 0;
+
+        const modalEl = document.getElementById('modalItemManual');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        renderTabla();
+    };
 
     toggleTipoCliente();
 });

@@ -4,20 +4,33 @@
     <input name="nombre" class="form-control mb-2" required placeholder="Nombre">
     <input name="sku" class="form-control mb-2" required placeholder="SKU">
 
-    <select name="id_unidadmedida" id="" class="form-control mb-3">
+    <select name="id_unidadmedida" class="form-control mb-3">
         <option value="">Seleccionar Unidad de Medida</option>
         <?php foreach ($umedida as $um): ?>
             <option value="<?= $um['id_medida'] ?>"><?= $um['nombre'].' ('.$um['detalle'].')' ?></option>
         <?php endforeach; ?>
     </select>
 
-    <select name="categoria"  class="form-control mb-3">
+    <select name="categoria" class="form-control mb-3">
         <option value="">Seleccionar Categoría</option>
         <?php foreach ($categorias as $cat): ?>
             <option value="<?= $cat['id_categoria'] ?>"><?= $cat['categoria_nombre'] ?></option>
         <?php endforeach; ?>
     </select>
-    <input type="file" name="imagen_mp" class="form-control mb-3">
+
+    <label>Imagen:</label>
+    <div class="row align-items-center mb-3">
+        <div class="col-md-3 text-center">
+            <img id="preview-imagen-mp" src="<?= empresaUploadUrl('materiasprimas') ?>/sin-imagen.jpg"
+                 class="img-fluid rounded border" style="max-height: 120px;" alt="Preview">
+        </div>
+        <div class="col-md-9">
+            <input type="file" name="imagen_mp" class="form-control" accept="image/*"
+                   onchange="document.getElementById('preview-imagen-mp').src = window.URL.createObjectURL(this.files[0])">
+            <small class="text-muted">JPG, PNG o WebP. Max 5MB.</small>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col">
             <input type="text" name="barcode" class="form-control mb-3" placeholder="Código de Barra (opcional)">

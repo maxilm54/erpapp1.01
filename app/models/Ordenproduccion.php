@@ -82,7 +82,7 @@ class OrdenProduccion extends Model
     public function find(int $id): ?array //devuelve la info de la orden de produccion
     {
         $stmt = $this->db->prepare("
-            SELECT op.*, p.nombre AS producto,u.nombre AS nombre_user,p.id AS producto_id
+            SELECT op.*, p.nombre AS producto, p.precio_venta, u.nombre AS nombre_user, p.id AS producto_id
             FROM ordenes_produccion op
             JOIN productos p ON p.id = op.producto_id
             LEFT JOIN users u ON u.id=op.usuario_id
@@ -108,11 +108,28 @@ class OrdenProduccion extends Model
     public function findreservas(int $ordenId): array
     {
         $stmt = $this->db->prepare("
-            SELECT mp.nombre, r.cantidad,mp.precio_actual AS precio_unitario, um.nombre as unidad_medida
+            SELECT
+                r.materia_prima_id,
+                mp.nombre,
+                r.cantidad,
+                r.estado,
+                um.nombre AS unidad_medida,
+                COALESCE(
+                    (SELECT ocd.precio_unitario
+                     FROM ordenes_compra_detalle ocd
+                     JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+                     WHERE ocd.materia_prima_id = r.materia_prima_id
+                       AND oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
+                     ORDER BY oc.created_at DESC
+                     LIMIT 1),
+                    mp.precio_actual,
+                    0
+                ) AS precio_unitario
             FROM reservas_materia_prima r
             JOIN materias_primas mp ON mp.id = r.materia_prima_id
-            LEFT JOIN unidad_medida um ON um.id_medida=mp.id_unidadmedida
+            LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
             WHERE r.orden_produccion_id = ?
+              AND r.estado = 'RESERVADO'
         ");
         $stmt->execute([$ordenId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

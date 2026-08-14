@@ -34,6 +34,12 @@ class MateriasprimasController extends Controller
                 $imagen = $this->uploadImagenMP();
                 error_log('Imagen uploaded for new Materia Prima: ' . $imagen . ' in ' . __FILE__ . ':' . __LINE__);
             }
+
+            // Si no se subio imagen, copiar la imagen por defecto al directorio del tenant
+            if (!$imagen) {
+                $imagen = $this->copiarImagenPorDefecto();
+            }
+
             $barcode = $_POST['barcode'] ?? null;
             $tipo = $_POST['tipo'] ?? null;
             $this->mp->create($_POST, $imagen, $barcode, $tipo);
@@ -80,7 +86,14 @@ class MateriasprimasController extends Controller
                 header('Location: ' . BASE_URL . '/materiasprimas');
                 exit;
             }
-            $this->mp->update($id, $_POST);
+
+            // Manejar subida de imagen
+            $imagen = null;
+            if (!empty($_FILES['imagen_mp']['name'])) {
+                $imagen = $this->uploadImagenMP();
+            }
+
+            $this->mp->update($id, $_POST, $imagen);
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
@@ -126,15 +139,43 @@ class MateriasprimasController extends Controller
             return null;
         }
         
-        // Renombrar para seguridad
+        // Guardar en directorio del tenant
+        $uploadDir = empresaUploadPath('materiasprimas');
         $name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-        $path = BASE_PATH . '/public/uploads/materiasprimas/' . $name;
+        $path = $uploadDir . '/' . $name;
         
         if (move_uploaded_file($_FILES['imagen_mp']['tmp_name'], $path)) {
-            return 'uploads/materiasprimas/' . $name;
+            return $name;
         }
         $_SESSION['error'] = 'Error al subir la imagen.';
         error_log('Error moving uploaded file: ' . $_FILES['imagen_mp']['error']);
+        return null;
+    }
+
+    /**
+     * Copia la imagen por defecto al directorio del tenant
+     */
+    private function copiarImagenPorDefecto(): ?string
+    {
+        $origen = BASE_PATH . '/storage/imgpordefecto.jpg';
+        if (!file_exists($origen)) {
+            error_log('Imagen por defecto no encontrada: ' . $origen);
+            return null;
+        }
+
+        $uploadDir = empresaUploadPath('materiasprimas');
+        $destino = $uploadDir . '/sin-imagen.jpg';
+
+        // Si ya existe la copia, no volver a copiar
+        if (file_exists($destino)) {
+            return 'sin-imagen.jpg';
+        }
+
+        if (copy($origen, $destino)) {
+            return 'sin-imagen.jpg';
+        }
+
+        error_log('Error al copiar imagen por defecto a: ' . $destino);
         return null;
     }
     public function stockdata($id){

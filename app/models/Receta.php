@@ -70,7 +70,7 @@ class Receta extends Model
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT r.*, p.nombre AS producto
+            SELECT r.*, p.nombre AS producto, p.precio_venta, p.id AS producto_id
             FROM recetas r
             JOIN productos p ON p.id = r.producto_id
             WHERE r.id = ? AND r.activa = '1'

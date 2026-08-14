@@ -11,7 +11,7 @@ class CuentaCorrienteCliente extends Model
     {
         return $this->db->query("
             SELECT ccc.*, 
-                   COALESCE(ccc.cliente_nombre, c.razon_social) AS nombre_cliente
+                   c.razon_social AS nombre_cliente
             FROM cuentas_corriente_clientes ccc
             LEFT JOIN clientes c ON c.id = ccc.cliente_id
             ORDER BY ccc.id DESC
@@ -21,9 +21,9 @@ class CuentaCorrienteCliente extends Model
     {
         $stmt = $this->db->prepare("
             SELECT ccc.*, 
-                   COALESCE(ccc.cliente_nombre, c.razon_social) AS nombre_cliente
+                   c.razon_social AS nombre_cliente
             FROM cuentas_corriente_clientes ccc
-            JOIN clientes c ON c.id = ccc.cliente_id
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id
             WHERE ccc.id = ?
         ");
         $stmt->execute([$id]);
@@ -98,13 +98,10 @@ class CuentaCorrienteCliente extends Model
             ");
 
             $stmt->execute([$clienteId, $clienteNombre, $origen,$referenciaId,$monto,$saldoActual + $monto,$obs,$usuarioId]);
-            $_SESSION['success'] = 'Débito registrado correctamente';
-            error_log("Debito registrado: cliente_id=$clienteId, nombre=$clienteNombre, monto=$monto, nuevo_saldo=" . ($saldoActual + $monto) . " - " . __FILE__ . ':' . __LINE__);
+            empresaLog("Debito registrado: cliente_id=$clienteId, nombre=$clienteNombre, monto=$monto, nuevo_saldo=" . ($saldoActual + $monto));
         } catch (Exception $e) {
-            $this->db->rollBack();
-            $_SESSION['error'] = 'Error registrando débito. Avise al Administrador. Detalles: ' . $e->getMessage();
-            error_log("Error registrando debito: " . $e->getMessage() . " - " . __FILE__ . ':' . __LINE__);
-            header("Location: " . BASE_URL . "/remitossalida");
+            empresaLog("Error registrando debito: " . $e->getMessage(), 'ERROR');
+            throw $e;
         }
     }
 
@@ -117,10 +114,10 @@ class CuentaCorrienteCliente extends Model
                 VALUES (?, ?, CURDATE(), 'CREDITO', ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([$clienteId, $clienteNombre, $origen,$referenciaId,$monto,$saldoActual - $monto,$obs,$usuarioId]);
-            error_log("Credito registrado: cliente_id=$clienteId, nombre=$clienteNombre, monto=$monto, nuevo_saldo=" . ($saldoActual - $monto) . " - " . __FILE__ . ':' . __LINE__);
+            empresaLog("Credito registrado: cliente_id=$clienteId, nombre=$clienteNombre, monto=$monto, nuevo_saldo=" . ($saldoActual - $monto));
         } catch (Exception $e) {
-            $_SESSION['error'] = 'Error registrando crédito. Avise al Administrador. Detalles: ' . $e->getMessage();
-            error_log("Error registrando credito: " . $e->getMessage() . " - " . __FILE__ . ':' . __LINE__);
+            empresaLog("Error registrando credito: " . $e->getMessage(), 'ERROR');
+            throw $e;
         }
     }
 
@@ -243,6 +240,7 @@ class CuentaCorrienteCliente extends Model
                 d.referencia_id AS remito_id,
                 COALESCE(d.cliente_nombre, c.razon_social) AS cliente,
                 d.cliente_id,
+                d.cliente_nombre,
                 MIN(d.fecha) AS fecha,
                 SUM(d.monto) AS monto_total,
                 COALESCE((

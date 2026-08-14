@@ -9,7 +9,12 @@ class Router
         // Si no hay URL → decidir según sesión
         if ($url === '') {
             if (Auth::check()) {
-                $url = 'home/index';
+                // SuperAdmin va al panel admin, otros al home del tenant
+                if (Auth::isSuperAdmin()) {
+                    $url = 'admin/index';
+                } else {
+                    $url = 'home/index';
+                }
             } else {
                 header('Location: ' . BASE_URL . '/auth/login');
                 exit;
@@ -65,9 +70,15 @@ class Router
         $controller = new $controllerName();
 
         if (!$isAuthRoute) {
-            // Solo exigir tenant para rutas que no sean admin ni users
+            // Rutas del panel admin - solo superadmin
             $isAdminRoute = ($controllerName === 'AdminController' || $controllerName === 'UsersController');
-            if (!$isAdminRoute) {
+
+            if ($isAdminRoute) {
+                // Admin routes: superadmin panel
+                Auth::requireAdminPanel();
+            } else {
+                // Todas las demas rutas requieren tenant
+                // SuperAdmin NO puede acceder a modulos del tenant
                 Auth::requireTenant();
             }
         }

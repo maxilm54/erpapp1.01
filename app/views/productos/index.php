@@ -17,9 +17,11 @@
             <?php foreach ($productos as $p): ?>
             <tr>
                 <td>
-                    <?php if ($p['imagen']): ?>
-                        <img src="<?= BASE_URL ?>/<?= $p['imagen'] ?>" width="50">
-                    <?php endif; ?>
+                    <?php
+                    $imgPath = $p['imagen'] ?? null;
+                    $imgUrl = $imgPath ? empresaUploadUrl('productos') . '/' . htmlspecialchars($imgPath) : empresaUploadUrl('productos') . '/sin-imagen.jpg';
+                    ?>
+                    <img src="<?= $imgUrl ?>" width="50" height="50" style="object-fit: cover;" alt="img">
                 </td>
                 <td><?= $p['nombre'] ?></td>
                 <td><?= $p['sku'] ?></td>
@@ -29,6 +31,7 @@
                     <a href="<?= BASE_URL ?>/productos/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-upc-scan"></i></a>
                     <!-- <a href="<?php //BASE_URL ?>/productos/uploadImagen/<?php //$p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a> -->
                     <a href="<?= BASE_URL ?>/productos/stockdata/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-boxes"></i></a>
+                    <a href="<?= BASE_URL ?>/productos/preciocompra/<?= $p['id'] ?>" class="btn btn-sm btn-success" title="Costos y Precios"><i class="bi bi-tag"></i></a>
                 </td>
             </tr>
             <?php endforeach; ?>

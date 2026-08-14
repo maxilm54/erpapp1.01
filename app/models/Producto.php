@@ -36,12 +36,14 @@ class Producto extends Model
     }
 
     /**
-     * Buscar productos activos con stock por nombre/sku.
+     * Buscar productos activos con stock por nombre/sku/codigo de barra.
      */
     public function searchConStock(string $query): array
     {
+        $like = '%' . $query . '%';
         $stmt = $this->db->prepare("
             SELECT p.id, p.nombre, p.sku, p.precio_venta,
+                GROUP_CONCAT(DISTINCT pc.codigo SEPARATOR ', ') AS codigos_barra,
                 COALESCE(SUM(
                     CASE
                         WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
@@ -50,15 +52,14 @@ class Producto extends Model
                 ),0) AS stock
             FROM productos p
             LEFT JOIN movimientos_stock ms ON ms.producto_id = p.id
+            LEFT JOIN producto_codigos pc ON pc.producto_id = p.id
             WHERE p.activo = 1
-              AND (p.nombre LIKE :q OR p.sku LIKE :q2)
+              AND (p.nombre LIKE :q OR p.sku LIKE :q2 OR pc.codigo LIKE :q3)
             GROUP BY p.id, p.nombre, p.sku, p.precio_venta
-            HAVING stock > 0
-            ORDER BY p.nombre
+            ORDER BY CASE WHEN COALESCE(SUM(CASE WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad END),0) > 0 THEN 0 ELSE 1 END, p.nombre
             LIMIT 20
         ");
-        $like = '%' . $query . '%';
-        $stmt->execute([':q' => $like, ':q2' => $like]);
+        $stmt->execute([':q' => $like, ':q2' => $like, ':q3' => $like]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -143,7 +144,7 @@ class Producto extends Model
         }
     }
 
-    public function update(int $id, array $data, ?string $imagen = null): bool //sin imagen y sin barcode
+    public function update(int $id, array $data, ?string $imagen = null): bool
     {
         try {
             $sql = "UPDATE productos SET
@@ -152,12 +153,7 @@ class Producto extends Model
                         descripcion = :descripcion,
                         precio_venta = :precio,
                         unidad_medida = :unidad_medida,
-                        last_user_updated = :user_update
-                    WHERE id = :id";
-
-            /*if ($imagen) {
-                $sql .= ", imagen = :imagen";
-            }*/
+                        last_user_updated = :user_update";
 
             $params = [
                 'id' => $id,
@@ -169,9 +165,13 @@ class Producto extends Model
                 'user_update' => $_SESSION['user_id']
             ];
 
-            /*if ($imagen) {
+            if ($imagen !== null) {
+                $sql .= ", imagen = :imagen";
                 $params['imagen'] = $imagen;
-            }*/
+            }
+
+            $sql .= " WHERE id = :id";
+
             $_SESSION['success'] = "Producto actualizado correctamente.";
             error_log('Updating product ID '.$id.' with data: '.print_r($params, true));
             $stmt = $this->db->prepare($sql);

@@ -39,6 +39,24 @@ class RemitosSalidaController extends Controller
         exit;
     }
 
+    public function regenerarPdf($id)
+    {
+        Auth::requireLogin();
+        Auth::requireTenant();
+        validarId($id, BASE_URL . '/remitossalida');
+
+        try {
+            $this->model->generarYGuardarPdf((int)$id);
+            $_SESSION['success'] = 'PDF regenerado correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al regenerar PDF: ' . $e->getMessage();
+            error_log('Error regenerando PDF remito: ' . $e->getMessage());
+        }
+
+        header("Location: " . BASE_URL . "/remitossalida/show/$id");
+        exit;
+    }
+
         public function create($notaPedidoId) // llamo al form para remitar una NP
     {
         validarId($notaPedidoId, BASE_URL . '/remitossalida');
@@ -173,35 +191,52 @@ class RemitosSalidaController extends Controller
         }
 
         try {
-            if (empty($_POST['items'])) {
-                throw new Exception('No hay productos para remitar');
+            $items = $_POST['items'] ?? [];
+            $itemsManuales = $_POST['items_manual'] ?? [];
+
+            // Validar que haya al menos un item
+            $tieneProductos = false;
+            foreach ($items as $key => $datos) {
+                if (is_array($datos) && (($datos['cantidad'] ?? 0) > 0)) {
+                    $tieneProductos = true;
+                    break;
+                }
+            }
+            $tieneManuales = !empty($itemsManuales) && count(array_filter($itemsManuales, fn($m) => $m && $this->decodeManualItem($m)['cantidad'] > 0)) > 0;
+
+            if (!$tieneProductos && !$tieneManuales) {
+                throw new Exception('No hay items para remitar');
             }
 
-            // Normalizar items: ahora vienen como items[id][cantidad] e items[id][precio]
+            // Normalizar items de productos
             $itemsNormalizados = [];
-            foreach ($_POST['items'] as $productoId => $datos) {
-                if (is_array($datos)) {
-                    $itemsNormalizados[$productoId] = [
-                        'cantidad' => (float)($datos['cantidad'] ?? 0),
-                        'precio' => (float)($datos['precio'] ?? 0),
-                    ];
-                } else {
-                    // Compatibilidad: si viene solo el número (formato viejo)
-                    $itemsNormalizados[$productoId] = [
-                        'cantidad' => (float)$datos,
-                        'precio' => 0,
-                    ];
+            foreach ($items as $productoId => $datos) {
+                if (is_numeric($productoId)) {
+                    if (is_array($datos)) {
+                        $itemsNormalizados[(int)$productoId] = [
+                            'cantidad' => (float)($datos['cantidad'] ?? 0),
+                            'precio' => (float)($datos['precio'] ?? 0),
+                        ];
+                    }
+                }
+            }
+
+            // Decodificar items manuales
+            $itemsManualesDecodificados = [];
+            foreach ($itemsManuales as $item) {
+                $decoded = $this->decodeManualItem($item);
+                if ($decoded && $decoded['cantidad'] > 0) {
+                    $itemsManualesDecodificados[] = $decoded;
                 }
             }
 
             // Construir datos del cliente
             $clienteData = [];
+            $tipoCliente = $_POST['tipo_cliente'] ?? 'existente';
 
-            if (!empty($_POST['cliente_id'])) {
-                // Cliente existente
+            if ($tipoCliente === 'existente' && !empty($_POST['cliente_id'])) {
                 $clienteData['cliente_id'] = (int)$_POST['cliente_id'];
             } else {
-                // Cliente ad-hoc (ocasional)
                 $clienteData['cliente_nombre'] = trim($_POST['cliente_nombre'] ?? '');
                 $clienteData['cliente_cuit'] = trim($_POST['cliente_cuit'] ?? '');
                 $clienteData['cliente_direccion'] = trim($_POST['cliente_direccion'] ?? '');
@@ -209,12 +244,10 @@ class RemitosSalidaController extends Controller
                 $clienteData['cliente_telefono'] = trim($_POST['cliente_telefono'] ?? '');
                 $clienteData['cliente_localidad'] = trim($_POST['cliente_localidad'] ?? '');
 
-                // Validar nombre obligatorio
                 if (empty($clienteData['cliente_nombre'])) {
                     throw new Exception('El nombre o razón social del cliente es obligatorio.');
                 }
 
-                // Email por defecto
                 if (empty($clienteData['cliente_email'])) {
                     $clienteData['cliente_email'] = 'contacto@alimentostriba.com.ar';
                 }
@@ -223,12 +256,27 @@ class RemitosSalidaController extends Controller
             $id = $this->model->createManual(
                 (int)$_SESSION['user_id'],
                 $itemsNormalizados,
+                $itemsManualesDecodificados,
                 $clienteData,
                 $_POST['observaciones'] ?? null
             );
 
-            // Generar y guardar PDF
             $this->model->generarYGuardarPdf($id);
+
+            // Enviar email automático si el cliente tiene email
+            try {
+                $emailCliente = $clienteData['cliente_email'] ?? $clienteData['email'] ?? '';
+                if (!empty($emailCliente) && $emailCliente !== 'contacto@alimentostriba.com.ar') {
+                    require_once BASE_PATH . '/app/services/MailService.php';
+                    $mailService = new MailService();
+                    $remitoCompleto = $this->model->findCompleto($id);
+                    if ($remitoCompleto) {
+                        $mailService->enviarRemito($remitoCompleto['cliente'], $remitoCompleto, $_SESSION['user_id']);
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Error enviando email de remito manual: ' . $e->getMessage());
+            }
 
             $_SESSION['success'] = 'Remito manual creado correctamente.';
             header("Location: " . BASE_URL . "/remitossalida/show/$id");
@@ -240,6 +288,18 @@ class RemitosSalidaController extends Controller
             header("Location: " . BASE_URL . "/remitossalida/create-manual");
             exit;
         }
+    }
+
+    private function decodeManualItem(string $encoded): ?array {
+        $decoded = base64_decode($encoded, true);
+        if ($decoded === false) return null;
+        $parts = explode('|', $decoded);
+        if (count($parts) !== 3) return null;
+        return [
+            'descripcion' => $parts[0],
+            'cantidad' => (float)$parts[1],
+            'precio' => (float)$parts[2],
+        ];
     }
 
     /**

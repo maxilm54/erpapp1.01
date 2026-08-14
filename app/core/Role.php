@@ -1,15 +1,31 @@
 <?php
 
 class Role {
-    const ADMIN    = 'ADMIN';
-    const USUARIO  = 'USUARIO';
-    const VISITOR  = 'VISITOR';
+    const SUPERADMIN = 'SUPERADMIN';
+    const ADMIN      = 'ADMIN';
+    const USUARIO    = 'USUARIO';
+    const VISITOR    = 'VISITOR';
+    const GERENTE_FINANCIERO = 'GERENTE_FINANCIERO';
 
     public static function getAllRoles(): array {
         return [
-            self::ADMIN   => 'Administrador',
-            self::USUARIO => 'Operario',
-            self::VISITOR => 'Visor',
+            self::SUPERADMIN => 'Super Administrador',
+            self::ADMIN      => 'Administrador',
+            self::USUARIO    => 'Operario',
+            self::VISITOR    => 'Visor',
+            self::GERENTE_FINANCIERO => 'Gerente Financiero',
+        ];
+    }
+
+    /**
+     * Roles que un tenant admin puede asignar (no SUPERADMIN).
+     */
+    public static function getAssignableRoles(): array {
+        return [
+            self::ADMIN      => 'Administrador',
+            self::USUARIO    => 'Operario',
+            self::VISITOR    => 'Visor',
+            self::GERENTE_FINANCIERO => 'Gerente Financiero',
         ];
     }
 
@@ -22,7 +38,14 @@ class Role {
     }
 
     /**
-     * Roles que pueden gestionar usuarios (todos, incluido operario).
+     * Verifica si un rol puede asignarse a nivel tenant.
+     */
+    public static function canAssignInTenant(string $role): bool {
+        return isset(self::getAssignableRoles()[strtoupper($role)]);
+    }
+
+    /**
+     * Roles que pueden gestionar usuarios dentro del tenant.
      */
     public static function canManageUsers(): array {
         return [self::ADMIN, self::USUARIO];
@@ -47,5 +70,19 @@ class Role {
      */
     public static function canSeeEmpresaCheck(string $role): bool {
         return in_array(strtoupper($role), self::canSeeEmpresa());
+    }
+
+    /**
+     * Roles que pueden acceder a comprobantes.
+     */
+    public static function canSeeSdcomp(): array {
+        return [self::ADMIN, self::GERENTE_FINANCIERO];
+    }
+
+    /**
+     * Verifica si un rol puede ver comprobantes.
+     */
+    public static function canSeeSdcompCheck(string $role): bool {
+        return in_array(strtoupper($role), self::canSeeSdcomp());
     }
 }

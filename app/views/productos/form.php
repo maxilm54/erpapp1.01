@@ -15,7 +15,17 @@
         </select>
 
         <label for="imagen">Imagen:</label>
-        <input class="form-control mb-3" type="file" name="imagen">
+        <div class="row align-items-center mb-3">
+            <div class="col-md-3 text-center">
+                <img id="preview-imagen" src="<?= empresaUploadUrl('productos') ?>/sin-imagen.jpg"
+                     class="img-fluid rounded border" style="max-height: 120px;" alt="Preview">
+            </div>
+            <div class="col-md-9">
+                <input class="form-control" type="file" name="imagen" accept="image/*"
+                       onchange="document.getElementById('preview-imagen').src = window.URL.createObjectURL(this.files[0])">
+                <small class="text-muted">JPG, PNG o WebP. Max 5MB.</small>
+            </div>
+        </div>
 
         <h5>Códigos de Barra</h5>
 

@@ -29,26 +29,29 @@ class RemitoSalida extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT d.cantidad, d.precio_unitario, p.nombre
+            SELECT d.cantidad, d.precio_unitario, COALESCE(p.nombre, d.descripcion) AS nombre
             FROM remitos_salida_detalle d
-            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN productos p ON p.id = d.producto_id
             WHERE d.remito_id = ?
         ");
         $stmt->execute([$remitoId]);
         $remito['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $logoPath = BASE_PATH . '/public/uploads/img_config/triba_log.png';
+        $logoPath = empresaLogoPath();
 
-        if (!file_exists($logoPath)) {
-            throw new Exception('Logo no encontrado');
+        if ($logoPath && file_exists($logoPath)) {
+            $logoBase64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+        } else {
+            $logoBase64 = '';
         }
-
-        $logoBase64 = 'data:image/png;base64,' . base64_encode(
-            file_get_contents($logoPath)
-        );
         // Render HTML
         ob_start();
         $logo = $logoBase64;
-        $empresa = config('empresa');
+        $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>''];
+        try {
+            $masterDb = Database::getMaster();
+            $empRow = $masterDb->query("SELECT nombre, cuit, email, telefono, direccion FROM tenants WHERE id = " . (int)(Auth::getTenantId() ?? 0))->fetch(PDO::FETCH_ASSOC);
+            if ($empRow) $empresa = $empRow;
+        } catch (Exception $e) {}
         require BASE_PATH.'/app/views/pdf/remito_salida.php';
         $html = ob_get_clean();
 
@@ -84,30 +87,46 @@ class RemitoSalida extends Model
         $stmt->execute([$remitoId]);
         $remito = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$remito) {
+if (!$remito) {
             throw new Exception('Remito no encontrado');
         }
 
-        // Detalle (soporta remitos con o sin precio de NP)
+        // Detalle (soporta items sin producto)
         $stmt = $this->db->prepare("
-             SELECT d.cantidad, d.precio_unitario, p.nombre,
-                (SELECT precio FROM notas_pedido_detalle npdd 
-                 WHERE npdd.nota_pedido_id=rs.nota_pedido_id AND npdd.producto_id=d.producto_id) AS precioremitado
+            SELECT d.cantidad, d.precio_unitario, d.descripcion, COALESCE(p.nombre, d.descripcion) AS nombre
             FROM remitos_salida_detalle d
-            JOIN productos p ON p.id = d.producto_id
-            LEFT JOIN remitos_salida rs ON rs.id=d.remito_id
+            LEFT JOIN productos p ON p.id = d.producto_id
             WHERE d.remito_id = ?
-            GROUP BY d.producto_id
         ");
         $stmt->execute([$remitoId]);
         $detalle = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $logoPath = BASE_PATH . '/public/uploads/img_config/triba_log.png';
-        $logoBase64 = 'data:image/png;base64,' . base64_encode(
-            file_get_contents($logoPath)
-        );
         $remito['detalle'] = $detalle;
-        $logo = $logoBase64;
-        $empresa = config('empresa');
+
+        // Cargar empresa directamente del master DB - sin depender de Auth/tenant
+        $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>'', 'logo_file'=>null];
+        $logo = '';
+        try {
+            $masterDb = Database::getMaster();
+            $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)(Auth::getTenantId() ?? 0))->fetch(PDO::FETCH_ASSOC);
+            if ($empRow) {
+                $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
+                $empresa['cuit']      = $empRow['cuit'] ?? '';
+                $empresa['email']     = $empRow['email'] ?? '';
+                $empresa['telefono']  = $empRow['telefono'] ?? '';
+                $empresa['direccion'] = $empRow['direccion'] ?? '';
+                $empresa['logo_file'] = $empRow['logo'] ?? null;
+                if (!empty($empRow['logo'])) {
+                    $logoFile = BASE_PATH . "/public/uploads/img_config/empresa_{$empRow['id']}/{$empRow['logo']}";
+                    if (file_exists($logoFile)) {
+                        $empresa['logo'] = 'data:image/png;base64,' . base64_encode(file_get_contents($logoFile));
+                        $logo = $empresa['logo'];
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("[PDF] Error cargando empresa: " . $e->getMessage());
+        }
+
         // Variables disponibles en la vista
         ob_start();
         require BASE_PATH . '/app/views/pdf/remito_salida.php';
@@ -130,7 +149,7 @@ class RemitoSalida extends Model
 
         $year = date('Y');
         $month = date('m');
-        $dir = BASE_PATH . "/storage/remitos/$year/$month";
+        $dir = empresaStoragePath("remitos/$year/$month");
 
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
@@ -164,7 +183,7 @@ class RemitoSalida extends Model
                 r.nota_pedido_id,
                 r.usuario_id,
                 r.created_at,
-                COALESCE(c.razon_social, r.cliente_nombre) AS cliente,
+                COALESCE(r.cliente_nombre, c.razon_social) AS cliente,
                 u.nombre         AS usuario,
                 CASE WHEN r.nota_pedido_id IS NULL THEN 'MANUAL' ELSE 'NP' END AS tipo
             FROM remitos_salida r
@@ -208,10 +227,11 @@ class RemitoSalida extends Model
             SELECT 
                  d.cantidad,
                 d.precio_unitario,
-                p.nombre,
-                p.sku
+                COALESCE(p.nombre, d.descripcion) AS nombre,
+                p.sku,
+                d.descripcion
             FROM remitos_salida_detalle d
-            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN productos p ON p.id = d.producto_id
             WHERE d.remito_id = ?
         ");
         $stmt->execute([$id]);
@@ -306,6 +326,12 @@ class RemitoSalida extends Model
                 $precio=$npdata['precio'];
                 $subtotal=$precio*$cantidad;
 
+                // Obtener nombre del cliente para ctacte
+                $clienteNombre = null;
+                $stmtCli = $this->db->prepare("SELECT razon_social FROM clientes WHERE id = ?");
+                $stmtCli->execute([$cliente_id]);
+                $clienteNombre = $stmtCli->fetchColumn() ?: null;
+
                 // Actualizar precio_unitario en el detalle
                 $this->db->prepare("
                     UPDATE remitos_salida_detalle SET precio_unitario = ? 
@@ -318,7 +344,8 @@ class RemitoSalida extends Model
                     'REMITO',
                     $remitoId,
                     $usuarioId,
-                    'Remito generado desde NP #' . $notaPedidoId
+                    'Remito generado desde NP #' . $notaPedidoId,
+                    $clienteNombre
                 );
                 // Generar asiento contable automático
                 try {
@@ -384,9 +411,14 @@ class RemitoSalida extends Model
         $stmt = $this->db->prepare(
             "SELECT  
                 remsal.id AS NumRem,
-                COALESCE(c.razon_social, remsal.cliente_nombre) AS RazonSocial,
+                COALESCE(remsal.cliente_nombre, c.razon_social) AS RazonSocial,
                 np.id AS idNpRem, np.presupuesto_id AS PresNpRem, np.observaciones AS obsNpRem, 
                 u.nombre AS UserRem, remsal.observaciones AS obsRemRem, remsal.created_at AS fecha, pdf_path,
+                COALESCE(remsal.cliente_cuit, c.cuit) AS cuit,
+                COALESCE(remsal.cliente_direccion, c.direccion) AS direccion,
+                COALESCE(remsal.cliente_email, c.email) AS email,
+                COALESCE(remsal.cliente_telefono, c.telefono) AS telefono,
+                COALESCE(remsal.cliente_localidad, c.localidad) AS localidad,
                 remsal.cliente_nombre, remsal.cliente_cuit, remsal.cliente_direccion,
                 remsal.cliente_email, remsal.cliente_telefono, remsal.cliente_localidad
              FROM remitos_salida remsal
@@ -399,9 +431,9 @@ class RemitoSalida extends Model
         $remito = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $stmt = $this->db->prepare(
-            "SELECT remdet.remito_id AS NumRem, remdet.producto_id AS idProdRem, remdet.cantidad AS CantRem, remdet.precio_unitario AS precioUnitario, p.nombre AS ProdRem
+            "SELECT remdet.remito_id AS NumRem, remdet.producto_id AS idProdRem, remdet.cantidad AS CantRem, remdet.precio_unitario AS precioUnitario, COALESCE(p.nombre, remdet.descripcion) AS ProdRem, remdet.descripcion
              FROM remitos_salida_detalle remdet
-             JOIN productos p ON p.id = remdet.producto_id
+             LEFT JOIN productos p ON p.id = remdet.producto_id
              WHERE remdet.remito_id = ?"
         );
         $stmt->execute([$id]);
@@ -427,7 +459,7 @@ class RemitoSalida extends Model
         // Cabecera + cliente (soporta remitos con o sin NP)
         $stmt = $this->db->prepare("
             SELECT r.*,
-                COALESCE(c.razon_social, r.cliente_nombre) AS razon_social,
+                COALESCE(r.cliente_nombre, c.razon_social) AS razon_social,
                 COALESCE(c.email, r.cliente_email) AS email,
                 COALESCE(c.direccion, r.cliente_direccion) AS direccion,
                 npd.precio AS precio_produto, npd.cantidad AS prod_cantidad
@@ -446,9 +478,9 @@ class RemitoSalida extends Model
 
         // Detalle
         $stmt = $this->db->prepare("
-            SELECT d.cantidad, d.precio_unitario, p.nombre
+            SELECT d.cantidad, d.precio_unitario, COALESCE(p.nombre, d.descripcion) AS nombre, d.descripcion
             FROM remitos_salida_detalle d
-            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN productos p ON p.id = d.producto_id
             WHERE d.remito_id = ?
         ");
         $stmt->execute([$id]);
@@ -478,18 +510,19 @@ class RemitoSalida extends Model
      * $clienteData puede tener:
      *   - 'cliente_id' (cliente existente)
      *   - O bien: cliente_nombre, cliente_cuit, cliente_direccion, cliente_email, cliente_telefono, cliente_localidad
+     * $itemsManuales - array de items sin producto: [{descripcion, cantidad, precio}]
      */
     public function createManual(
         int $usuarioId,
         array $items,
-        array $clienteData,
+        array $itemsManuales = [],
+        array $clienteData = [],
         ?string $observaciones = null
     ): int {
         try {
-            $numero = (new Numerador())->siguiente('REMITO');
             $this->db->beginTransaction();
+            $numero = (new Numerador())->siguiente('REMITO');
 
-            // Resolver datos del cliente
             $clienteId = $clienteData['cliente_id'] ?? null;
             $clienteNombre = $clienteData['cliente_nombre'] ?? null;
             $clienteCuit = $clienteData['cliente_cuit'] ?? null;
@@ -498,7 +531,6 @@ class RemitoSalida extends Model
             $clienteTelefono = $clienteData['cliente_telefono'] ?? null;
             $clienteLocalidad = $clienteData['cliente_localidad'] ?? null;
 
-            // Si es un cliente existente, traer sus datos
             if ($clienteId) {
                 $stmtCli = $this->db->prepare("SELECT * FROM clientes WHERE id = ?");
                 $stmtCli->execute([$clienteId]);
@@ -513,22 +545,23 @@ class RemitoSalida extends Model
                 }
             }
 
-            // Si es cliente ocasional, usar el cliente genérico OCASIONAL (id 9999)
             if (empty($clienteId) && !empty($clienteNombre)) {
+                $stmtCheck = $this->db->prepare("SELECT id FROM clientes WHERE id = 9999");
+                $stmtCheck->execute();
+                if (!$stmtCheck->fetch()) {
+                    $this->db->prepare("INSERT IGNORE INTO clientes (id, razon_social, cuit, activo) VALUES (9999, 'CLIENTE OCASIONAL', '00-00000000-0', 1)")->execute();
+                }
                 $clienteId = 9999;
             }
 
-            // Validar nombre obligatorio
             if (empty($clienteNombre)) {
                 throw new Exception('El nombre o razón social del cliente es obligatorio.');
             }
 
-            // Email por defecto si no se proporciona
             if (empty($clienteEmail)) {
                 $clienteEmail = 'contacto@alimentostriba.com.ar';
             }
 
-            // 1️⃣ Cabecera
             $stmt = $this->db->prepare("
                 INSERT INTO remitos_salida
                 (numero, nota_pedido_id, cliente_id, usuario_id, observaciones,
@@ -551,12 +584,10 @@ class RemitoSalida extends Model
 
             $remitoId = (int)$this->db->lastInsertId();
 
-            // Acumular total para ctacte
             $totalRemito = 0;
 
-            // 2️⃣ Detalle + impacto stock
+            // 2️⃣ Detalle de productos con stock
             foreach ($items as $productoId => $itemData) {
-                // Soporte para formato nuevo {cantidad, precio} y viejo (solo cantidad)
                 $cantidad = is_array($itemData) ? (float)($itemData['cantidad'] ?? 0) : (float)$itemData;
                 $precioUnitario = is_array($itemData) ? (float)($itemData['precio'] ?? 0) : 0;
                 if ($cantidad <= 0) continue;
@@ -581,7 +612,6 @@ class RemitoSalida extends Model
                     throw new Exception("Stock insuficiente para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
                 }
 
-                // Insertar detalle
                 $this->db->prepare("
                     INSERT INTO remitos_salida_detalle
                     (remito_id, producto_id, cantidad, precio_unitario)
@@ -593,10 +623,8 @@ class RemitoSalida extends Model
                     $precioUnitario
                 ]);
 
-                // Acumular total
                 $totalRemito += $precioUnitario * $cantidad;
 
-                // Movimiento de stock (salida)
                 $this->db->prepare("
                     INSERT INTO movimientos_stock
                     (tipo, origen, referencia_id, producto_id, cantidad, observaciones, usuario_id)
@@ -608,6 +636,28 @@ class RemitoSalida extends Model
                     'Remito manual #' . $remitoId,
                     $usuarioId
                 ]);
+            }
+
+            // 2b️⃣ Detalle de items manuales (servicios, sin stock)
+            foreach ($itemsManuales as $item) {
+                if (empty($item['descripcion']) || ($item['cantidad'] ?? 0) <= 0) continue;
+
+                $descripcion = $item['descripcion'];
+                $cantidad = (float)($item['cantidad'] ?? 0);
+                $precioUnitario = (float)($item['precio'] ?? 0);
+
+                $this->db->prepare("
+                    INSERT INTO remitos_salida_detalle
+                    (remito_id, producto_id, descripcion, cantidad, precio_unitario)
+                    VALUES (?, NULL, ?, ?, ?)
+                ")->execute([
+                    $remitoId,
+                    $descripcion,
+                    $cantidad,
+                    $precioUnitario
+                ]);
+
+                $totalRemito += $precioUnitario * $cantidad;
             }
 
             // 3️⃣ Registrar débito en cuenta corriente del cliente
@@ -695,9 +745,9 @@ class RemitoSalida extends Model
 
         // Detalle
         $stmt3 = $this->db->prepare("
-            SELECT remdet.producto_id AS idProdRem, remdet.cantidad AS CantRem, remdet.precio_unitario AS precioUnitario, p.nombre AS ProdRem
+            SELECT remdet.producto_id AS idProdRem, remdet.cantidad AS CantRem, remdet.precio_unitario AS precioUnitario, COALESCE(p.nombre, remdet.descripcion) AS ProdRem, remdet.descripcion
             FROM remitos_salida_detalle remdet
-            JOIN productos p ON p.id = remdet.producto_id
+            LEFT JOIN productos p ON p.id = remdet.producto_id
             WHERE remdet.remito_id = ?
         ");
         $stmt3->execute([$id]);

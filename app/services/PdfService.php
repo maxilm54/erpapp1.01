@@ -27,17 +27,25 @@ class PdfService
             'pago' => $pago
         ]);
 
-        $path = BASE_PATH . "/storage/pagos/pago_{$pagoId}.pdf";
+        $dir = empresaStoragePath("pagos");
+        $filename = "pago_{$pagoId}.pdf";
+        $fullPath = $dir . '/' . $filename;
 
-        $this->guardarPdf($html, $path);
+        $this->guardarPdf($html, $fullPath);
 
-        return $path;
+        return $fullPath;
+    }
+
+    public function regenerarReciboPago(int $pagoId): string
+    {
+        return $this->generarReciboPago($pagoId);
     }
 
     private function guardarPdf(string $html, string $path): void
     {
         $options = new Options();
         $options->set('isRemoteEnabled', true);
+        $options->set('defaultFont', 'DejaVu Sans');
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
@@ -50,7 +58,7 @@ class PdfService
     private function renderTemplate(string $template, array $data): string
     {
         extract($data);
-        $empresa = config('empresa');
+        $empresa = loadEmpresaFromDb();
 
         ob_start();
         require BASE_PATH . "/app/views/mails/{$template}.php";

@@ -1,4 +1,4 @@
-<form method="POST" class="card p-4 col-md-6 mx-auto">
+<form method="POST" class="card p-4 col-md-6 mx-auto" enctype="multipart/form-data">
     <h4><?= $title ?></h4>
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <span class="small">Nombre:</span>
@@ -27,5 +27,30 @@
         <?php endforeach; ?>
     </select>
 
-    <button class="btn btn-success w-100">Guardar</button>
+    <label>Imagen:</label>
+    <div class="row align-items-center mb-3">
+        <div class="col-md-3 text-center">
+            <?php
+            $imagenActual = $item['imagen'] ?? null;
+            $rutaImagen = empresaUploadPath('materiasprimas') . '/' . $imagenActual;
+            if ($imagenActual && file_exists($rutaImagen)):
+            ?>
+                <img id="preview-imagen-mp" src="<?= empresaUploadUrl('materiasprimas') ?>/<?= htmlspecialchars($imagenActual) ?>"
+                     class="img-fluid rounded border" style="max-height: 120px;" alt="Preview">
+            <?php else: ?>
+                <img id="preview-imagen-mp" src="<?= empresaUploadUrl('materiasprimas') ?>/sin-imagen.jpg"
+                     class="img-fluid rounded border" style="max-height: 120px;" alt="Preview">
+            <?php endif; ?>
+        </div>
+        <div class="col-md-9">
+            <input type="file" name="imagen_mp" class="form-control" accept="image/*"
+                   onchange="document.getElementById('preview-imagen-mp').src = window.URL.createObjectURL(this.files[0])">
+            <small class="text-muted">JPG, PNG o WebP. Max 5MB. Dejar vacio para mantener actual.</small>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+        <a class="btn btn-secondary me-2" href="<?= BASE_URL ?>/materiasprimas">Volver</a>
+        <button class="btn btn-success">Guardar</button>
+    </div>
 </form>

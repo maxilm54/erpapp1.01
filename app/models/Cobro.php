@@ -112,7 +112,7 @@ class Cobro extends Model
                 $mail = new MailService();
                 $mail->enviarPago($pagoId);
             } catch (Exception $e) {
-                error_log("Error enviando mail de cobro #{$pagoId}: " . $e->getMessage());
+                empresaLog("Error enviando mail de cobro #{$pagoId}: " . $e->getMessage(), 'ERROR');
             }
 
             $this->db->commit();
@@ -120,7 +120,7 @@ class Cobro extends Model
 
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log('Error al registrar cobro: ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
+            empresaLog('Error al registrar cobro: ' . $e->getMessage(), 'ERROR');
             throw new Exception('Error al registrar cobro: ' . $e->getMessage());
         }
     }
@@ -171,7 +171,7 @@ class Cobro extends Model
 
         } catch (Exception $e) {
             $this->db->rollBack();
-            error_log('Error al anular cobro: ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
+            empresaLog('Error al anular cobro: ' . $e->getMessage(), 'ERROR');
             throw new Exception('Error al anular cobro: ' . $e->getMessage());
         }
     }

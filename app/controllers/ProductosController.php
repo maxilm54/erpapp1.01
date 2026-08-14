@@ -38,6 +38,11 @@ class ProductosController extends Controller
                 $imagen = $this->uploadImagen();
             }
 
+            // Si no se subio imagen, copiar la imagen por defecto al directorio del tenant
+            if (!$imagen) {
+                $imagen = $this->copiarImagenPorDefecto();
+            }
+
             $productoId = $this->producto->create([
                 'nombre' => htmlspecialchars(trim($_POST['nombre'])),
                 'sku' => htmlspecialchars(trim($_POST['sku'])),
@@ -82,7 +87,13 @@ class ProductosController extends Controller
                 exit;
             }
 
-            $this->producto->update($id_prod, $_POST);
+            // Manejar subida de imagen
+            $imagen = null;
+            if (!empty($_FILES['imagen']['name'])) {
+                $imagen = $this->uploadImagen();
+            }
+
+            $this->producto->update($id_prod, $_POST, $imagen);
             header('Location: ' . BASE_URL . '/productos');
             exit;
         }
@@ -124,16 +135,44 @@ class ProductosController extends Controller
             return null;
         }
 
-        // Renombrar para seguridad
+        // Guardar en directorio del tenant
+        $uploadDir = empresaUploadPath('productos');
         $name = uniqid() . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
-        $path = BASE_PATH . '/public/uploads/productos/' . $name;
+        $path = $uploadDir . '/' . $name;
         
         if (move_uploaded_file($_FILES['imagen']['tmp_name'], $path)) {
             error_log('Imagen subida correctamente: ' . $path);
-            return 'uploads/productos/' . $name;
+            return $name;
         }
         $_SESSION['error'] = 'Error al subir la imagen.';
         error_log('Error moving uploaded file: ' . $_FILES['imagen']['error']);
+        return null;
+    }
+
+    /**
+     * Copia la imagen por defecto al directorio del tenant
+     */
+    private function copiarImagenPorDefecto(): ?string
+    {
+        $origen = BASE_PATH . '/storage/imgpordefecto.jpg';
+        if (!file_exists($origen)) {
+            error_log('Imagen por defecto no encontrada: ' . $origen);
+            return null;
+        }
+
+        $uploadDir = empresaUploadPath('productos');
+        $destino = $uploadDir . '/sin-imagen.jpg';
+
+        // Si ya existe la copia, no volver a copiar
+        if (file_exists($destino)) {
+            return 'sin-imagen.jpg';
+        }
+
+        if (copy($origen, $destino)) {
+            return 'sin-imagen.jpg';
+        }
+
+        error_log('Error al copiar imagen por defecto a: ' . $destino);
         return null;
     }
 
@@ -242,6 +281,59 @@ class ProductosController extends Controller
             'producto' => $infoProducto,
             'stockmovements' => $inforStockmov,
             'csrf' => Csrf::generate()
+        ]);
+    }
+
+    public function preciocompra($idprod){
+        validarId($idprod, BASE_URL . '/productos');
+        require_once BASE_PATH . '/app/models/Productocostos.php';
+
+        $producto = $this->producto->find($idprod);
+        if (!$producto) {
+            $_SESSION['error'] = 'Producto no encontrado.';
+            header('Location: ' . BASE_URL . '/productos');
+            exit;
+        }
+
+        $costosModel = new Productocostos();
+        $costos = $costosModel->getByProducto($idprod);
+        $calculo = null;
+
+        if ($costos) {
+            $calculo = Productocostos::calcularPrecioVenta($costos, (float)$producto['precio_venta']);
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/productos/preciocompra/' . $idprod);
+                exit;
+            }
+
+            $data = [
+                'precio_compra'       => (float)($_POST['precio_compra'] ?? 0),
+                'costo_fijo'          => (float)($_POST['costo_fijo'] ?? 0),
+                'costo_variable_pct'  => (float)($_POST['costo_variable_pct'] ?? 0),
+                'margen_ganancia_pct' => (float)($_POST['margen_ganancia_pct'] ?? 0),
+            ];
+
+            $costosModel->createOrUpdate((int)$idprod, $data);
+
+            // Recalcular despues de guardar
+            $costos = $costosModel->getByProducto($idprod);
+            $calculo = Productocostos::calcularPrecioVenta($costos, (float)$producto['precio_venta']);
+
+            $_SESSION['success'] = 'Costos del producto actualizados.';
+            header('Location: ' . BASE_URL . '/productos/preciocompra/' . $idprod);
+            exit;
+        }
+
+        $this->view('productos/preciocompra', [
+            'title'   => 'Costos y Precios - ' . $producto['nombre'],
+            'producto' => $producto,
+            'costos'  => $costos,
+            'calculo' => $calculo,
+            'csrf'    => Csrf::generate()
         ]);
     }
 }

@@ -1,6 +1,9 @@
 <div class="d-flex justify-content-between mb-3">
     <h3><i class="bi bi-building"></i> <?= htmlspecialchars($tenant['nombre']) ?></h3>
     <div>
+        <a href="<?= BASE_URL ?>/admin/empresa-edit" class="btn btn-warning">
+            <i class="bi bi-pencil"></i> Editar Empresa
+        </a>
         <a href="<?= BASE_URL ?>/admin/empresa-users" class="btn btn-info">
             <i class="bi bi-people"></i> Usuarios
         </a>

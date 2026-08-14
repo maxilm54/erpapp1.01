@@ -132,7 +132,7 @@
     <thead>
         <tr>
             <th class="num">N°</th>
-            <th>Producto</th>
+            <th>Concepto</th>
             <th class="col-cant">Cantidad</th>
             <th class="col-prec">P. Unitario</th>
             <th class="col-sub">Subtotal</th>
@@ -143,10 +143,11 @@
             $precio = (float)($d['precio_unitario'] ?? $d['precioremitado'] ?? 0);
             $cant = (float)$d['cantidad'];
             $sub = $precio * $cant;
+            $nombre = $d['nombre'] ?? $d['descripcion'] ?? 'Sin nombre';
         ?>
         <tr>
             <td class="num"><?= $i++ ?></td>
-            <td><?= htmlspecialchars($d['nombre']) ?></td>
+            <td><?= htmlspecialchars($nombre) ?></td>
             <td class="num-col"><?= number_format($cant, 2, ',', '.') ?></td>
             <td class="num-col">$ <?= number_format($precio, 2, ',', '.') ?></td>
             <td class="num-col">$ <?= number_format($sub, 2, ',', '.') ?></td>

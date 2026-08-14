@@ -72,10 +72,16 @@ class AuthController extends Controller{
                 exit;
             }
 
-            // Login válido — establecer sesión de usuario
+            // Login valido - establecer sesion de usuario
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['user_nombre'] = $user['nombre'];
             $_SESSION['user_rol'] = $user['rol'];
+
+            // SuperAdmin va directo al panel admin
+            if (strtoupper($user['rol']) === 'SUPERADMIN') {
+                header('Location: ' . BASE_URL . '/admin');
+                exit;
+            }
 
             // Buscar a qué tenants tiene acceso
             $tenants = $userModel->getTenantsForUser($user['id']);

@@ -84,9 +84,18 @@ class Auth{
     }
 
     /**
-     * Verifica si el usuario es superadmin (acceso a todos los tenants).
+     * Verifica si el usuario es superadmin (acceso al panel admin global).
      */
     public static function isSuperAdmin(): bool
+    {
+        $user = self::getCurrentUser();
+        return $user && strtoupper($user['rol']) === 'SUPERADMIN';
+    }
+
+    /**
+     * Verifica si el usuario es admin dentro del tenant (gestiona empresa).
+     */
+    public static function isTenantAdmin(): bool
     {
         $user = self::getCurrentUser();
         return $user && strtoupper($user['rol']) === 'ADMIN';
@@ -111,21 +120,42 @@ class Auth{
 
     /**
      * Requiere que haya un tenant seleccionado.
-     * Si no hay tenant pero el usuario es admin, lo redirige al selector.
-     * Si no es admin ni tiene tenant, al login.
+     * SuperAdmin NO puede entrar a tenants - va al panel admin.
      */
     public static function requireTenant(): void
     {
         self::requireLogin();
 
-        if (!self::hasTenant()) {
-            if (self::isSuperAdmin()) {
-                header('Location: ' . BASE_URL . '/admin/select-tenant');
-            } else {
-                $_SESSION['error'] = 'No tienes acceso a ningún módulo. Contacta al administrador.';
-                header('Location: ' . BASE_URL . '/auth/login');
-            }
+        // SuperAdmin nunca entra a un tenant
+        if (self::isSuperAdmin()) {
+            header('Location: ' . BASE_URL . '/admin');
             exit;
+        }
+
+        if (!self::hasTenant()) {
+            $_SESSION['error'] = 'No tienes acceso a ningún módulo. Contacta al administrador.';
+            header('Location: ' . BASE_URL . '/auth/login');
+            exit;
+        }
+    }
+
+    /**
+     * Requiere que el usuario sea superadmin y NO tenga tenant seleccionado.
+     * Para el panel de administración global.
+     */
+    public static function requireAdminPanel(): void
+    {
+        self::requireLogin();
+
+        if (!self::isSuperAdmin()) {
+            $_SESSION['error'] = 'No tienes permisos de administrador.';
+            header('Location: ' . BASE_URL . '/home');
+            exit;
+        }
+
+        // Si tiene tenant seleccionado, limpiarlo
+        if (self::hasTenant()) {
+            self::clearTenant();
         }
     }
 
@@ -174,5 +204,14 @@ class Auth{
     {
         $user = self::getCurrentUser();
         return $user && in_array(strtoupper($user['rol']), array_map('strtoupper', $roles));
+    }
+
+    /**
+     * Verifica si el usuario puede acceder a comprobantes.
+     */
+    public static function canSeeSdcomp(): bool
+    {
+        $user = self::getCurrentUser();
+        return $user && Role::canSeeSdcompCheck($user['rol']);
     }
 }

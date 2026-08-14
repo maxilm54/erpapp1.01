@@ -28,33 +28,47 @@ class Tenant extends Model{
 
     public function create(array $data): int{
         $stmt = $this->db->prepare("
-            INSERT INTO tenants (nombre, dbname, host, activo)
-            VALUES (:nombre, :dbname, :host, :activo)
+            INSERT INTO tenants (nombre, dbname, host, activo, cuit, email, telefono, direccion, logo)
+            VALUES (:nombre, :dbname, :host, :activo, :cuit, :email, :telefono, :direccion, :logo)
         ");
         $stmt->execute([
-            ':nombre'  => $data['nombre'],
-            ':dbname'  => $data['dbname'],
-            ':host'    => $data['host'] ?? 'localhost',
-            ':activo'  => $data['activo'] ?? 1
+            ':nombre'     => $data['nombre'],
+            ':dbname'     => $data['dbname'],
+            ':host'       => $data['host'] ?? 'localhost',
+            ':activo'     => $data['activo'] ?? 1,
+            ':cuit'       => $data['cuit'] ?? null,
+            ':email'      => $data['email'] ?? null,
+            ':telefono'   => $data['telefono'] ?? null,
+            ':direccion'  => $data['direccion'] ?? null,
+            ':logo'       => $data['logo'] ?? null,
         ]);
-        return (int)$this->db->lastInsertId();
+        $tenantId = (int)$this->db->lastInsertId();
+
+        // Crear directorios privados de la empresa
+        $this->crearDirectorios($tenantId);
+
+        return $tenantId;
     }
 
     public function update(int $id, array $data): bool{
-        $sql = "UPDATE tenants SET nombre = :nombre, host = :host, activo = :activo";
-        $params = [
-            ':nombre'  => $data['nombre'],
-            ':host'    => $data['host'] ?? 'localhost',
-            ':activo'  => $data['activo'] ?? 1,
-            ':id'      => $id
-        ];
+        $sql = "UPDATE tenants SET";
+        $sets = [];
+        $params = [':id' => $id];
 
-        if (isset($data['dbname'])) {
-            $sql .= ", dbname = :dbname";
-            $params[':dbname'] = $data['dbname'];
+        // Solo actualizar campos que vienen en $data
+        $allFields = ['nombre', 'host', 'activo', 'dbname', 'cuit', 'email', 'telefono', 'direccion', 'logo'];
+        foreach ($allFields as $field) {
+            if (array_key_exists($field, $data)) {
+                $sets[] = "{$field} = :{$field}";
+                $params[":{$field}"] = $data[$field] ?? null;
+            }
         }
 
-        $sql .= " WHERE id = :id";
+        if (empty($sets)) {
+            return false;
+        }
+
+        $sql .= ' ' . implode(', ', $sets) . ' WHERE id = :id';
         $stmt = $this->db->prepare($sql);
         return $stmt->execute($params);
     }
@@ -65,16 +79,95 @@ class Tenant extends Model{
     }
 
     /**
+     * Retorna la configuración de empresa del tenant.
+     */
+    public function getEmpresaConfig(int $tenantId): array{
+        $tenant = $this->findById($tenantId);
+        if (!$tenant) {
+            return $this->getEmpresaDefaults();
+        }
+
+        $logoUrl = null;
+        if (!empty($tenant['logo'])) {
+            $logoUrl = BASE_URL . '/uploads/img_config/empresa_' . $tenantId . '/' . $tenant['logo'];
+        }
+
+        return [
+            'nombre'    => $tenant['nombre'] ?? 'Empresa',
+            'cuit'      => $tenant['cuit'] ?? '',
+            'email'     => $tenant['email'] ?? '',
+            'telefono'  => $tenant['telefono'] ?? '',
+            'direccion' => $tenant['direccion'] ?? '',
+            'logo'      => $logoUrl,
+            'logo_file' => $tenant['logo'] ?? null,
+        ];
+    }
+
+    /**
+     * Valores por defecto cuando no hay tenant seleccionado.
+     */
+    public function getEmpresaDefaults(): array{
+        return [
+            'nombre'    => 'Empresa',
+            'cuit'      => '',
+            'email'     => '',
+            'telefono'  => '',
+            'direccion' => '',
+            'logo'      => null,
+            'logo_file' => null,
+        ];
+    }
+
+    /**
+     * Crea la estructura de directorios privados para una empresa.
+     */
+    public function crearDirectorios(int $tenantId): void{
+        $dirs = [
+            BASE_PATH . "/public/uploads/img_config/empresa_{$tenantId}",
+            BASE_PATH . "/public/uploads/productos/empresa_{$tenantId}",
+            BASE_PATH . "/public/uploads/materiasprimas/empresa_{$tenantId}",
+            BASE_PATH . "/storage/empresa_{$tenantId}/remitos",
+            BASE_PATH . "/storage/empresa_{$tenantId}/pagos",
+            BASE_PATH . "/storage/empresa_{$tenantId}/logs",
+        ];
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0775, true);
+            }
+        }
+    }
+
+    /**
+     * Retorna la ruta de almacenamiento para una empresa.
+     */
+    public function getStoragePath(int $tenantId, string $tipo): string{
+        $base = BASE_PATH . "/storage/empresa_{$tenantId}/{$tipo}";
+        if (!is_dir($base)) {
+            mkdir($base, 0775, true);
+        }
+        return $base;
+    }
+
+    /**
+     * Retorna la ruta de uploads para una empresa.
+     */
+    public function getUploadPath(int $tenantId, string $tipo): string{
+        $base = BASE_PATH . "/public/uploads/{$tipo}/empresa_{$tenantId}";
+        if (!is_dir($base)) {
+            mkdir($base, 0775, true);
+        }
+        return $base;
+    }
+
+    /**
      * Crea una nueva BD para un tenant clonando el esquema template.
      */
     public function createDatabase(string $dbname): bool{
         $host = 'localhost';
         $config = require BASE_PATH . '/app/config/database.php';
 
-        // Crear la BD, ojo en host la base se crea de forma manual y con un prefijo del proveedor
         $this->db->exec("CREATE DATABASE IF NOT EXISTS `{$dbname}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 
-        // Conectar a la nueva BD con multi_statement para soportar triggers
         $dsn = "mysql:host={$host};dbname={$dbname};charset=utf8mb4";
         $newDb = new PDO($dsn, $config['user'], $config['pass'], [
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
@@ -83,7 +176,6 @@ class Tenant extends Model{
             PDO::MYSQL_ATTR_MULTI_STATEMENTS => true,
         ]);
 
-        // Usar el schema limpio (sin DELIMITER, compatible con PDO)
         $schemaFile = BASE_PATH . '/app/helpers/squemadb/tenant_schema.sql';
         if (!file_exists($schemaFile)) {
             error_log("Archivo de esquema no encontrado: {$schemaFile}");
@@ -91,8 +183,6 @@ class Tenant extends Model{
         }
 
         $sql = file_get_contents($schemaFile);
-
-        // Parsear SQL respetando BEGIN...END de triggers/procedimientos
         $statements = self::parseSqlStatements($sql);
 
         foreach ($statements as $statement) {
@@ -110,9 +200,6 @@ class Tenant extends Model{
         return true;
     }
 
-    /**
-     * Retorna los usuarios asignados a un tenant.
-     */
     public function getUsers(int $tenantId): array{
         $stmt = $this->db->prepare("
             SELECT u.id, u.nombre, u.email, u.rol, u.activo
@@ -125,9 +212,6 @@ class Tenant extends Model{
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Retorna los tenants de un usuario.
-     */
     public function getTenantsForUser(int $userId): array{
         $stmt = $this->db->prepare("
             SELECT t.*
@@ -140,9 +224,6 @@ class Tenant extends Model{
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /**
-     * Asigna un usuario a un tenant.
-     */
     public function assignUser(int $tenantId, int $userId): bool{
         $stmt = $this->db->prepare("
             INSERT IGNORE INTO user_tenant (user_id, tenant_id)
@@ -151,9 +232,6 @@ class Tenant extends Model{
         return $stmt->execute([':user_id' => $userId, ':tenant_id' => $tenantId]);
     }
 
-    /**
-     * Remueve un usuario de un tenant.
-     */
     public function removeUser(int $tenantId, int $userId): bool{
         $stmt = $this->db->prepare("
             DELETE FROM user_tenant
@@ -162,10 +240,6 @@ class Tenant extends Model{
         return $stmt->execute([':user_id' => $userId, ':tenant_id' => $tenantId]);
     }
 
-    /**
-     * Parsea un archivo SQL dividiéndolo en statements individuales,
-     * respetando bloques BEGIN...END de triggers/procedimientos.
-     */
     private static function parseSqlStatements(string $sql): array{
         $statements = [];
         $current = '';
@@ -175,14 +249,12 @@ class Tenant extends Model{
         foreach ($lines as $line) {
             $upper = strtoupper(trim($line));
 
-            // Detectar inicio de bloque
             if (preg_match('/\bBEGIN\b/', $upper)) {
                 $inBlock++;
                 $current .= $line . "\n";
                 continue;
             }
 
-            // Detectar fin de bloque
             if (preg_match('/\bEND\b/', $upper) && $inBlock > 0) {
                 $current .= $line . "\n";
                 $inBlock--;
@@ -193,29 +265,24 @@ class Tenant extends Model{
                 continue;
             }
 
-            // Dentro de un bloque: acumular sin dividir
             if ($inBlock > 0) {
                 $current .= $line . "\n";
                 continue;
             }
 
-            // Fuera de bloques: saltar comentarios
             $trimmedLine = ltrim($line);
             if (empty($trimmedLine) || $trimmedLine[0] === '-' || $trimmedLine === '') {
                 continue;
             }
 
-            // Agregar línea al statement actual
             $current .= $line . "\n";
 
-            // Si termina con ; es un statement completo
             if (substr(trim($current), -1) === ';') {
                 $statements[] = trim($current);
                 $current = '';
             }
         }
 
-        // Último statement sin ;
         $current = trim($current);
         if (!empty($current)) {
             $statements[] = $current;

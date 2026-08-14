@@ -126,7 +126,15 @@ class CobrosController extends Controller
                 'remito_id' => $remitoId,
             ]);
 
+            // Datos para el modal de éxito
+            $cobroCreado = $this->cobroModel->find($pagoId);
             $_SESSION['success'] = "Cobro #{$pagoId} registrado correctamente.";
+            $_SESSION['cobro_exito'] = [
+                'id' => $pagoId,
+                'monto' => $monto,
+                'cliente' => $cobroCreado['nombre_cliente'] ?? $clienteNombre,
+                'pdf_path' => $cobroCreado['pdf_path'] ?? null,
+            ];
             header("Location: " . BASE_URL . "/cobros/show/{$pagoId}");
             exit;
 
@@ -170,5 +178,82 @@ class CobrosController extends Controller
             'ventas' => $ventas,
             'cajas'  => $cajas,
         ]);
+    }
+
+    /**
+     * Reenviar comprobante de pago por email.
+     */
+    public function reenviar(int $id): void
+    {
+        Auth::requireLogin();
+        Auth::requireTenant();
+
+        try {
+            $cobro = $this->cobroModel->find($id);
+            if (!$cobro) {
+                throw new Exception('Cobro no encontrado.');
+            }
+
+            require_once BASE_PATH . '/app/services/MailService.php';
+            $mail = new MailService();
+            $mail->enviarPago($id);
+
+            $_SESSION['success'] = 'Comprobante de pago reenviado por email.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al reenviar: ' . $e->getMessage();
+            error_log('Error reenviando cobro: ' . $e->getMessage());
+        }
+
+        header("Location: " . BASE_URL . "/cobros/show/{$id}");
+        exit;
+    }
+
+    /**
+     * Servir el PDF del comprobante de pago.
+     */
+    public function pdf(int $id): void
+    {
+        Auth::requireLogin();
+        Auth::requireTenant();
+
+        $cobro = $this->cobroModel->find($id);
+        if (!$cobro || empty($cobro['pdf_path']) || !file_exists($cobro['pdf_path'])) {
+            die('PDF no disponible');
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="comprobante_pago_' . $id . '.pdf"');
+        readfile($cobro['pdf_path']);
+        exit;
+    }
+
+    /**
+     * Regenerar el PDF del comprobante de pago.
+     */
+    public function regenerarPdf(int $id): void
+    {
+        Auth::requireLogin();
+        Auth::requireTenant();
+
+        try {
+            $cobro = $this->cobroModel->find($id);
+            if (!$cobro) {
+                throw new Exception('Cobro no encontrado.');
+            }
+
+            require_once BASE_PATH . '/app/services/PdfService.php';
+            $pdfService = new PdfService();
+            $pdfPath = $pdfService->regenerarReciboPago($id);
+
+            Database::getInstance()->prepare("UPDATE pagos SET pdf_path = ? WHERE id = ?")->execute([$pdfPath, $id]);
+
+            $_SESSION['success'] = 'PDF regenerado correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al regenerar PDF: ' . $e->getMessage();
+            error_log('Error regenerando PDF cobro: ' . $e->getMessage());
+        }
+
+        header("Location: " . BASE_URL . "/cobros/show/{$id}");
+        exit;
     }
 }

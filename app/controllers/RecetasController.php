@@ -75,7 +75,41 @@ class RecetasController extends Controller
             exit;
         }
 
-        $this->view('recetas/show', ['receta'=>$receta,'rec_det'=>$receta['detalle']]);
+        // Obtener ultimos precios de compra de las materias primas
+        $mpIds = array_column($receta['detalle'], 'materia_prima_id');
+        $preciosCompra = $this->materia->getUltimosPreciosCompra($mpIds);
+
+        // Calcular costo total de la receta
+        $costoTotalReceta = 0;
+        $detalleConCostos = [];
+        foreach ($receta['detalle'] as $det) {
+            $precioUnit = $preciosCompra[(int)$det['materia_prima_id']] ?? null;
+            $subtotal = ($precioUnit !== null) ? $precioUnit * (float)$det['cantidad'] : null;
+            if ($subtotal !== null) {
+                $costoTotalReceta += $subtotal;
+            }
+            $detalleConCostos[] = array_merge($det, [
+                'precio_compra' => $precioUnit,
+                'subtotal'      => $subtotal,
+            ]);
+        }
+
+        // Obtener costos del producto generado (si existen)
+        require_once BASE_PATH . '/app/models/Productocostos.php';
+        $costosModel = new Productocostos();
+        $costosProducto = $costosModel->getByProducto($receta['producto_id']);
+        $calculoProducto = null;
+        if ($costosProducto) {
+            $calculoProducto = Productocostos::calcularPrecioVenta($costosProducto, (float)($receta['precio_venta'] ?? 0));
+        }
+
+        $this->view('recetas/show', [
+            'receta'            => $receta,
+            'rec_det'           => $detalleConCostos,
+            'costo_total_receta'=> $costoTotalReceta,
+            'costos_producto'   => $costosProducto,
+            'calculo_producto'  => $calculoProducto,
+        ]);
     }
 
     public function edit(int $id_receta)

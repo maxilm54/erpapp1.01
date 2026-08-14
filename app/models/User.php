@@ -118,6 +118,13 @@ class User extends Model{
         return $stmt->execute($params);
     }
 
+    public function deleteUser(int $id): bool{
+        $stmt = $this->db->prepare("DELETE FROM user_tenant WHERE user_id = :id");
+        $stmt->execute([':id' => $id]);
+        $stmt = $this->db->prepare("DELETE FROM users WHERE id = :id");
+        return $stmt->execute([':id' => $id]);
+    }
+
     /**
      * Activa o desactiva un usuario.
      */

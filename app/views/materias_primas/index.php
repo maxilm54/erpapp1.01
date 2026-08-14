@@ -16,9 +16,11 @@
             <?php foreach ($items as $p): ?>
             <tr>
                 <td>
-                    <?php if ($p['imagen']): ?>
-                        <img src="<?= BASE_URL ?>/<?= $p['imagen'] ?>" width="50" alt="Img desc del producto">
-                    <?php endif; ?>
+                    <?php
+                    $imgPath = $p['imagen'] ?? null;
+                    $imgUrl = $imgPath ? empresaUploadUrl('materiasprimas') . '/' . htmlspecialchars($imgPath) : empresaUploadUrl('materiasprimas') . '/sin-imagen.jpg';
+                    ?>
+                    <img src="<?= $imgUrl ?>" width="50" height="50" style="object-fit: cover;" alt="img">
                 </td>
                 <td><?= $p['nombre'] ?></td>
                 <td><?= $p['sku'] ?></td>

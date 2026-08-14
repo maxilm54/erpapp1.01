@@ -74,13 +74,20 @@ class MateriaPrima extends Model
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function update(int $id, array $d): bool
+    public function update(int $id, array $d, ?string $imagen = null): bool
     {
         try {
             $this->db->beginTransaction();
-            $this->db->prepare(
-            "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u, categoria = :c WHERE id = :id"
-            )->execute(['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['unidad_medida'],'c'=>$d['categoria'],'id'=>$id]);
+            $sql = "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u, categoria = :c";
+            $params = ['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['unidad_medida'],'c'=>$d['categoria'],'id'=>$id];
+
+            if ($imagen !== null) {
+                $sql .= ", imagen = :imagen";
+                $params['imagen'] = $imagen;
+            }
+
+            $sql .= " WHERE id = :id";
+            $this->db->prepare($sql)->execute($params);
             $this->db->commit();
             $_SESSION['success'] = "Materia Prima actualizada correctamente.";
             error_log('Materia Prima ID ' . $id . ' actualizada con éxito en ' . __FILE__ . ':' . __LINE__);
@@ -214,6 +221,54 @@ class MateriaPrima extends Model
             $_SESSION['error'] = "Error al actualizar el código de barra. Por favor, inténtalo de nuevo.";
             return false;
         }
+    }
+
+    /**
+     * Obtener el ultimo precio de compra de una materia prima desde ordenes de compra
+     */
+    public function getUltimoPrecioCompra(int $materiaPrimaId): ?float
+    {
+        $stmt = $this->db->prepare("
+            SELECT ocd.precio_unitario
+            FROM ordenes_compra_detalle ocd
+            JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+            WHERE ocd.materia_prima_id = :mp_id
+              AND oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
+            ORDER BY oc.created_at DESC
+            LIMIT 1
+        ");
+        $stmt->execute([':mp_id' => $materiaPrimaId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ? (float)$result['precio_unitario'] : null;
+    }
+
+    /**
+     * Obtener ultimos precios de compra para multiples materias primas (batch)
+     */
+    public function getUltimosPreciosCompra(array $materiaPrimaIds): array
+    {
+        if (empty($materiaPrimaIds)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($materiaPrimaIds), '?'));
+        $stmt = $this->db->prepare("
+            SELECT ocd.materia_prima_id, ocd.precio_unitario
+            FROM ordenes_compra_detalle ocd
+            JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+            WHERE ocd.materia_prima_id IN ($placeholders)
+              AND oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
+            ORDER BY oc.created_at DESC
+        ");
+        $stmt->execute($materiaPrimaIds);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $precios = [];
+        foreach ($rows as $row) {
+            $mpId = (int)$row['materia_prima_id'];
+            if (!isset($precios[$mpId])) {
+                $precios[$mpId] = (float)$row['precio_unitario'];
+            }
+        }
+        return $precios;
     }
 
     public function getStockStatus(): array
