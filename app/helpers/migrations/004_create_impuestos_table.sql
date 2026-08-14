@@ -2,7 +2,6 @@
 -- Migración 004: Sistema de Impuestos (IVA configurable)
 -- =====================================================
 -- BEGIN;
-INSERT INTO act_bd (id,descripcion) VALUES (4,'Sistema de Impuestos (IVA configurable)');
 -- COMMIT;
 -- ROLLBACK;
 -- -----------------------------------------------------
@@ -65,6 +64,7 @@ CREATE TABLE `gastos` (
 )
 COLLATE='utf8mb4_unicode_ci'
 ENGINE=InnoDB;
+INSERT INTO act_bd (id,descripcion) VALUES (4,'Sistema de Impuestos (IVA configurable) + tabla gastos');
 -- Viejo no esta la creacion de tabla gastos asi que migro completo desde sistema
 /*ALTER TABLE `gastos`
   ADD COLUMN `impuesto_id` int(11) DEFAULT NULL AFTER `medio_pago`,
