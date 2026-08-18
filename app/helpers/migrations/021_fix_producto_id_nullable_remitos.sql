@@ -2,7 +2,7 @@
 -- Migration 021: Permitir producto_id NULL en remitos_salida_detalle
 -- Para soportar items manuales (servicios) sin producto asociado
 -- =====================================================
-
+/*
 -- Cambiar producto_id a nullable (si aún es NOT NULL)
 ALTER TABLE `remitos_salida_detalle`
     MODIFY COLUMN `producto_id` int(11) DEFAULT NULL;
@@ -26,6 +26,6 @@ DEALLOCATE PREPARE stmt;
 -- Recrear la FK con ON DELETE SET NULL
 ALTER TABLE `remitos_salida_detalle`
     ADD CONSTRAINT `rsd_producto_fk` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE SET NULL;
-
-INSERT INTO act_bd (id, descripcion) VALUES (21, 'Permitir producto_id NULL en remitos_salida_detalle para items manuales (servicios)');
+*/
+INSERT INTO act_bd (id, descripcion) VALUES (21, 'DISCONTINUADO, SE CORRIGE EN SHEMA. Permitir producto_id NULL en remitos_salida_detalle para items manuales (servicios)');
 -- =====================================================
