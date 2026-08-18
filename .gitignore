@@ -2,12 +2,10 @@
 /storage/pdf/*
 .env
 public/error_log
-/helpers/*
 public/error_log
 public/uploads
-app/config/database.php
 app/config/Database/*
 app/helpers/squemadb/*
 app/migrations/*
-app/bootstrap.php
 public/.htaccess
+/vendor/*
