@@ -5,7 +5,6 @@ public/error_log
 public/error_log
 public/uploads
 app/config/Database/*
-app/helpers/squemadb/*
 app/migrations/*
 public/.htaccess
 /vendor/*

@@ -2,7 +2,7 @@
 -- Migración 006: Remitos manuales (sin NP)
 -- =====================================================
 -- BEGIN;
-INSERT INTO act_bd (id,descripcion) VALUES (6,'Remitos manuales (sin NP)');
+
 -- COMMIT;
 -- ROLLBACK;
 -- Hacer nullable la FK de nota_pedido (para remitos manuales)
@@ -26,3 +26,5 @@ ALTER TABLE `remitos_salida`
 -- Index para búsquedas por cliente
 ALTER TABLE `remitos_salida`
   ADD KEY `cliente_id` (`cliente_id`);
+
+INSERT INTO act_bd (id,descripcion) VALUES (6,'Remitos manuales (sin NP)');

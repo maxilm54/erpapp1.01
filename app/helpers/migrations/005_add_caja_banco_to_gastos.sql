@@ -13,4 +13,4 @@
 
 -- ALTER TABLE `gastos`
 --  ADD CONSTRAINT `gastos_caja_banco_fk` FOREIGN KEY (`caja_banco_id`) REFERENCES `cajas_bancos` (`id`) ON DELETE SET NULL;
--- INSERT INTO act_bd (id,descripcion) VALUES (5,'Agregar caja_banco_id a gastos');
+-- INSERT INTO act_bd (id,descripcion) VALUES (5,'Discontinuada Agregar caja_banco_id a gastos');

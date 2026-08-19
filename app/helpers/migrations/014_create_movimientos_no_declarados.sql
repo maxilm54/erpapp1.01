@@ -2,7 +2,6 @@
 -- Migración 014: Movimientos No Declarados
 -- Sistema paralelo para ventas/compras sin factura
 -- =====================================================
-INSERT INTO act_bd (id, descripcion) VALUES (14, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');
 
 -- Tabla cabecera
 CREATE TABLE IF NOT EXISTS `movimientos_no_declarados` (
@@ -61,3 +60,5 @@ CREATE TABLE IF NOT EXISTS `movimientos_no_declarados_pagos` (
   CONSTRAINT `mndp_mov_fk` FOREIGN KEY (`mov_no_declarado_id`) REFERENCES `movimientos_no_declarados` (`id`) ON DELETE CASCADE,
   CONSTRAINT `mndp_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO act_bd (id, descripcion) VALUES (14, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');

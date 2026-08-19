@@ -25,13 +25,19 @@ DROP TABLE IF EXISTS `user_tenant`;
 DROP TABLE IF EXISTS `tenants`;
 
 CREATE TABLE `tenants` (
-  `id`         INT NOT NULL AUTO_INCREMENT,
-  `nombre`     VARCHAR(150) NOT NULL,
-  `dbname`     VARCHAR(100) NOT NULL COMMENT 'Nombre de la BD de este tenant',
-  `host`       VARCHAR(100) NOT NULL DEFAULT 'localhost',
-  `activo`     TINYINT(1) NOT NULL DEFAULT 1,
-  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `id`              INT NOT NULL AUTO_INCREMENT,
+  `nombre`          VARCHAR(150) NOT NULL,
+  `dbname`          VARCHAR(100) NOT NULL COMMENT 'Nombre de la BD de este tenant',
+  `host`            VARCHAR(100) NOT NULL DEFAULT 'localhost',
+  `activo`          TINYINT(1) NOT NULL DEFAULT 1,
+  `schema_version`  INT NOT NULL DEFAULT 0,
+  `cuit`            VARCHAR(20) DEFAULT NULL,
+  `email`           VARCHAR(150) DEFAULT NULL,
+  `telefono`        VARCHAR(50) DEFAULT NULL,
+  `direccion`       VARCHAR(255) DEFAULT NULL,
+  `logo`            VARCHAR(255) DEFAULT NULL,
+  `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `dbname` (`dbname`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -49,7 +55,7 @@ CREATE TABLE `users` (
   `password_hash`     VARCHAR(255) NOT NULL,
   `email_verificado`  TINYINT(1) DEFAULT 0,
   `token_verificacion` VARCHAR(255) DEFAULT NULL,
-  `rol`               ENUM('ADMIN','USUARIO','VISITOR') NOT NULL DEFAULT 'USUARIO',
+  `rol`               ENUM('SUPERADMIN','ADMIN','USUARIO','VISITOR','GERENTE_FINANCIERO') NOT NULL DEFAULT 'USUARIO',
   `activo`            TINYINT(1) DEFAULT 1,
   `created_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at`        TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
@@ -74,23 +80,20 @@ CREATE TABLE `user_tenant` (
   COMMENT='Un usuario puede acceder a uno o mas tenants';
 
 -- -----------------------------------------------------------
--- DATOS INICIALES: Migrar el tenant actual
+-- DATOS INICIALES
 -- -----------------------------------------------------------
--- El tenant "default" es la BD 'app' que ya existe
-INSERT INTO `tenants` (`nombre`, `dbname`, `host`)
-VALUES ('DmTech', 'app', 'localhost');
 
--- Migrar el usuario admin existente (ajustar email/password si es necesario)
--- IMPORTANTE: Cambiar el password_hash por el real de tu usuario admin
+-- Usuario SuperAdmin (para panel de administracion global)
+-- Pass: Tucuman#1588
 INSERT INTO `users` (`nombre`, `email`, `password_hash`, `email_verificado`, `rol`)
 VALUES (
-  'Maxi Favaro',
+  'Soporte DmTech',
   'soporte@dmtech.com.ar',
-  '$2y$10$zgZeptGdtX3cdLUq1Bf/AuquBgmR7RP7BZnN8ih4ToxeqDRCYRYay',
+  '$2y$10$wFq/eZHIodlEFwXS3l/XJup5/6aJ9FgL1C7OLoPjQBb2T3MjO6n.m',
   1,
-  'ADMIN'
+  'SUPERADMIN'
 );
 
--- Asociar el usuario admin al tenant default
-INSERT INTO `user_tenant` (`user_id`, `tenant_id`)
-VALUES (1, 1);
+-- Tenant default (si existe la BD app)
+-- INSERT INTO `tenants` (`nombre`, `dbname`, `host`)
+-- VALUES ('Default - App', 'app', 'localhost');
