@@ -1,7 +1,7 @@
 <?php
     use Dompdf\Dompdf;
     use Dompdf\Options;
-require_once BASE_PATH.'/app/models/CuentaCorrienteCliente.php';
+require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Numerador.php';
 require_once BASE_PATH.'/app/helpers/AsientoAutomatico.php';
 class RemitoSalida extends Model
