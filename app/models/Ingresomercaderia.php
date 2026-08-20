@@ -2,7 +2,7 @@
 
 use function Safe\error_log;
 
-require_once BASE_PATH.'/app/models/OrdenCompra.php';
+require_once BASE_PATH.'/app/models/Ordencompra.php';
 class IngresoMercaderia extends Model
 {
     public function all()

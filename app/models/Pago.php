@@ -1,6 +1,6 @@
 <?php
 
-require_once BASE_PATH.'/app/models/CuentaCorrienteCliente.php';
+require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 require_once BASE_PATH.'/app/services/PdfService.php';
 

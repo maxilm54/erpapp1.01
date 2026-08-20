@@ -2,7 +2,7 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 require_once BASE_PATH . '/vendor/autoload.php';
-require_once BASE_PATH . '/app/models/MailLog.php';
+require_once BASE_PATH . '/app/models/Maillog.php';
 require_once BASE_PATH . '/app/models/EmailConfig.php';
 require_once BASE_PATH . '/app/models/EmailTemplate.php';
 require_once BASE_PATH . '/app/models/Pago.php';
