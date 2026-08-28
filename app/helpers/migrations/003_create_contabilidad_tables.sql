@@ -2,7 +2,6 @@
 -- Migración 003: Módulo Contable - Partida Doble
 -- =====================================================
 -- BEGIN;
-INSERT INTO act_bd (id,descripcion) VALUES (3,'Contable-Plan de Cuentas-Asientos Contables(cabecera)-Detalle de Asientos (debe/haber)-Cajas, Bancos y Fondos-Movimientos de Caja/Banco-Conciliación Bancaria-Detalle de Conciliación-Insert');
 -- COMMIT;
 -- ROLLBACK;
 -- -----------------------------------------------------
@@ -210,3 +209,9 @@ INSERT INTO `cuentas_contables` (`codigo`, `nombre`, `tipo`, `padre_id`, `nivel`
 ('5600', 'Impuestos y Tasas', 'EGRESO', 5, 2, 1),
 ('5700', 'Gastos Varios', 'EGRESO', 5, 2, 1),
 ('5800', 'Gastos Bancarios', 'EGRESO', 5, 2, 1);
+
+ALTER TABLE `conciliaciones_detalle` 
+ADD COLUMN `numero_transaccion` varchar(100) DEFAULT NULL AFTER `conciliado`;
+-- Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id,descripcion) VALUES (3,'Contable-Plan de Cuentas-Asientos Contables(cabecera)-Detalle de Asientos (debe/haber)-Cajas, Bancos y Fondos-Movimientos de Caja/Banco-Conciliación Bancaria-Detalle de Conciliación-Insert + Agregar número de transacción a conciliaciones');
+-- =====================================================

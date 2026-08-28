@@ -6,6 +6,6 @@
 -- COMMIT;
 -- ROLLBACK;
 
-ALTER TABLE `pagos`
-ADD COLUMN `cliente_nombre` varchar(150) DEFAULT NULL AFTER `cliente_id`;
-INSERT INTO act_bd (id,descripcion) VALUES (11,'Agregar cliente_nombre a pagos');
+--ALTER TABLE `pagos`
+--ADD COLUMN `cliente_nombre` varchar(150) DEFAULT NULL AFTER `cliente_id`;
+--INSERT INTO act_bd (id,descripcion) VALUES (11,'Discontinuado, sale en schema tenant - Agregar cliente_nombre a pagos');

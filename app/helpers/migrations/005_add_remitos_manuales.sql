@@ -1,5 +1,5 @@
 -- =====================================================
--- Migración 006: Remitos manuales (sin NP)
+-- Migración 005: Remitos manuales (sin NP)
 -- =====================================================
 -- BEGIN;
 
@@ -27,4 +27,6 @@ ALTER TABLE `remitos_salida`
 ALTER TABLE `remitos_salida`
   ADD KEY `cliente_id` (`cliente_id`);
 
-INSERT INTO act_bd (id,descripcion) VALUES (6,'Remitos manuales (sin NP)');
+-- Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id,descripcion) VALUES (5,'Add null np_id, Add columnas datos clientes, para poder realizar Remitos manuales (sin NP)');
+-- =====================================================

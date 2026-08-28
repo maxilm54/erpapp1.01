@@ -581,31 +581,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- =====================================================
--- MODULO CONTABLE: GASTOS
--- =====================================================
-CREATE TABLE IF NOT EXISTS `gastos` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `fecha` date NOT NULL,
-  `categoria` enum('PROVEEDORES','SUELDOS','SERVICIOS','ALQUILER','IMPUESTOS','OTROS') NOT NULL,
-  `descripcion` varchar(255) NOT NULL,
-  `orden_compra_id` int(11) DEFAULT NULL,
-  `monto_total` decimal(14,2) NOT NULL DEFAULT 0.00,
-  `medio_pago` enum('EFECTIVO','TRANSFERENCIA','TARJETA_CREDITO','TARJETA_DEBITO','CHEQUE','OTRO') NOT NULL DEFAULT 'TRANSFERENCIA',
-  `comprobante` varchar(255) DEFAULT NULL,
-  `estado` enum('BORRADOR','APROBADO','PAGADO','ANULADO') NOT NULL DEFAULT 'BORRADOR',
-  `usuario_id` int(11) NOT NULL,
-  `observaciones` text DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `gastos_orden_compra_fk` (`orden_compra_id`),
-  KEY `gastos_usuario_fk` (`usuario_id`),
-  KEY `gastos_categoria` (`categoria`),
-  KEY `gastos_estado` (`estado`),
-  KEY `gastos_fecha` (`fecha`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- Foreign keys
@@ -745,6 +720,10 @@ INSERT INTO `unidad_medida` (`nombre`, `detalle`) VALUES ('Unidad', 'Producto qu
 INSERT INTO `unidad_medida` (`nombre`, `detalle`) VALUES ('Kg', 'Producto que se maneja en kilos, con decimales');
 INSERT INTO `unidad_medida` (`nombre`, `detalle`) VALUES ('L', 'Producto que se maneja en Litros, con decimales');
 INSERT INTO `unidad_medida` (`nombre`, `detalle`) VALUES ('M', 'Producto que se maneja en Metros, con decimales');
+
+INSERT IGNORE INTO `clientes` (`id`, `razon_social`, `cuit`, `email`, `telefono`, `direccion`, `contacto`, `es_distribuidor`, `activo`, `localidad`)
+VALUES (9999, 'CLIENTE OCASIONAL', NULL, 'soporte@dmtech.com.ar', NULL, NULL, NULL, 'No', 1, '-');
+
 INSERT INTO act_bd (id,descripcion) VALUES (1,'Datos Predefinidos');
 
 -- =====================================================

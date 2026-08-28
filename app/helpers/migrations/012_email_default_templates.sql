@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration 023: Templates de email por defecto
+-- Migration 012: Templates de email por defecto
 -- Se insertan los templates base para cada tipo de email
 -- =====================================================
 
@@ -165,5 +165,26 @@ body{font-family:Arial,sans-serif;color:#333;margin:0;padding:0;}
 <div class="footer">{{empresa_nombre}} &middot; {{empresa_email}}</div>
 </div></body></html>', 1, 1);
 
-INSERT INTO act_bd (id, descripcion) VALUES (23, 'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC)');
+
+-- =====================================================
+-- Migration 024: Corregir templates de email con {{>detalle_tabla}}
+-- Los templates de la migración 023 tenían {{detalle_tabla}} (escaped)
+-- en vez de {{>detalle_tabla}} (HTML raw)
+-- =====================================================
+
+UPDATE `email_templates` SET `cuerpo_html` = REPLACE(`cuerpo_html`, '{{detalle_tabla}}', '{{>detalle_tabla}}')
+WHERE `tipo` = 'REMITO' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
+
+UPDATE `email_templates` SET `cuerpo_html` = REPLACE(`cuerpo_html`, '{{detalle_tabla}}', '{{>detalle_tabla}}')
+WHERE `tipo` = 'PRESUPUESTO' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
+
+UPDATE `email_templates` SET `cuerpo_html` = REPLACE(`cuerpo_html`, '{{detalle_tabla}}', '{{>detalle_tabla}}')
+WHERE `tipo` = 'NOTA_PEDIDO' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
+
+UPDATE `email_templates` SET `cuerpo_html` = REPLACE(`cuerpo_html`, '{{detalle_tabla}}', '{{>detalle_tabla}}')
+WHERE `tipo` = 'ORDEN_COMPRA' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
+
+
+--Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id, descripcion) VALUES (12, 'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC), se agrupa la mig 24 aqui para menor mantenimiento');
 -- =====================================================

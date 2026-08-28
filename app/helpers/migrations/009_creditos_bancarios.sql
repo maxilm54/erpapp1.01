@@ -1,5 +1,5 @@
 -- =====================================================
--- Migracion 017: Creditos Bancarios
+-- Migracion 009: Creditos Bancarios
 -- Prestamos, creditos, desembolsos y cuotas
 -- =====================================================
 
@@ -48,5 +48,6 @@ CREATE TABLE IF NOT EXISTS `creditos_pagos` (
   KEY `pago_fecha_venc` (`fecha_vencimiento`),
   CONSTRAINT `pago_credito_fk` FOREIGN KEY (`credito_id`) REFERENCES `creditos_bancarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO act_bd (id, descripcion) VALUES (17, 'Creditos bancarios - prestamos, desembolsos y cuotas');
+-- Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id, descripcion) VALUES (9, 'Creditos bancarios - prestamos, desembolsos y cuotas');
+-- =====================================================

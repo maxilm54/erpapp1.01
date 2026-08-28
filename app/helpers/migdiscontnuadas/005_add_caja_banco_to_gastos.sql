@@ -1,6 +1,6 @@
 -- =====================================================
 -- Migración 005: Agregar caja_banco_id a gastos
--- Esta Migracion No Corre ya que se ha creado la tabla completa an la pig 004
+-- Esta Migracion No Corre ya que se ha creado la tabla completa an la mig 004
 -- =====================================================
 -- BEGIN;
 -- COMMIT;

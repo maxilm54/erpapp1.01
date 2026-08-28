@@ -1,5 +1,5 @@
 -- =====================================================
--- Migración 014: Movimientos No Declarados
+-- Migración 008: Movimientos No Declarados
 -- Sistema paralelo para ventas/compras sin factura
 -- =====================================================
 
@@ -47,6 +47,13 @@ CREATE TABLE IF NOT EXISTS `movimientos_no_declarados_detalle` (
   CONSTRAINT `mndd_mp_fk` FOREIGN KEY (`materia_prima_id`) REFERENCES `materias_primas` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+
+-- movimientos_no_declarados_detalle
+-- Agregar campo descripcion a detalles
+-- Para soportar items manuales (servicios) sin producto/materia prima
+ALTER TABLE `movimientos_no_declarados_detalle`
+    ADD COLUMN `descripcion` varchar(255) DEFAULT NULL AFTER `materia_prima_id`;
+
 -- Tabla de cobros/pagos
 CREATE TABLE IF NOT EXISTS `movimientos_no_declarados_pagos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -61,4 +68,6 @@ CREATE TABLE IF NOT EXISTS `movimientos_no_declarados_pagos` (
   CONSTRAINT `mndp_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO act_bd (id, descripcion) VALUES (14, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');
+-- Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id, descripcion) VALUES (8, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');
+-- =====================================================

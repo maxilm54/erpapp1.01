@@ -1,6 +1,6 @@
 -- Migration 018: Tabla de costos y precios de productos
 -- Almacena precio de compra, costos fijos/variables y margen de ganancia por producto
-
+/*
 DROP TABLE IF EXISTS `productos_costos`;
 CREATE TABLE IF NOT EXISTS `productos_costos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -18,4 +18,4 @@ CREATE TABLE IF NOT EXISTS `productos_costos` (
 ALTER TABLE `productos_costos`
   ADD CONSTRAINT `productos_costos_producto_fk` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE;
 
-INSERT INTO act_bd (id, descripcion) VALUES (18, 'Tbl Prod costos para visualizar los margenes del precio de un producto');
+INSERT INTO act_bd (id, descripcion) VALUES (18, 'Discontinuado, ya sale en schema. Tbl Prod costos para visualizar los margenes del precio de un producto');*/

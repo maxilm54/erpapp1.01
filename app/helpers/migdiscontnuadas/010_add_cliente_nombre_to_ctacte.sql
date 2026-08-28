@@ -5,6 +5,6 @@
 -- BEGIN;
 -- COMMIT;
 -- ROLLBACK;
-ALTER TABLE `cuentas_corriente_clientes`
-ADD COLUMN `cliente_nombre` varchar(150) DEFAULT NULL AFTER `cliente_id`;
-INSERT INTO act_bd (id,descripcion) VALUES (10,'Agregar cliente_nombre a cuentas_corriente_clientes');
+-- ALTER TABLE `cuentas_corriente_clientes`
+-- ADD COLUMN `cliente_nombre` varchar(150) DEFAULT NULL AFTER `cliente_id`;
+-- INSERT INTO act_bd (id,descripcion) VALUES (10,'Discontinuado Sale con schema tenant - Agregar cliente_nombre a cuentas_corriente_clientes');

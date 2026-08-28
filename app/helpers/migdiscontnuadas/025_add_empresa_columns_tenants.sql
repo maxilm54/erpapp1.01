@@ -1,8 +1,9 @@
 -- =====================================================
+-- DISCONTINUADO PORQUE YA SALE EL SCHEMA TENANT ARMADO DE FORMA CORRECTA
 -- Migration 025: Agregar columnas empresa a tenants (MASTER DB)
 -- Ejecutar en app_master, NO en la BD del tenant
 -- =====================================================
-
+/*
 USE `app_master`;
 
 -- Solo agregar si no existen (idempotente)
@@ -38,3 +39,4 @@ WHERE TABLE_SCHEMA = 'app_master' AND TABLE_NAME = 'tenants'
 ORDER BY ORDINAL_POSITION;
 
 -- =====================================================
+*/

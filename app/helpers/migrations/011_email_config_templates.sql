@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration 022: Tablas de configuración de email por tenant
+-- Migration 011: Tablas de configuración de email por tenant
 -- email_config: configuración SMTP por empresa
 -- email_templates: plantillas de email por empresa
 -- =====================================================
@@ -35,6 +35,6 @@ CREATE TABLE IF NOT EXISTS `email_templates` (
     KEY `idx_tipo` (`tipo`),
     KEY `idx_activo` (`activo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO act_bd (id, descripcion) VALUES (22, 'Crear tablas email_config y email_templates para configuración SMTP y plantillas por tenant');
+--Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id, descripcion) VALUES (11, 'Crear tablas email_config y email_templates para configuración SMTP y plantillas por tenant');
 -- =====================================================
