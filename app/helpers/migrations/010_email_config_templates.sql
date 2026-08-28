@@ -35,6 +35,6 @@ CREATE TABLE IF NOT EXISTS `email_templates` (
     KEY `idx_tipo` (`tipo`),
     KEY `idx_activo` (`activo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
---Actualizo registro de migracion de base de datos
+-- Actualizo registro de migracion de base de datos
 INSERT INTO act_bd (id, descripcion) VALUES (11, 'Crear tablas email_config y email_templates para configuración SMTP y plantillas por tenant');
 -- =====================================================

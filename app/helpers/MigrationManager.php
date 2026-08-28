@@ -119,17 +119,9 @@ class MigrationManager {
             error_log("[MigrationManager] Aplicando migración {$migration['filename']} a '{$tenant['nombre']}'...");
 
             try {
-                // Ejecutar cada statement por separado
-                $statements = array_filter(
-                    array_map('trim', explode(';', $sql)),
-                    fn($s) => !empty($s) && $s[0] !== '-'
-                );
+                $statements = $this->splitSqlStatements($sql);
 
                 foreach ($statements as $statement) {
-                    $trimmed = ltrim($statement);
-                    if (empty($trimmed) || $trimmed[0] === '-') {
-                        continue;
-                    }
                     $tenantDb->exec($statement);
                 }
 
@@ -188,5 +180,49 @@ class MigrationManager {
     public function getLatestVersion(): int {
         $all = $this->getAllMigrations();
         return !empty($all) ? end($all)['number'] : 0;
+    }
+
+    /**
+     * Divide SQL en statements individuales, respetando strings entrecomillados.
+     * No rompe ; dentro de '...' o "...".
+     */
+    private function splitSqlStatements(string $sql): array {
+        $statements = [];
+        $current = '';
+        $inSingleQuote = false;
+        $inDoubleQuote = false;
+        $len = strlen($sql);
+
+        for ($i = 0; $i < $len; $i++) {
+            $char = $sql[$i];
+
+            if ($char === "'" && !$inDoubleQuote) {
+                if ($i + 1 < $len && $sql[$i + 1] === "'") {
+                    $current .= "''";
+                    $i++;
+                } else {
+                    $inSingleQuote = !$inSingleQuote;
+                    $current .= $char;
+                }
+            } elseif ($char === '"' && !$inSingleQuote) {
+                $inDoubleQuote = !$inDoubleQuote;
+                $current .= $char;
+            } elseif ($char === ';' && !$inSingleQuote && !$inDoubleQuote) {
+                $trimmed = trim($current);
+                if (!empty($trimmed)) {
+                    $statements[] = $trimmed;
+                }
+                $current = '';
+            } else {
+                $current .= $char;
+            }
+        }
+
+        $trimmed = trim($current);
+        if (!empty($trimmed)) {
+            $statements[] = $trimmed;
+        }
+
+        return $statements;
     }
 }

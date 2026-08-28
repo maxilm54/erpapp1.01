@@ -167,7 +167,7 @@ body{font-family:Arial,sans-serif;color:#333;margin:0;padding:0;}
 
 
 -- =====================================================
--- Migration 024: Corregir templates de email con {{>detalle_tabla}}
+-- Migration 24: Corregir templates de email con {{>detalle_tabla}}
 -- Los templates de la migración 023 tenían {{detalle_tabla}} (escaped)
 -- en vez de {{>detalle_tabla}} (HTML raw)
 -- =====================================================
@@ -185,6 +185,6 @@ UPDATE `email_templates` SET `cuerpo_html` = REPLACE(`cuerpo_html`, '{{detalle_t
 WHERE `tipo` = 'ORDEN_COMPRA' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
 
 
---Actualizo registro de migracion de base de datos
-INSERT INTO act_bd (id, descripcion) VALUES (12, 'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC), se agrupa la mig 24 aqui para menor mantenimiento');
+-- Actualizo registro de migracion de base de datos
+INSERT INTO act_bd (id,descripcion) VALUES (12,'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC), se agrupa la mig 24 aqui para menor mantenimiento');
 -- =====================================================

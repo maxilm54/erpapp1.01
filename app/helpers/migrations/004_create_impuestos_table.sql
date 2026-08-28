@@ -68,13 +68,13 @@ ENGINE=InnoDB;
 -- Actualizo registro de migracion de base de datos
 INSERT INTO act_bd (id,descripcion) VALUES (4,'Sistema de Impuestos (IVA configurable) + tabla gastos');
 -- Viejo, no esta la creacion de tabla gastos asi que migro completo desde sistema
-/*ALTER TABLE `gastos`
-  ADD COLUMN `impuesto_id` int(11) DEFAULT NULL AFTER `medio_pago`,
-  ADD COLUMN `monto_base` decimal(14,2) DEFAULT NULL AFTER `impuesto_id`,
-  ADD COLUMN `monto_impuesto` decimal(14,2) DEFAULT NULL AFTER `monto_base`;
+-- ALTER TABLE `gastos`
+--  ADD COLUMN `impuesto_id` int(11) DEFAULT NULL AFTER `medio_pago`,
+--  ADD COLUMN `monto_base` decimal(14,2) DEFAULT NULL AFTER `impuesto_id`,
+--  ADD COLUMN `monto_impuesto` decimal(14,2) DEFAULT NULL AFTER `monto_base`;
 
-ALTER TABLE `gastos`
-  ADD CONSTRAINT `gastos_impuesto_fk` FOREIGN KEY (`impuesto_id`) REFERENCES `impuestos` (`id`) ON DELETE SET NULL;
+-- ALTER TABLE `gastos`
+--  ADD CONSTRAINT `gastos_impuesto_fk` FOREIGN KEY (`impuesto_id`) REFERENCES `impuestos` (`id`) ON DELETE SET NULL;
 -- FIN Viejo no esta la creacion de tabla gastos asi que migro completo desde sistema
-/*
+
 -- =====================================================
