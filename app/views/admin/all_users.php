@@ -49,7 +49,7 @@
                             <span class="text-muted">Sin asignar</span>
                         <?php else: ?>
                             <?php foreach ($tenants as $t): ?>
-                                <span class="badge bg-outline-primary"><?= htmlspecialchars($t['nombre']) ?></span>
+                                <span class="badge bg-info text-dark"><?= htmlspecialchars($t['nombre']) ?></span>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </td>
