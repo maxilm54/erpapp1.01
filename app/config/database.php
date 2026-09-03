@@ -1,18 +1,16 @@
 <?php
 
 return [
-    // Base de datos MASTER (users, tenants, user_tenant)
     'master' => [
-        'host' => 'localhost',
-        'dbname' => 'app_master',
-        'user' => 'root',
-        'pass' => '',
+        'host'    => env('DB_MASTER_HOST', 'localhost'),
+        'dbname'  => env('DB_MASTER_NAME', 'app_master'),
+        'user'    => env('DB_MASTER_USER', 'root'),
+        'pass'    => env('DB_MASTER_PASS', ''),
         'charset' => 'utf8mb4'
     ],
-    // Config por defecto (usada como fallback si no hay tenant)
-    'host' => 'localhost',
-    'dbname' => 'app',
-    'user' => 'root',
-    'pass' => '',
+    'host'    => env('DB_HOST', 'localhost'),
+    'dbname'  => env('DB_NAME', 'app'),
+    'user'    => env('DB_USER', 'root'),
+    'pass'    => env('DB_PASS', ''),
     'charset' => 'utf8mb4'
 ];
