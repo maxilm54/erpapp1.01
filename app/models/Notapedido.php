@@ -1,5 +1,8 @@
 <?php
 
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class NotaPedido extends Model
 {
     protected string $table = 'notas_pedido';
@@ -214,5 +217,91 @@ class NotaPedido extends Model
         //aca deberia hacer el control de stock para determinar si la np la puedo remitar o no  
 
         return $np;
+    }
+
+    private function renderPdfHtml(int $id): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT np.id, np.created_at, np.observaciones, np.estado,
+                c.razon_social AS cliente, c.direccion, c.cuit
+            FROM notas_pedido np
+            LEFT JOIN clientes c ON c.id = np.cliente_id
+            WHERE np.id = ?
+        ");
+        $stmt->execute([$id]);
+        $np = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$np) {
+            throw new Exception('Nota de Pedido no encontrada');
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT d.cantidad, d.precio, pr.nombre
+            FROM notas_pedido_detalle d
+            JOIN productos pr ON pr.id = d.producto_id
+            WHERE d.nota_pedido_id = ?
+        ");
+        $stmt->execute([$id]);
+        $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>''];
+        $logo = '';
+        try {
+            $masterDb = Database::getMaster();
+            $tenantId = Auth::getTenantId();
+            $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)$tenantId)->fetch(PDO::FETCH_ASSOC);
+            if ($empRow) {
+                $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
+                $empresa['cuit']      = $empRow['cuit'] ?? '';
+                $empresa['email']     = $empRow['email'] ?? '';
+                $empresa['telefono']  = $empRow['telefono'] ?? '';
+                $empresa['direccion'] = $empRow['direccion'] ?? '';
+                if (!empty($empRow['logo'])) {
+                    $logoFile = BASE_PATH . "/public/uploads/img_config/empresa_{$empRow['id']}/{$empRow['logo']}";
+                    if (file_exists($logoFile)) {
+                        $logo = 'data:image/png;base64,' . base64_encode(file_get_contents($logoFile));
+                        $empresa['logo'] = $logo;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("[PDF NP] Error cargando empresa: " . $e->getMessage());
+        }
+
+        ob_start();
+        require BASE_PATH . '/app/views/pdf/nota_pedido.php';
+        return ob_get_clean();
+    }
+
+    public function generarYGuardarPdf(int $id): string
+    {
+        $html = $this->renderPdfHtml($id);
+
+        $options = new Options();
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4');
+        $dompdf->render();
+
+        $output = $dompdf->output();
+
+        $dir = empresaStoragePath("notas_pedido");
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $filename = sprintf('nota_pedido_%09d.pdf', $id);
+        $path = "$dir/$filename";
+
+        file_put_contents($path, $output);
+
+        $this->db->prepare("
+            UPDATE notas_pedido SET pdf_path = ? WHERE id = ?
+        ")->execute([$path, $id]);
+
+        return $path;
     }
 }

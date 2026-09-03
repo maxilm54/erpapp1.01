@@ -1,5 +1,8 @@
 <?php
 
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class Presupuesto extends Model
 {
     protected string $table = 'presupuestos';
@@ -215,5 +218,91 @@ class Presupuesto extends Model
         ");
         $stmt->execute([$id]);
         return $stmt->fetchColumn();
+    }
+
+    private function renderPdfHtml(int $id): string
+    {
+        $stmt = $this->db->prepare("
+            SELECT p.id, p.created_at, p.observaciones, p.estado,
+                c.razon_social AS cliente, c.direccion, c.cuit
+            FROM presupuestos p
+            LEFT JOIN clientes c ON c.id = p.cliente_id
+            WHERE p.id = ?
+        ");
+        $stmt->execute([$id]);
+        $presupuesto = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$presupuesto) {
+            throw new Exception('Presupuesto no encontrado');
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT d.cantidad, d.precio, pr.nombre
+            FROM presupuestos_detalle d
+            JOIN productos pr ON pr.id = d.producto_id
+            WHERE d.presupuesto_id = ?
+        ");
+        $stmt->execute([$id]);
+        $presupuesto['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>''];
+        $logo = '';
+        try {
+            $masterDb = Database::getMaster();
+            $tenantId = Auth::getTenantId();
+            $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)$tenantId)->fetch(PDO::FETCH_ASSOC);
+            if ($empRow) {
+                $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
+                $empresa['cuit']      = $empRow['cuit'] ?? '';
+                $empresa['email']     = $empRow['email'] ?? '';
+                $empresa['telefono']  = $empRow['telefono'] ?? '';
+                $empresa['direccion'] = $empRow['direccion'] ?? '';
+                if (!empty($empRow['logo'])) {
+                    $logoFile = BASE_PATH . "/public/uploads/img_config/empresa_{$empRow['id']}/{$empRow['logo']}";
+                    if (file_exists($logoFile)) {
+                        $logo = 'data:image/png;base64,' . base64_encode(file_get_contents($logoFile));
+                        $empresa['logo'] = $logo;
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            error_log("[PDF Presupuesto] Error cargando empresa: " . $e->getMessage());
+        }
+
+        ob_start();
+        require BASE_PATH . '/app/views/pdf/presupuesto.php';
+        return ob_get_clean();
+    }
+
+    public function generarYGuardarPdf(int $id): string
+    {
+        $html = $this->renderPdfHtml($id);
+
+        $options = new Options();
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isRemoteEnabled', true);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4');
+        $dompdf->render();
+
+        $output = $dompdf->output();
+
+        $dir = empresaStoragePath("presupuestos");
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        $filename = sprintf('presupuesto_%09d.pdf', $id);
+        $path = "$dir/$filename";
+
+        file_put_contents($path, $output);
+
+        $this->db->prepare("
+            UPDATE presupuestos SET pdf_path = ? WHERE id = ?
+        ")->execute([$path, $id]);
+
+        return $path;
     }
 }    

@@ -16,6 +16,21 @@
 
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Volver</a>
             <a href="<?= BASE_URL ?>/presupuestos/volvernp/<?= $presupuesto['id'] ?>" class="btn btn-secondary">NP</a>
+
+            <a href="<?= BASE_URL ?>/presupuestos/pdf/<?= $presupuesto['id'] ?>" target="_blank"
+               class="btn btn-outline-danger">
+               <i class="bi bi-file-pdf"></i> Descargar PDF
+            </a>
+            <a href="<?= BASE_URL ?>/presupuestos/regenerar-pdf/<?= $presupuesto['id'] ?>"
+               class="btn btn-outline-warning"
+               onclick="return confirm('¿Regenerar el PDF del presupuesto? Se sobreescribirá el actual.')">
+               <i class="bi bi-arrow-clockwise"></i> Regenerar PDF
+            </a>
+            <a href="<?= BASE_URL ?>/presupuestos/reenviar/<?= $presupuesto['id'] ?>"
+               class="btn btn-outline-primary"
+               onclick="return confirm('¿Enviar presupuesto por email al cliente?')">
+               <i class="bi bi-envelope"></i> Enviar por Email
+            </a>
         </div>
     </div>
 

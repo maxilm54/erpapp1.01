@@ -4,6 +4,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Producto.php';
+require_once BASE_PATH.'/app/services/MailService.php';
 
 class PresupuestosController extends Controller
 {
@@ -157,6 +158,59 @@ class PresupuestosController extends Controller
             exit;
         } 
         header('Location: ' . BASE_URL. '/notaspedido/show/' . $np);
+        exit;
+    }
+
+    public function pdf($id)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+        $pr = $this->pr->find($id);
+
+        if (!$pr || empty($pr['pdf_path']) || !file_exists($pr['pdf_path'])) {
+            $_SESSION['error'] = 'PDF no disponible. Regenerelo desde la vista del presupuesto.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($pr['pdf_path']) . '"');
+        readfile($pr['pdf_path']);
+        exit;
+    }
+
+    public function regenerarPdf($id)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+        try {
+            $this->pr->generarYGuardarPdf((int)$id);
+            $_SESSION['success'] = 'PDF regenerado correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al regenerar PDF: ' . $e->getMessage();
+        }
+        header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+        exit;
+    }
+
+    public function reenviar($id)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+        $pr = $this->pr->find($id);
+
+        if (!$pr || empty($pr['pdf_path']) || !file_exists($pr['pdf_path'])) {
+            $_SESSION['error'] = 'Presupuesto inválido o sin PDF. Regenerelo primero.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        try {
+            $mail = new MailService();
+            $mail->enviarPresupuesto($pr, (int)$pr['cliente_id'], $_SESSION['user_id']);
+            $_SESSION['success'] = 'Presupuesto enviado por email correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al enviar email: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
         exit;
     }
 }

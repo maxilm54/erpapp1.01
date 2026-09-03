@@ -177,6 +177,80 @@ class MailService
     }
 
     /**
+     * Enviar presupuesto por email al cliente.
+     */
+    public function enviarPresupuesto(array $presupuesto, int $clienteId, int $usuarioId): void
+    {
+        $clienteModel = new Cliente();
+        $cliente = $clienteModel->find($clienteId);
+
+        $email = $cliente['email'] ?? '';
+        if (empty($email)) {
+            throw new Exception('El cliente no tiene email configurado');
+        }
+
+        $detalleHtml = '';
+        $total = 0;
+        if (!empty($presupuesto['detalle'])) {
+            foreach ($presupuesto['detalle'] as $d) {
+                $precio = (float)($d['precio'] ?? 0);
+                $cant = (float)($d['cantidad'] ?? 0);
+                $nombre = $d['nombre'] ?? 'Item';
+                $sub = $precio * $cant;
+                $total += $sub;
+                $detalleHtml .= "<tr><td>" . htmlspecialchars($nombre) . "</td><td>" . number_format($cant, 2) . "</td><td>$ " . number_format($precio, 2, ',', '.') . "</td><td>$ " . number_format($sub, 2, ',', '.') . "</td></tr>";
+            }
+        }
+
+        $this->enviar('REMITO', $presupuesto['id'], $email, $usuarioId, [
+            'cliente_nombre' => $cliente['razon_social'] ?? '',
+            'numero'         => $presupuesto['id'],
+            'fecha'          => date('d/m/Y', strtotime($presupuesto['created_at'])),
+            'detalle_tabla'  => $detalleHtml,
+            'total'          => number_format($total, 2, ',', '.'),
+        ], [
+            'attachments' => $presupuesto['pdf_path'] ?? null,
+        ]);
+    }
+
+    /**
+     * Enviar nota de pedido por email al cliente.
+     */
+    public function enviarNotaPedido(array $np, int $clienteId, int $usuarioId): void
+    {
+        $clienteModel = new Cliente();
+        $cliente = $clienteModel->find($clienteId);
+
+        $email = $cliente['email'] ?? '';
+        if (empty($email)) {
+            throw new Exception('El cliente no tiene email configurado');
+        }
+
+        $detalleHtml = '';
+        $total = 0;
+        if (!empty($np['detalle'])) {
+            foreach ($np['detalle'] as $d) {
+                $precio = (float)($d['precio'] ?? 0);
+                $cant = (float)($d['cantidad'] ?? 0);
+                $nombre = $d['nombre'] ?? 'Item';
+                $sub = $precio * $cant;
+                $total += $sub;
+                $detalleHtml .= "<tr><td>" . htmlspecialchars($nombre) . "</td><td>" . number_format($cant, 2) . "</td><td>$ " . number_format($precio, 2, ',', '.') . "</td><td>$ " . number_format($sub, 2, ',', '.') . "</td></tr>";
+            }
+        }
+
+        $this->enviar('REMITO', $np['id'], $email, $usuarioId, [
+            'cliente_nombre' => $cliente['razon_social'] ?? '',
+            'numero'         => $np['id'],
+            'fecha'          => date('d/m/Y', strtotime($np['created_at'])),
+            'detalle_tabla'  => $detalleHtml,
+            'total'          => number_format($total, 2, ',', '.'),
+        ], [
+            'attachments' => $np['pdf_path'] ?? null,
+        ]);
+    }
+
+    /**
      * Enviar comprobante de pago por email (método legacy, compatible con código existente).
      */
     public function enviarPago(int $pagoId): void

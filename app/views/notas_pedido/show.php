@@ -78,6 +78,21 @@
         Remitir
     </button>
 
+<a href="<?= BASE_URL ?>/notaspedido/pdf/<?= $np['id'] ?>" target="_blank"
+   class="btn btn-outline-danger">
+   <i class="bi bi-file-pdf"></i> Descargar PDF
+</a>
+<a href="<?= BASE_URL ?>/notaspedido/regenerar-pdf/<?= $np['id'] ?>"
+   class="btn btn-outline-warning"
+   onclick="return confirm('¿Regenerar el PDF de la nota de pedido? Se sobreescribirá el actual.')">
+   <i class="bi bi-arrow-clockwise"></i> Regenerar PDF
+</a>
+<a href="<?= BASE_URL ?>/notaspedido/reenviar/<?= $np['id'] ?>"
+   class="btn btn-outline-primary"
+   onclick="return confirm('¿Enviar nota de pedido por email al cliente?')">
+   <i class="bi bi-envelope"></i> Enviar por Email
+</a>
+
 <a href="<?= BASE_URL ?>/notaspedido" class="btn btn-secondary">Volver</a>
 <script>
 function confirmarAnulacionNP(id) {

@@ -3,6 +3,7 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
+require_once BASE_PATH.'/app/services/MailService.php';
 
 class NotasPedidoController extends Controller
 {
@@ -107,5 +108,58 @@ class NotasPedidoController extends Controller
             }
         }
         $this->view('notas_pedido/anular', ['id' => $id]);
+    }
+
+    public function pdf($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+        $np = $this->np->findWithDetalle($id);
+
+        if (!$np || empty($np['pdf_path']) || !file_exists($np['pdf_path'])) {
+            $_SESSION['error'] = 'PDF no disponible. Regenerelo desde la vista de la nota de pedido.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($np['pdf_path']) . '"');
+        readfile($np['pdf_path']);
+        exit;
+    }
+
+    public function regenerarPdf($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+        try {
+            $this->np->generarYGuardarPdf((int)$id);
+            $_SESSION['success'] = 'PDF regenerado correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al regenerar PDF: ' . $e->getMessage();
+        }
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
+    }
+
+    public function reenviar($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+        $np = $this->np->findWithDetalle($id);
+
+        if (!$np || empty($np['pdf_path']) || !file_exists($np['pdf_path'])) {
+            $_SESSION['error'] = 'Nota de Pedido inválida o sin PDF. Regenerelo primero.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        try {
+            $mail = new MailService();
+            $mail->enviarNotaPedido($np, (int)$np['cliente_id'], $_SESSION['user_id']);
+            $_SESSION['success'] = 'Nota de Pedido enviada por email correctamente.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Error al enviar email: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
     }
 }
