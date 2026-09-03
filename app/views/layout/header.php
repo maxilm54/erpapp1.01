@@ -24,6 +24,7 @@
 
 <?php if (Auth::hasTenant()): ?>
 <span class="navbar-text text-light me-3 d-none d-md-inline-block">
+    <a href="<?= BASE_URL ?>" class="text-light text-decoration-none">
     <?php
     $logoPath = empresaLogoPath();
     if ($logoPath && file_exists($logoPath)):
@@ -34,6 +35,7 @@
         <i class="bi bi-building"></i>
     <?php endif; ?>
     <?= htmlspecialchars(Auth::getTenantName()) ?>
+    </a>
 </span>
 <?php endif; ?>
 

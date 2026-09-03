@@ -36,7 +36,14 @@ class Stock extends Model
                 LEFT JOIN movimientos_stock m ON m.producto_id = p.id
                 GROUP BY p.id
             ) AS p
-            ORDER BY p.nombre;
+            ORDER BY
+                CASE
+                    WHEN p.stock_critico > 0 AND stock <= p.stock_critico THEN 1
+                    WHEN p.stock_maximo > 0 AND stock >= p.stock_maximo THEN 2
+                    WHEN p.stock_minimo > 0 AND stock <= p.stock_minimo THEN 3
+                    ELSE 4
+                END,
+                stock ASC;
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -100,7 +107,32 @@ class Stock extends Model
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
             LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
             GROUP BY mp.id
-            ORDER BY mp.nombre;
+            ORDER BY
+                CASE
+                    WHEN mp.stock_critico > 0
+                        AND COALESCE(SUM(
+                            CASE
+                                WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                                WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                            END
+                        ),0) <= mp.stock_critico THEN 1
+                    WHEN mp.stock_maximo > 0
+                        AND COALESCE(SUM(
+                            CASE
+                                WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                                WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                            END
+                        ),0) >= mp.stock_maximo THEN 2
+                    WHEN mp.stock_minimo > 0
+                        AND COALESCE(SUM(
+                            CASE
+                                WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                                WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                            END
+                        ),0) <= mp.stock_minimo THEN 3
+                    ELSE 4
+                END,
+                stock ASC;
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 }
