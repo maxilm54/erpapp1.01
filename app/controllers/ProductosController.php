@@ -4,6 +4,8 @@ require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Productocodigo.php';
 
+use PhpOffice\PhpSpreadsheet\IOFactory;
+
 class ProductosController extends Controller
 {
     private Producto $producto;
@@ -69,6 +71,181 @@ class ProductosController extends Controller
         $this->view('productos/form', [
             'title' => 'Nuevo Producto',
             'umedida' => $this->producto->unidadProd()
+        ]);
+    }
+
+    public function import(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+                header('Location: ' . BASE_URL . '/productos/import');
+                exit;
+            }
+
+            // Step 2: Confirm import from session data
+            if (isset($_POST['confirmar']) && isset($_SESSION['import_preview'])) {
+                $productos = $_SESSION['import_preview'];
+                unset($_SESSION['import_preview']);
+
+                $valid = array_filter($productos, fn($p) => empty($p['_error']));
+                if (empty($valid)) {
+                    $_SESSION['error'] = 'No hay productos válidos para importar.';
+                    header('Location: ' . BASE_URL . '/productos/import');
+                    exit;
+                }
+
+                $result = $this->producto->createBulk(array_values($valid));
+                $msg = "Se importaron {$result['imported']} productos.";
+                if (!empty($result['errors'])) {
+                    $msg .= " " . count($result['errors']) . " productos fallaron.";
+                }
+                $_SESSION['success'] = $msg;
+                header('Location: ' . BASE_URL . '/productos');
+                exit;
+            }
+
+            // Step 1: Parse uploaded file
+            if (empty($_FILES['archivo']['name'])) {
+                $_SESSION['error'] = 'Debe seleccionar un archivo .xlsx';
+                header('Location: ' . BASE_URL . '/productos/import');
+                exit;
+            }
+
+            $ext = strtolower(pathinfo($_FILES['archivo']['name'], PATHINFO_EXTENSION));
+            if ($ext !== 'xlsx') {
+                $_SESSION['error'] = 'Solo se permiten archivos .xlsx';
+                header('Location: ' . BASE_URL . '/productos/import');
+                exit;
+            }
+
+            if ($_FILES['archivo']['size'] > 10 * 1024 * 1024) {
+                $_SESSION['error'] = 'El archivo no puede superar 10MB.';
+                header('Location: ' . BASE_URL . '/productos/import');
+                exit;
+            }
+
+            try {
+                $spreadsheet = IOFactory::load($_FILES['archivo']['tmp_name']);
+                $sheet = $spreadsheet->getActiveSheet();
+                $rows = $sheet->toArray();
+
+                if (count($rows) < 2) {
+                    $_SESSION['error'] = 'El archivo no contiene datos.';
+                    header('Location: ' . BASE_URL . '/productos/import');
+                    exit;
+                }
+
+                $header = array_map(fn($h) => mb_strtolower(trim($h)), $rows[0]);
+                $map = [];
+                $expected = ['nombre', 'sku', 'precio_venta', 'unidad_medida', 'barcode'];
+                foreach ($expected as $col) {
+                    $idx = array_search($col, $header);
+                    if ($idx !== false) $map[$col] = $idx;
+                }
+
+                if (!isset($map['nombre']) || !isset($map['sku']) || !isset($map['precio_venta'])) {
+                    $_SESSION['error'] = 'El archivo debe tener las columnas: nombre, sku, precio_venta';
+                    header('Location: ' . BASE_URL . '/productos/import');
+                    exit;
+                }
+
+                $umedidaList = $this->producto->unidadProd();
+                $umedidaMap = [];
+                foreach ($umedidaList as $um) {
+                    $umedidaMap[strtolower($um['nombre'])] = $um['id_medida'];
+                }
+
+                $seenSkus = [];
+                $productos = [];
+                $totalRows = count($rows) - 1;
+
+                for ($i = 1; $i < count($rows); $i++) {
+                    $row = $rows[$i];
+                    $r = $i + 1;
+                    $nombre = trim($row[$map['nombre']] ?? '');
+                    $sku = trim($row[$map['sku']] ?? '');
+                    $precio = trim($row[$map['precio_venta']] ?? '');
+                    $umedidaText = trim($row[$map['unidad_medida']] ?? '');
+                    $barcode = trim($row[$map['barcode']] ?? '');
+
+                    $item = [
+                        '_row' => $r,
+                        'nombre' => $nombre,
+                        'sku' => $sku,
+                        'precio_venta' => $precio,
+                        'unidad_medida_text' => $umedidaText,
+                        'barcode' => $barcode,
+                        '_error' => '',
+                        '_error_type' => '',
+                    ];
+
+                    if ($nombre === '' || $sku === '' || $precio === '') {
+                        $item['_error'] = 'Faltan campos obligatorios (nombre, sku, precio_venta)';
+                        $item['_error_type'] = 'validation';
+                        $productos[] = $item;
+                        continue;
+                    }
+
+                    if (!is_numeric($precio)) {
+                        $item['_error'] = 'Precio de venta no es numérico';
+                        $item['_error_type'] = 'validation';
+                        $productos[] = $item;
+                        continue;
+                    }
+
+                    if (isset($seenSkus[$sku])) {
+                        $item['_error'] = "SKU duplicado en el archivo (fila {$seenSkus[$sku]})";
+                        $item['_error_type'] = 'duplicate_file';
+                        $productos[] = $item;
+                        continue;
+                    }
+                    $seenSkus[$sku] = $r;
+
+                    $umId = 1;
+                    if ($umedidaText !== '') {
+                        $umId = $umedidaMap[strtolower($umedidaText)] ?? 1;
+                    }
+                    $item['unidad_medida'] = $umId;
+
+                    $item['descripcion'] = '';
+                    $productos[] = $item;
+                }
+
+                $allSkus = array_column(array_filter($productos, fn($p) => empty($p['_error'])), 'sku');
+                $existingSkus = $this->producto->findSkus($allSkus);
+
+                foreach ($productos as &$p) {
+                    if (empty($p['_error']) && in_array($p['sku'], $existingSkus)) {
+                        $p['_error'] = 'SKU ya existe en base de datos';
+                        $p['_error_type'] = 'duplicate_db';
+                    }
+                }
+                unset($p);
+
+                $_SESSION['import_preview'] = $productos;
+
+                $this->view('productos/import', [
+                    'title' => 'Importar Productos',
+                    'preview' => $productos,
+                    'totalRows' => $totalRows,
+                    'csrf' => Csrf::generate(),
+                ]);
+
+            } catch (\Exception $e) {
+                error_log('Error parseando Excel: ' . $e->getMessage());
+                $_SESSION['error'] = 'Error al leer el archivo: ' . $e->getMessage();
+                header('Location: ' . BASE_URL . '/productos/import');
+                exit;
+            }
+            return;
+        }
+
+        // GET: show upload form
+        $this->view('productos/import', [
+            'title' => 'Importar Productos',
+            'preview' => null,
+            'csrf' => Csrf::generate(),
         ]);
     }
 

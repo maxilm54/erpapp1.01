@@ -244,6 +244,63 @@ class Producto extends Model
         return $this->db->query("SELECT id_medida,nombre,detalle FROM unidad_medida")->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function findSkus(array $skus): array
+    {
+        if (empty($skus)) return [];
+        $placeholders = implode(',', array_fill(0, count($skus), '?'));
+        $stmt = $this->db->prepare("SELECT sku FROM productos WHERE sku IN ($placeholders)");
+        $stmt->execute($skus);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function createBulk(array $productos): array
+    {
+        $imported = 0;
+        $errors = [];
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare(
+                "INSERT INTO productos (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated, unidad_medida)
+                 VALUES (:nombre, :sku, :descripcion, :precio_venta, :imagen, :user_create, :last_user_updated, :unidad_medida)"
+            );
+            $userId = $_SESSION['user_id'];
+            foreach ($productos as $row) {
+                try {
+                    $imagen = $this->copiarImagenPorDefectoBulk();
+                    $stmt->execute([
+                        'nombre'         => $row['nombre'],
+                        'sku'            => $row['sku'],
+                        'descripcion'    => $row['descripcion'] ?? '',
+                        'precio_venta'   => $row['precio_venta'],
+                        'imagen'         => $imagen,
+                        'user_create'    => $userId,
+                        'last_user_updated' => $userId,
+                        'unidad_medida'  => $row['unidad_medida'] ?? 1,
+                    ]);
+                    $imported++;
+                } catch (Exception $e) {
+                    $errors[] = ['row' => $row['_row'] ?? '?', 'sku' => $row['sku'] ?? '', 'error' => $e->getMessage()];
+                }
+            }
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            $errors[] = ['row' => '-', 'sku' => '', 'error' => 'Error en la transacción: ' . $e->getMessage()];
+        }
+        return ['imported' => $imported, 'errors' => $errors];
+    }
+
+    private function copiarImagenPorDefectoBulk(): ?string
+    {
+        $origen = BASE_PATH . '/storage/imgpordefecto.jpg';
+        if (!file_exists($origen)) return null;
+        $uploadDir = empresaUploadPath('productos');
+        $destino = $uploadDir . '/sin-imagen.jpg';
+        if (file_exists($destino)) return 'sin-imagen.jpg';
+        if (copy($origen, $destino)) return 'sin-imagen.jpg';
+        return null;
+    }
+
     public function getStockStatus(): array
     {
         $stmt = $this->db->query("

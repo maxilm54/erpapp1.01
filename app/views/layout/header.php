@@ -56,6 +56,9 @@ ABM
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/proveedores">Proveedores</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/productos">Productos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/materiasprimas">Materias primas</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/unidadmedida">Unidades de Medida</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/categoriamaterial">Categorías MP</a></li>
 </ul>
 </li>
 <?php endif; ?>

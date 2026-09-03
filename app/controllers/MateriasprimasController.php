@@ -1,6 +1,8 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Materiaprima.php';
+
+use PhpOffice\PhpSpreadsheet\IOFactory;
 class MateriasprimasController extends Controller
 {
     private MateriaPrima $mp;
@@ -52,6 +54,184 @@ class MateriasprimasController extends Controller
             'title'=>'Nueva Materia Prima',
             'categorias'=>$categorias,
             'umedida'=>$umedida
+        ]);
+    }
+
+    public function import(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'])) {
+                $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+                header('Location: ' . BASE_URL . '/materiasprimas/import');
+                exit;
+            }
+
+            // Step 2: Confirm import from session data
+            if (isset($_POST['confirmar']) && isset($_SESSION['import_preview_mp'])) {
+                $items = $_SESSION['import_preview_mp'];
+                unset($_SESSION['import_preview_mp']);
+
+                $valid = array_filter($items, fn($p) => empty($p['_error']));
+                if (empty($valid)) {
+                    $_SESSION['error'] = 'No hay materias primas válidas para importar.';
+                    header('Location: ' . BASE_URL . '/materiasprimas/import');
+                    exit;
+                }
+
+                $result = $this->mp->createBulk(array_values($valid));
+                $msg = "Se importaron {$result['imported']} materias primas.";
+                if (!empty($result['errors'])) {
+                    $msg .= " " . count($result['errors']) . " fallaron.";
+                }
+                $_SESSION['success'] = $msg;
+                header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+
+            // Step 1: Parse uploaded file
+            if (empty($_FILES['archivo']['name'])) {
+                $_SESSION['error'] = 'Debe seleccionar un archivo .xlsx';
+                header('Location: ' . BASE_URL . '/materiasprimas/import');
+                exit;
+            }
+
+            $ext = strtolower(pathinfo($_FILES['archivo']['name'], PATHINFO_EXTENSION));
+            if ($ext !== 'xlsx') {
+                $_SESSION['error'] = 'Solo se permiten archivos .xlsx';
+                header('Location: ' . BASE_URL . '/materiasprimas/import');
+                exit;
+            }
+
+            if ($_FILES['archivo']['size'] > 10 * 1024 * 1024) {
+                $_SESSION['error'] = 'El archivo no puede superar 10MB.';
+                header('Location: ' . BASE_URL . '/materiasprimas/import');
+                exit;
+            }
+
+            try {
+                $spreadsheet = IOFactory::load($_FILES['archivo']['tmp_name']);
+                $sheet = $spreadsheet->getActiveSheet();
+                $rows = $sheet->toArray();
+
+                if (count($rows) < 2) {
+                    $_SESSION['error'] = 'El archivo no contiene datos.';
+                    header('Location: ' . BASE_URL . '/materiasprimas/import');
+                    exit;
+                }
+
+                $header = array_map(fn($h) => mb_strtolower(trim($h)), $rows[0]);
+                $map = [];
+                $expected = ['nombre', 'sku', 'unidad_medida', 'categoria', 'barcode'];
+                foreach ($expected as $col) {
+                    $idx = array_search($col, $header);
+                    if ($idx !== false) $map[$col] = $idx;
+                }
+
+                if (!isset($map['nombre']) || !isset($map['sku'])) {
+                    $_SESSION['error'] = 'El archivo debe tener las columnas: nombre, sku';
+                    header('Location: ' . BASE_URL . '/materiasprimas/import');
+                    exit;
+                }
+
+                $umedidaList = $this->mp->umedidaMP();
+                $umedidaMap = [];
+                foreach ($umedidaList as $um) {
+                    $umedidaMap[strtolower($um['nombre'])] = $um['id_medida'];
+                }
+
+                $categoriasList = $this->mp->categoriasMP();
+                $categoriasMap = [];
+                foreach ($categoriasList as $cat) {
+                    $categoriasMap[strtolower($cat['categoria_nombre'])] = $cat['id_categoria'];
+                }
+
+                $seenSkus = [];
+                $items = [];
+
+                for ($i = 1; $i < count($rows); $i++) {
+                    $row = $rows[$i];
+                    $r = $i + 1;
+                    $nombre = trim($row[$map['nombre']] ?? '');
+                    $sku = trim($row[$map['sku']] ?? '');
+                    $umedidaText = trim($row[$map['unidad_medida']] ?? '');
+                    $categoriaText = trim($row[$map['categoria']] ?? '');
+                    $barcode = trim($row[$map['barcode']] ?? '');
+
+                    $item = [
+                        '_row' => $r,
+                        'nombre' => $nombre,
+                        'sku' => $sku,
+                        'unidad_medida_text' => $umedidaText,
+                        'categoria_text' => $categoriaText,
+                        'barcode' => $barcode,
+                        '_error' => '',
+                        '_error_type' => '',
+                    ];
+
+                    if ($nombre === '' || $sku === '') {
+                        $item['_error'] = 'Faltan campos obligatorios (nombre, sku)';
+                        $item['_error_type'] = 'validation';
+                        $items[] = $item;
+                        continue;
+                    }
+
+                    if (isset($seenSkus[$sku])) {
+                        $item['_error'] = "SKU duplicado en el archivo (fila {$seenSkus[$sku]})";
+                        $item['_error_type'] = 'duplicate_file';
+                        $items[] = $item;
+                        continue;
+                    }
+                    $seenSkus[$sku] = $r;
+
+                    $umId = 1;
+                    if ($umedidaText !== '') {
+                        $umId = $umedidaMap[strtolower($umedidaText)] ?? 1;
+                    }
+                    $item['id_unidadmedida'] = $umId;
+
+                    $catId = null;
+                    if ($categoriaText !== '') {
+                        $catId = $categoriasMap[strtolower($categoriaText)] ?? null;
+                    }
+                    $item['categoria'] = $catId;
+
+                    $item['barcode_tipo'] = 'INTERNO';
+                    $items[] = $item;
+                }
+
+                $allSkus = array_column(array_filter($items, fn($p) => empty($p['_error'])), 'sku');
+                $existingSkus = $this->mp->findSkus($allSkus);
+
+                foreach ($items as &$p) {
+                    if (empty($p['_error']) && in_array($p['sku'], $existingSkus)) {
+                        $p['_error'] = 'SKU ya existe en base de datos';
+                        $p['_error_type'] = 'duplicate_db';
+                    }
+                }
+                unset($p);
+
+                $_SESSION['import_preview_mp'] = $items;
+
+                $this->view('materias_primas/import', [
+                    'title' => 'Importar Materias Primas',
+                    'preview' => $items,
+                    'csrf' => Csrf::generate(),
+                ]);
+
+            } catch (\Exception $e) {
+                error_log('Error parseando Excel MP: ' . $e->getMessage());
+                $_SESSION['error'] = 'Error al leer el archivo: ' . $e->getMessage();
+                header('Location: ' . BASE_URL . '/materiasprimas/import');
+                exit;
+            }
+            return;
+        }
+
+        // GET: show upload form
+        $this->view('materias_primas/import', [
+            'title' => 'Importar Materias Primas',
+            'preview' => null,
+            'csrf' => Csrf::generate(),
         ]);
     }
 

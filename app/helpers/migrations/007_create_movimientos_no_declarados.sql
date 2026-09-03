@@ -1,5 +1,5 @@
 -- =====================================================
--- Migración 008: Movimientos No Declarados
+-- Migración 007: Movimientos No Declarados
 -- Sistema paralelo para ventas/compras sin factura
 -- =====================================================
 
@@ -69,5 +69,5 @@ CREATE TABLE IF NOT EXISTS `movimientos_no_declarados_pagos` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Actualizo registro de migracion de base de datos
-INSERT INTO act_bd (id, descripcion) VALUES (8, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');
+INSERT INTO act_bd (id, descripcion) VALUES (7, 'Movimientos No Declarados - tabla cabecera, detalle y pagos');
 -- =====================================================

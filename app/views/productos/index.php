@@ -1,6 +1,9 @@
 <a href="<?= BASE_URL ?>/productos/create" class="btn btn-primary mb-3">
     Nuevo Producto
 </a>
+<a href="<?= BASE_URL ?>/productos/import" class="btn btn-success mb-3">
+    <i class="bi bi-upload"></i> Importar
+</a>
 
 <div class="table-responsive table-scroll mt-3">
     <table class="table table-striped">

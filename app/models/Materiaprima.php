@@ -271,6 +271,71 @@ class MateriaPrima extends Model
         return $precios;
     }
 
+    public function findSkus(array $skus): array
+    {
+        if (empty($skus)) return [];
+        $placeholders = implode(',', array_fill(0, count($skus), '?'));
+        $stmt = $this->db->prepare("SELECT sku FROM materias_primas WHERE sku IN ($placeholders)");
+        $stmt->execute($skus);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    public function createBulk(array $items): array
+    {
+        $imported = 0;
+        $errors = [];
+        try {
+            $this->db->beginTransaction();
+            $stmt = $this->db->prepare(
+                "INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen)
+                 VALUES (:nombre, :sku, :id_unidadmedida, :categoria, :imagen)"
+            );
+            $barcodeStmt = $this->db->prepare(
+                "INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo)
+                 VALUES (:materiaprima_id, :codigo, :tipo)"
+            );
+            foreach ($items as $row) {
+                try {
+                    $imagen = $this->copiarImagenPorDefectoBulk();
+                    $stmt->execute([
+                        'nombre'         => $row['nombre'],
+                        'sku'            => $row['sku'],
+                        'id_unidadmedida' => $row['id_unidadmedida'] ?? 1,
+                        'categoria'      => $row['categoria'] ?? null,
+                        'imagen'         => $imagen,
+                    ]);
+                    $mpId = $this->db->lastInsertId();
+                    if (!empty($row['barcode'])) {
+                        $barcodeStmt->execute([
+                            'materiaprima_id' => $mpId,
+                            'codigo'          => $row['barcode'],
+                            'tipo'            => $row['barcode_tipo'] ?? 'INTERNO',
+                        ]);
+                    }
+                    $imported++;
+                } catch (Exception $e) {
+                    $errors[] = ['row' => $row['_row'] ?? '?', 'sku' => $row['sku'] ?? '', 'error' => $e->getMessage()];
+                }
+            }
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            $errors[] = ['row' => '-', 'sku' => '', 'error' => 'Error en la transacción: ' . $e->getMessage()];
+        }
+        return ['imported' => $imported, 'errors' => $errors];
+    }
+
+    private function copiarImagenPorDefectoBulk(): ?string
+    {
+        $origen = BASE_PATH . '/storage/imgpordefecto.jpg';
+        if (!file_exists($origen)) return null;
+        $uploadDir = empresaUploadPath('materiasprimas');
+        $destino = $uploadDir . '/sin-imagen.jpg';
+        if (file_exists($destino)) return 'sin-imagen.jpg';
+        if (copy($origen, $destino)) return 'sin-imagen.jpg';
+        return null;
+    }
+
     public function getStockStatus(): array
     {
         $stmt = $this->db->query("

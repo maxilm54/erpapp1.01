@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration 012: Templates de email por defecto
+-- Migration 011: Templates de email por defecto
 -- Se insertan los templates base para cada tipo de email
 -- =====================================================
 
@@ -186,5 +186,5 @@ WHERE `tipo` = 'ORDEN_COMPRA' AND `cuerpo_html` LIKE '%{{detalle_tabla}}%';
 
 
 -- Actualizo registro de migracion de base de datos
-INSERT INTO act_bd (id,descripcion) VALUES (12,'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC), se agrupa la mig 24 aqui para menor mantenimiento');
+INSERT INTO act_bd (id,descripcion) VALUES (11,'Insertar templates de email por defecto (REMITO, PAGO, PRESUPUESTO, NP, OC, GENERIC), se agrupa la mig 24 aqui para menor mantenimiento');
 -- =====================================================
