@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title><?= $title ?? APP_NAME ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" type="image/png" href="<?= BASE_URL ?>/triba-logo.png?v=<?= time() ?>">
+    <link rel="icon" type="image/jpg" href="<?= BASE_URL ?>/logoempresa.jpg?v=<?= time() ?>">
 
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
