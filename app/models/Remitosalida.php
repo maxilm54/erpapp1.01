@@ -409,11 +409,11 @@ if (!$remito) {
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT  
+            "SELECT
                 remsal.id AS NumRem,
                 COALESCE(remsal.cliente_nombre, c.razon_social) AS RazonSocial,
                 np.id AS idNpRem, np.presupuesto_id AS PresNpRem, np.observaciones AS obsNpRem, 
-                u.nombre AS UserRem, remsal.observaciones AS obsRemRem, remsal.created_at AS fecha, pdf_path,
+                u.nombre AS UserRem, remsal.observaciones AS obsRemRem, remsal.created_at AS fecha, remsal.pdf_path AS pdf_path,
                 COALESCE(remsal.cliente_cuit, c.cuit) AS cuit,
                 COALESCE(remsal.cliente_direccion, c.direccion) AS direccion,
                 COALESCE(remsal.cliente_email, c.email) AS email,
