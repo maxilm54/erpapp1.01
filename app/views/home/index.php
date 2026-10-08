@@ -1,4 +1,4 @@
-<h1 class="mb-4">Dashboard General</h1>
+<h1 class="mb-4">Indicadores</h1>
 
 <!-- STOCKS -->
 <div class="row mb-4">

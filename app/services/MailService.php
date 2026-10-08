@@ -286,8 +286,9 @@ class MailService
     private function enviarLegacy(string $tipo, int $referenciaId, string $email, int $usuarioId, array $data, array $options): void
     {
         $templateMap = [
-            'REMITO' => 'remito',
-            'PAGO'   => 'pago',
+            'REMITO'     => 'remito',
+            'PAGO'       => 'pago',
+            'DEVOLUCION' => 'devolucion',
         ];
 
         $templateFile = $templateMap[$tipo] ?? null;

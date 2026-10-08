@@ -328,9 +328,15 @@ if (!$remito) {
 
                 // Obtener nombre del cliente para ctacte
                 $clienteNombre = null;
-                $stmtCli = $this->db->prepare("SELECT razon_social FROM clientes WHERE id = ?");
-                $stmtCli->execute([$cliente_id]);
-                $clienteNombre = $stmtCli->fetchColumn() ?: null;
+                if ($cliente_id && $cliente_id != 9999) {
+                    $stmtCli = $this->db->prepare("SELECT razon_social FROM clientes WHERE id = ?");
+                    $stmtCli->execute([$cliente_id]);
+                    $clienteNombre = $stmtCli->fetchColumn() ?: null;
+                } else {
+                    $stmtCli = $this->db->prepare("SELECT cliente_nombre FROM notas_pedido WHERE id = ?");
+                    $stmtCli->execute([$notaPedidoId]);
+                    $clienteNombre = $stmtCli->fetchColumn() ?: null;
+                }
 
                 // Actualizar precio_unitario en el detalle
                 $this->db->prepare("
@@ -531,7 +537,7 @@ if (!$remito) {
             $clienteTelefono = $clienteData['cliente_telefono'] ?? null;
             $clienteLocalidad = $clienteData['cliente_localidad'] ?? null;
 
-            if ($clienteId) {
+            if ($clienteId && $clienteId != 9999) {
                 $stmtCli = $this->db->prepare("SELECT * FROM clientes WHERE id = ?");
                 $stmtCli->execute([$clienteId]);
                 $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);

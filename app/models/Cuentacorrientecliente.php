@@ -231,11 +231,13 @@ class CuentaCorrienteCliente extends Model
 
     /**
      * Ventas no cobradas: remitos con saldo pendiente de pago.
-     * Usa la tabla pagos (que tiene remito_id) para calcular lo cobrado.
+     * Distribuye devoluciones FIFO: si una devolución excede el saldo de un remito,
+     * el exceso reduce el saldo de otros remitos del mismo cliente (más antiguo primero).
      */
     public function ventasNoCobradas(): array
     {
-        return $this->db->query("
+        // 1. Obtener remitos con deuda bruta (monto - pagos)
+        $remitosRaw = $this->db->query("
             SELECT 
                 d.referencia_id AS remito_id,
                 COALESCE(d.cliente_nombre, c.razon_social) AS cliente,
@@ -249,20 +251,83 @@ class CuentaCorrienteCliente extends Model
                     WHERE p.remito_id = d.referencia_id 
                       AND p.cliente_id = d.cliente_id
                       AND (p.anulado IS NULL OR p.anulado = 0)
-                ), 0) AS pagado,
-                SUM(d.monto) - COALESCE((
-                    SELECT SUM(p.monto) 
-                    FROM pagos p 
-                    WHERE p.remito_id = d.referencia_id 
-                      AND p.cliente_id = d.cliente_id
-                      AND (p.anulado IS NULL OR p.anulado = 0)
-                ), 0) AS saldo_pendiente
+                ), 0) AS pagado
             FROM cuentas_corriente_clientes d
             LEFT JOIN clientes c ON c.id = d.cliente_id
             WHERE d.origen = 'REMITO' AND d.tipo = 'DEBITO'
             GROUP BY d.referencia_id, d.cliente_id, d.cliente_nombre
-            HAVING saldo_pendiente > 0.01
-            ORDER BY MIN(d.fecha) DESC
+            HAVING monto_total - pagado > 0.01
+            ORDER BY d.cliente_id, MIN(d.fecha) ASC, d.referencia_id ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($remitosRaw)) return [];
+
+        // 2. Obtener devoluciones por cliente (todas las no anuladas)
+        $clienteIds = array_values(array_unique(array_column($remitosRaw, 'cliente_id')));
+        $placeholders = implode(',', array_fill(0, count($clienteIds), '?'));
+        $stmtDev = $this->db->prepare("
+            SELECT dv.cliente_id, dv.remito_id,
+                   COALESCE(SUM(dd.cantidad_total * dd.precio_unitario), 0) AS monto_devolucion
+            FROM devoluciones dv
+            JOIN devoluciones_detalle dd ON dd.devolucion_id = dv.id
+            WHERE dv.cliente_id IN ($placeholders)
+              AND dv.estado != 'ANULADA'
+            GROUP BY dv.cliente_id, dv.remito_id
+            ORDER BY dv.cliente_id, dv.created_at ASC
+        ");
+        $stmtDev->execute($clienteIds);
+        $devolucionesRaw = $stmtDev->fetchAll(PDO::FETCH_ASSOC);
+
+        // 3. Indexar devoluciones por cliente
+        $devolucionesPorCliente = [];
+        foreach ($devolucionesRaw as $dev) {
+            $cid = (int)$dev['cliente_id'];
+            if (!isset($devolucionesPorCliente[$cid])) {
+                $devolucionesPorCliente[$cid] = 0.0;
+            }
+            $devolucionesPorCliente[$cid] += (float)$dev['monto_devolucion'];
+        }
+
+        // 4. Distribuir devoluciones FIFO por cliente
+        $resultados = [];
+        $remitosPorCliente = [];
+        foreach ($remitosRaw as $r) {
+            $remitosPorCliente[(int)$r['cliente_id']][] = $r;
+        }
+
+        foreach ($remitosPorCliente as $clienteId => $remitos) {
+            $devolucionPendiente = $devolucionesPorCliente[$clienteId] ?? 0.0;
+
+            foreach ($remitos as $r) {
+                $deudaBruta = (float)$r['monto_total'] - (float)$r['pagado'];
+
+                if ($devolucionPendiente > 0) {
+                    $devAplicada = min($devolucionPendiente, $deudaBruta);
+                    $deudaBruta -= $devAplicada;
+                    $devolucionPendiente -= $devAplicada;
+                }
+
+                if ($deudaBruta > 0.01) {
+                    $resultados[] = [
+                        'remito_id'       => (int)$r['remito_id'],
+                        'cliente'         => $r['cliente'],
+                        'cliente_id'      => (int)$r['cliente_id'],
+                        'cliente_nombre'  => $r['cliente_nombre'],
+                        'fecha'           => $r['fecha'],
+                        'monto_total'     => (float)$r['monto_total'],
+                        'pagado'          => (float)$r['pagado'],
+                        'devoluciones'    => (float)$r['monto_total'] - (float)$r['pagado'] - $deudaBruta,
+                        'saldo_pendiente' => $deudaBruta,
+                    ];
+                }
+            }
+        }
+
+        // Ordenar por fecha descendente para mostrar los más recientes primero
+        usort($resultados, function ($a, $b) {
+            return strtotime($b['fecha']) - strtotime($a['fecha']);
+        });
+
+        return $resultados;
     }
 }

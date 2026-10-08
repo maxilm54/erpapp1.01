@@ -79,6 +79,8 @@ Ventas
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/notaspedido">Notas de Pedidos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/remitossalida">Remitos de Salida</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/remitossalida/create-manual"><i class="bi bi-plus-lg"></i> Remito Manual</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/devoluciones"><i class="bi bi-arrow-return-left"></i> Devoluciones</a></li>
 </ul>
 </li>
 <!-- COMPRAS -->

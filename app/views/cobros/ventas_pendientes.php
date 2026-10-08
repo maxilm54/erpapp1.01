@@ -10,25 +10,30 @@
 
 <?php
 $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
+$totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
 ?>
 
 <!-- Resumen -->
 <div class="card mb-4">
     <div class="card-body">
         <div class="row text-center">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <small class="text-muted d-block">Ventas Pendientes</small>
                 <h4 class="mb-0"><?= count($ventas) ?></h4>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <small class="text-muted d-block">Total Facturado</small>
                 <h4 class="mb-0">$ <?= number_format(array_sum(array_column($ventas, 'monto_total')), 2, ',', '.') ?></h4>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <small class="text-muted d-block">Total Cobrado</small>
                 <h4 class="mb-0 text-success">$ <?= number_format(array_sum(array_column($ventas, 'pagado')), 2, ',', '.') ?></h4>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <small class="text-muted d-block">Total Devoluciones</small>
+                <h4 class="mb-0 text-warning">$ <?= number_format($totalDevoluciones, 2, ',', '.') ?></h4>
+            </div>
+            <div class="col-md-2">
                 <small class="text-muted d-block">Total Pendiente</small>
                 <h4 class="mb-0 text-danger">$ <?= number_format($totalPendiente, 2, ',', '.') ?></h4>
             </div>
@@ -53,6 +58,7 @@ $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
                         <th>Fecha</th>
                         <th class="text-end">Total</th>
                         <th class="text-end">Cobrado</th>
+                        <th class="text-end">Devoluciones</th>
                         <th class="text-end">Pendiente</th>
                         <th class="text-center">Acciones</th>
                     </tr>
@@ -65,8 +71,10 @@ $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
                         <td><?= date('d/m/Y', strtotime($v['fecha'])) ?></td>
                         <td class="text-end">$ <?= number_format($v['monto_total'], 2, ',', '.') ?></td>
                         <td class="text-end text-success">$ <?= number_format($v['pagado'], 2, ',', '.') ?></td>
+                        <td class="text-end text-warning">$ <?= number_format((float)($v['devoluciones'] ?? 0), 2, ',', '.') ?></td>
                         <td class="text-end fw-bold text-danger">$ <?= number_format($v['saldo_pendiente'], 2, ',', '.') ?></td>
                         <td class="text-center">
+                            <?php if ($v['saldo_pendiente'] > 0.01): ?>
                             <button type="button" class="btn btn-sm btn-success btn-cobrar"
                                     data-remito-id="<?= $v['remito_id'] ?>"
                                     data-cliente-id="<?= $v['cliente_id'] ?>"
@@ -77,6 +85,9 @@ $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
                                     data-fecha="<?= $v['fecha'] ?>">
                                 <i class="bi bi-cash"></i> Cobrar
                             </button>
+                            <?php else: ?>
+                            <span class="badge bg-success">Saldado</span>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -86,6 +97,7 @@ $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
                         <td colspan="3" class="text-end fw-bold">Totales:</td>
                         <td class="text-end fw-bold">$ <?= number_format(array_sum(array_column($ventas, 'monto_total')), 2, ',', '.') ?></td>
                         <td class="text-end fw-bold text-success">$ <?= number_format(array_sum(array_column($ventas, 'pagado')), 2, ',', '.') ?></td>
+                        <td class="text-end fw-bold text-warning">$ <?= number_format($totalDevoluciones, 2, ',', '.') ?></td>
                         <td class="text-end fw-bold text-danger">$ <?= number_format($totalPendiente, 2, ',', '.') ?></td>
                         <td></td>
                     </tr>

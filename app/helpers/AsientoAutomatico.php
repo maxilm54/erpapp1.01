@@ -195,6 +195,89 @@ class AsientoAutomatico{
     }
 
     /**
+     * Genera asiento al registrar una devolución de venta.
+     *
+     * DEBE:  4400 Devoluciones de Ventas
+     * HABER: 1400 Cuentas Corrientes Clientes
+     */
+    public function ventaDevolucion(int $clienteId, float $monto, int $referenciaId, int $usuarioId, ?string $clienteNombre = null): int{
+        $cuentaCtacte = $this->cuentaModel->findByCodigo('1400');
+        $cuentaDevoluciones = $this->cuentaModel->findByCodigo('4400');
+
+        if (!$cuentaDevoluciones) {
+            $cuentaDevoluciones = $this->cuentaModel->findByCodigo('4300');
+        }
+
+        $lineas = [
+            [
+                'cuenta_contable_id' => $cuentaDevoluciones['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCtacte['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ];
+
+        $descCliente = $clienteNombre ?: "Cliente #{$clienteId}";
+
+        return $this->asientoModel->create([
+            'fecha'          => date('Y-m-d'),
+            'descripcion'    => "Devolución #{$referenciaId} - {$descCliente}",
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'DEVOLUCIONES',
+            'origen_tipo'    => 'DEVOLUCION',
+            'origen_id'      => $referenciaId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => "Devolución de venta registrada",
+        ], $lineas);
+    }
+
+    /**
+     * Genera asiento al registrar un reembolso por devolución (efectivo/transferencia).
+     *
+     * DEBE:  1400 Cuentas Corrientes Clientes
+     * HABER: 1101 Caja General (o la caja/banco indicada)
+     */
+    public function ventaReembolso(int $clienteId, float $monto, int $referenciaId, int $usuarioId, ?int $cajaBancoId = null, ?string $clienteNombre = null): int{
+        $cuentaCtacte = $this->cuentaModel->findByCodigo('1400');
+
+        if ($cajaBancoId) {
+            $cuentaCaja = $this->getCuentaCajaBanco($cajaBancoId);
+        } else {
+            $cuentaCaja = $this->cuentaModel->findByCodigo('1101');
+        }
+
+        $lineas = [
+            [
+                'cuenta_contable_id' => $cuentaCtacte['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCaja['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ];
+
+        $descCliente = $clienteNombre ?: "Cliente #{$clienteId}";
+
+        return $this->asientoModel->create([
+            'fecha'          => date('Y-m-d'),
+            'descripcion'    => "Reembolso devolución #{$referenciaId} - {$descCliente}",
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'DEVOLUCIONES',
+            'origen_tipo'    => 'REEMBOLSO',
+            'origen_id'      => $referenciaId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => "Reembolso por devolución de venta",
+        ], $lineas);
+    }
+
+    /**
      * Genera asiento al registrar un CREDITO en ctacte (pago del cliente).
      *
      * DEBE:  1101 Caja General (o la caja/banco indicada)
