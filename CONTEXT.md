@@ -171,7 +171,7 @@ public function delete(int $id): bool {
 
 ## Mapa de Módulos
 
-### Controladores (31)
+### Controladores (32)
 
 | Controlador | Módulo | Descripción |
 |------------|--------|------------|
@@ -190,6 +190,7 @@ public function delete(int $id): bool {
 | PresupuestosController | Ventas | Presupuestos/cotizaciones |
 | NotaspedidoController | Ventas | Notas de pedido (ventas) |
 | RemitossalidaController | Ventas | Remitos de salida (manuales y desde NP) |
+| DevolucionesController | Ventas | Devoluciones de remitos (stock, ctacte, caja, asientos, PDF, email) |
 | CobrosController | Finanzas | Cobros a clientes |
 | CtacteController | Finanzas | Cuenta corriente de clientes |
 | CuentacorrienteempresaController | Finanzas | Cuenta corriente de la empresa |
@@ -208,7 +209,7 @@ public function delete(int $id): bool {
 | SdcompController | SDCOMP | Comprobantes internos (movimientos sin comprobante fiscal) |
 | EmailController | Email | Envío de emails |
 
-### Modelos (36)
+### Modelos (37)
 
 | Modelo | Tabla | Conexión |
 |--------|-------|----------|
@@ -230,6 +231,7 @@ public function delete(int $id): bool {
 | Ingresomercaderia | ingresos_mercaderia | Tenant |
 | Stock | movimientos_stock | Tenant |
 | Ajustestock | ajustes_stock | Tenant |
+| Devolucion | devoluciones | Tenant |
 | Cobro | cobros | Tenant |
 | Cuentacorrientecliente | cuentas_corriente_clientes | Tenant |
 | Cuentacorrienteempresa | cuentas_corrientes_empresa | Tenant |
@@ -263,6 +265,24 @@ Presupuesto → Nota de Pedido → Remito de Salida → PDF → Email
 - Presupuestos: BORRADOR → APROBADO
 - Notas de Pedido: BORRADOR → APROBADA → SinRemitir/Parcial/Completo → ANULADA
 - Remitos: Generados desde NP o manualmente. Generan PDF, envían email, impactan stock, ctacte, asiento contable.
+
+### Devoluciones: Remito → Devolución → Reembolso
+
+```
+Remito de Salida → Devolución → Stock + CtaCte + Caja + Asiento → PDF → Email
+                       ↓
+              Reembolso: NC (CtaCte) / Efectivo / Transferencia
+```
+
+- El remito referenciado es obligatorio. Se valida `pendiente_devolver` por producto (ya devuelto en devoluciones anteriores se descuenta).
+- Condiciones de producto: NUEVO, BUEN_ESTADO, ESTADO_REGULAR, DANADO, INSERVIBLE.
+- `reingresa` = cantidad total devuelta (siempre igual a `cantidad_total`). `descarta` ≤ `reingresa` (subconjunto que se descarta).
+- **Nota de Crédito siempre cubre el total de la devolución**. Efectivo/Transferencia solo por montos ya pagados (exceso sobre deuda).
+- La deuda del cliente se muestra en el formulario para decidir el tipo de reembolso.
+- **Validación server-side estricta**: cantidad vs `pendiente_devolver`, precio forzado desde el remito (no se confía en el POST), condición en lista blanca, saldo de caja/banco ≥ monto del reembolso, con `FOR UPDATE` dentro de la transacción.
+- **Distribución FIFO de devoluciones en `ventasNoCobradas()`**: si una devolución excede el saldo de un remito, el exceso reduce el saldo de otros remitos del mismo cliente (más antiguo primero).
+- Estados: PENDIENTE → PROCESADA / ANULADA.
+- Orígenes de stock: DEVOLUCION (ENTRADA por reingreso), DEVOLUCION_DESCARTE (SALIDA por descarte).
 
 ### Compras: OC → Ingreso → Stock
 

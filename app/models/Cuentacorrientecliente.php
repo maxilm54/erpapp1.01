@@ -7,16 +7,233 @@ class CuentaCorrienteCliente extends Model
 {
     protected string $table = 'cuentas_corriente_clientes';
 
-    public function all(): array //trar todos los registros de asicentos, credito o debito de todos los clientes
+    /**
+     * Construye WHERE dinámico con prepared statements a partir de los filtros.
+     * Filtros soportados: cliente_id, tipo, origen, fecha_desde, fecha_hasta, buscar.
+     * Requiere el JOIN a clientes (alias c) en la query que lo use.
+     * @return array [$whereSql, $params]  ($whereSql vacío si no hay filtros)
+     */
+    private function buildWhere(array $filtros, string $alias = 'ccc'): array
+    {
+        $where  = [];
+        $params = [];
+
+        if (!empty($filtros['cliente_id'])) {
+            $where[]  = "$alias.cliente_id = ?";
+            $params[] = (int)$filtros['cliente_id'];
+        }
+        if (!empty($filtros['tipo'])) {
+            $where[]  = "$alias.tipo = ?";
+            $params[] = $filtros['tipo'];
+        }
+        if (!empty($filtros['origen'])) {
+            $where[]  = "$alias.origen = ?";
+            $params[] = $filtros['origen'];
+        }
+        if (!empty($filtros['fecha_desde'])) {
+            $where[]  = "$alias.fecha >= ?";
+            $params[] = $filtros['fecha_desde'];
+        }
+        if (!empty($filtros['fecha_hasta'])) {
+            $where[]  = "$alias.fecha <= ?";
+            $params[] = $filtros['fecha_hasta'];
+        }
+        if (!empty($filtros['buscar'])) {
+            $q = '%' . $filtros['buscar'] . '%';
+            $where[] = "(COALESCE(c.razon_social, '') LIKE ?
+                        OR COALESCE($alias.cliente_nombre, '') LIKE ?
+                        OR COALESCE($alias.origen, '') LIKE ?
+                        OR CAST($alias.referencia_id AS CHAR) LIKE ?)";
+            array_push($params, $q, $q, $q, $q);
+        }
+
+        return [implode(' AND ', $where), $params];
+    }
+
+    /**
+     * Libro general de movimientos (todos los clientes) con filtros y paginación.
+     */
+    public function all(array $filtros = [], int $page = 1, int $perPage = 50): array
+    {
+        [$where, $params] = $this->buildWhere($filtros);
+
+        $sql = "
+            SELECT ccc.*,
+                   COALESCE(c.razon_social, ccc.cliente_nombre) AS nombre_cliente
+            FROM cuentas_corriente_clientes ccc
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id"
+            . ($where ? " WHERE $where" : '')
+            . " ORDER BY ccc.id DESC
+            LIMIT " . (int)$perPage . " OFFSET " . (int)(($page - 1) * $perPage);
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Total de movimientos que cumplen los filtros (para paginación).
+     */
+    public function countAll(array $filtros = []): int
+    {
+        [$where, $params] = $this->buildWhere($filtros);
+
+        $sql = "
+            SELECT COUNT(*)
+            FROM cuentas_corriente_clientes ccc
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id"
+            . ($where ? " WHERE $where" : '');
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    }
+
+    /**
+     * Resumen (débitos, créditos, saldo) del conjunto filtrado.
+     */
+    public function resumenFiltros(array $filtros): array
+    {
+        [$where, $params] = $this->buildWhere($filtros);
+
+        $sql = "
+            SELECT COALESCE(SUM(CASE WHEN ccc.tipo = 'DEBITO'  THEN ccc.monto ELSE 0 END), 0) AS total_debito,
+                   COALESCE(SUM(CASE WHEN ccc.tipo = 'CREDITO' THEN ccc.monto ELSE 0 END), 0) AS total_credito,
+                   COALESCE(SUM(CASE WHEN ccc.tipo = 'DEBITO'  THEN ccc.monto ELSE 0 END), 0)
+                 - COALESCE(SUM(CASE WHEN ccc.tipo = 'CREDITO' THEN ccc.monto ELSE 0 END), 0) AS saldo
+            FROM cuentas_corriente_clientes ccc
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id"
+            . ($where ? " WHERE $where" : '');
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: ['total_debito' => 0, 'total_credito' => 0, 'saldo' => 0];
+    }
+
+    /**
+     * Orígenes distintos presentes en la tabla (para el combo de filtros).
+     */
+    public function origenes(): array
     {
         return $this->db->query("
-            SELECT ccc.*, 
-                   c.razon_social AS nombre_cliente
+            SELECT DISTINCT origen
+            FROM cuentas_corriente_clientes
+            ORDER BY origen
+        ")->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
+     * Desglose por cliente: débitos, créditos, saldo y última actividad.
+     * Clientes ocasionales (id 9999) se agrupan por cliente_nombre (cada uno por su nombre).
+     */
+    public function resumenPorClientes(): array
+    {
+        return $this->db->query("
+            SELECT ccc.cliente_id,
+                   CASE WHEN ccc.cliente_id = 9999
+                        THEN MAX(ccc.cliente_nombre)
+                        ELSE COALESCE(MAX(c.razon_social), CONCAT('Cliente #', ccc.cliente_id))
+                   END AS nombre_cliente,
+                   CASE WHEN ccc.cliente_id = 9999
+                        THEN ''
+                        ELSE COALESCE(MAX(c.cuit), '')
+                   END AS cuit,
+                   CASE WHEN ccc.cliente_id = 9999
+                        THEN MAX(ccc.cliente_nombre)
+                        ELSE NULL
+                   END AS cliente_nombre,
+                   SUM(CASE WHEN ccc.tipo = 'DEBITO'  THEN ccc.monto ELSE 0 END) AS total_debito,
+                   SUM(CASE WHEN ccc.tipo = 'CREDITO' THEN ccc.monto ELSE 0 END) AS total_credito,
+                   SUM(CASE WHEN ccc.tipo = 'DEBITO'  THEN ccc.monto ELSE 0 END)
+                 - SUM(CASE WHEN ccc.tipo = 'CREDITO' THEN ccc.monto ELSE 0 END) AS saldo,
+                   MAX(ccc.fecha) AS ultima_actividad
             FROM cuentas_corriente_clientes ccc
             LEFT JOIN clientes c ON c.id = ccc.cliente_id
-            ORDER BY ccc.id DESC
+            GROUP BY ccc.cliente_id, IF(ccc.cliente_id = 9999, ccc.cliente_nombre, NULL)
+            ORDER BY saldo DESC, nombre_cliente ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Resumen (débitos, créditos, saldo actual) de un solo cliente.
+     * Para ocasionales (id 9999) se puede acotar por cliente_nombre.
+     */
+    public function resumenCliente(int $clienteId, ?string $clienteNombre = null): array
+    {
+        $sql = "
+            SELECT COALESCE(SUM(CASE WHEN tipo = 'DEBITO'  THEN monto ELSE 0 END), 0) AS total_debito,
+                   COALESCE(SUM(CASE WHEN tipo = 'CREDITO' THEN monto ELSE 0 END), 0) AS total_credito,
+                   COALESCE(SUM(CASE WHEN tipo = 'DEBITO'  THEN monto ELSE 0 END), 0)
+                 - COALESCE(SUM(CASE WHEN tipo = 'CREDITO' THEN monto ELSE 0 END), 0) AS saldo
+            FROM cuentas_corriente_clientes
+            WHERE cliente_id = ?";
+        $params = [$clienteId];
+
+        if ($clienteId === 9999 && $clienteNombre !== null && $clienteNombre !== '') {
+            $sql .= " AND cliente_nombre = ?";
+            $params[] = $clienteNombre;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: ['total_debito' => 0, 'total_credito' => 0, 'saldo' => 0];
+    }
+
+    /**
+     * Extracto de movimientos de un cliente (orden cronológico), con filtros y paginación.
+     * Para ocasionales (id 9999) se puede acotar por cliente_nombre.
+     */
+    public function movimientosCliente(int $clienteId, array $filtros = [], int $page = 1, int $perPage = 50): array
+    {
+        $filtros['cliente_id'] = $clienteId;
+        [$where, $params] = $this->buildWhere($filtros);
+
+        if ($clienteId === 9999 && !empty($filtros['cliente_nombre'])) {
+            $where       = $where ? "$where AND ccc.cliente_nombre = ?" : "ccc.cliente_nombre = ?";
+            $params[]    = $filtros['cliente_nombre'];
+        }
+
+        $sql = "
+            SELECT ccc.*,
+                   COALESCE(c.razon_social, ccc.cliente_nombre) AS nombre_cliente
+            FROM cuentas_corriente_clientes ccc
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id"
+            . ($where ? " WHERE $where" : '')
+            . " ORDER BY ccc.fecha ASC, ccc.id ASC
+            LIMIT " . (int)$perPage . " OFFSET " . (int)(($page - 1) * $perPage);
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Total de movimientos de un cliente que cumplen los filtros (para paginación).
+     * Para ocasionales (id 9999) se puede acotar por cliente_nombre.
+     */
+    public function countMovimientosCliente(int $clienteId, array $filtros = []): int
+    {
+        $filtros['cliente_id'] = $clienteId;
+        [$where, $params] = $this->buildWhere($filtros);
+
+        if ($clienteId === 9999 && !empty($filtros['cliente_nombre'])) {
+            $where       = $where ? "$where AND ccc.cliente_nombre = ?" : "ccc.cliente_nombre = ?";
+            $params[]    = $filtros['cliente_nombre'];
+        }
+
+        $sql = "
+            SELECT COUNT(*)
+            FROM cuentas_corriente_clientes ccc
+            LEFT JOIN clientes c ON c.id = ccc.cliente_id"
+            . ($where ? " WHERE $where" : '');
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    }
+
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare("
@@ -202,18 +419,6 @@ class CuentaCorrienteCliente extends Model
         $stmt->execute([$clienteNombre]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: ['Debito' => 0, 'Credito' => 0, 'saldo' => 0];
-    }
-
-    public function movimientosPorCliente(int $clienteId): array
-    {
-        $stmt = $this->db->prepare("
-            SELECT *
-            FROM cuentas_corriente_cliente
-            WHERE cliente_id = ?
-            ORDER BY created_at ASC, id ASC
-        ");
-        $stmt->execute([$clienteId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function ultimoSaldo(int $clienteId): float

@@ -8,5 +8,10 @@
         "texto": "se corrige la vista show en produccion para mostrar los precios de produccion",
         "fecha": "2026-02-04 12:36:01",
         "hecho": false
+    },
+    {
+        "texto": "Cuenta corriente: buscador con filtros (cliente, tipo, origen, fechas), paginacion (50/pag), resumen debit/credito/saldo y pagina dedicada /ctacte/cliente con desglose por cliente y extracto cronologico por cliente",
+        "fecha": "2026-10-09 00:00:00",
+        "hecho": true
     }
 ]

@@ -25,14 +25,110 @@ class CtaCteController extends Controller
     }
 
     /**
-     * 📊 Libro general de cuentas corrientes
+     * 📊 Libro general de cuentas corrientes (con filtros y paginación)
      */
     public function index()
     {
-        $movimientos = $this->model->all();
+        $filtros = [
+            'cliente_id'  => (int)($_GET['cliente_id'] ?? 0),
+            'tipo'        => trim($_GET['tipo'] ?? ''),
+            'origen'      => trim($_GET['origen'] ?? ''),
+            'fecha_desde' => trim($_GET['fecha_desde'] ?? ''),
+            'fecha_hasta' => trim($_GET['fecha_hasta'] ?? ''),
+            'buscar'      => trim($_GET['buscar'] ?? ''),
+        ];
+
+        $page    = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 50;
+
+        $totalRows   = $this->model->countAll($filtros);
+        $totalPages  = max(1, (int)ceil($totalRows / $perPage));
+        $page        = min($page, $totalPages);
+        $movimientos = $this->model->all($filtros, $page, $perPage);
+        $resumen     = $this->model->resumenFiltros($filtros);
 
         $this->view('cta_cte/index', [
-            'movimientos' => $movimientos
+            'movimientos' => $movimientos,
+            'filtros'     => $filtros,
+            'clientes'    => $this->cliente->allactive(),
+            'origenes'    => $this->model->origenes(),
+            'resumen'     => $resumen,
+            'page'        => $page,
+            'totalPages'  => $totalPages,
+            'totalRows'   => $totalRows,
+        ]);
+    }
+
+    /**
+     * 📁 Desglose por cliente y extracto de un cliente (página dedicada)
+     */
+    public function cliente($clienteId = null)
+    {
+        // Sin cliente seleccionado → desglose por cliente
+        if (empty($clienteId)) {
+            $q = trim($_GET['q'] ?? '');
+            $resumenClientes = $this->model->resumenPorClientes();
+
+            if ($q !== '') {
+                $resumenClientes = array_values(array_filter($resumenClientes, function ($r) use ($q) {
+                    return stripos($r['nombre_cliente'], $q) !== false
+                        || stripos((string)$r['cuit'], $q) !== false;
+                }));
+            }
+
+            $this->view('cta_cte/cliente', [
+                'modo'            => 'lista',
+                'resumenClientes' => $resumenClientes,
+                'q'               => $q,
+            ]);
+            return;
+        }
+
+        // Con cliente → extracto de movimientos
+        $clienteId = (int)$clienteId;
+        // Cliente ocasional: nombre propio agrupado bajo id 9999
+        $clienteNombre = $clienteId === 9999 ? trim($_GET['nombre'] ?? '') : null;
+
+        // cliactive() no redirige como find(); retorna false si no existe
+        $clienteData = $this->cliente->cliactive($clienteId);
+
+        if (!$clienteData && $clienteId !== 9999) {
+            $_SESSION['error'] = 'Cliente no encontrado';
+            header('Location: ' . BASE_URL . '/ctacte/cliente');
+            exit;
+        }
+
+        $filtros = [
+            'tipo'           => trim($_GET['tipo'] ?? ''),
+            'origen'         => trim($_GET['origen'] ?? ''),
+            'fecha_desde'    => trim($_GET['fecha_desde'] ?? ''),
+            'fecha_hasta'    => trim($_GET['fecha_hasta'] ?? ''),
+            'buscar'         => trim($_GET['buscar'] ?? ''),
+            'cliente_nombre' => $clienteNombre,
+        ];
+
+        $page    = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 50;
+
+        $totalRows  = $this->model->countMovimientosCliente($clienteId, $filtros);
+        $totalPages = max(1, (int)ceil($totalRows / $perPage));
+        $page       = min($page, $totalPages);
+
+        $movimientos = $this->model->movimientosCliente($clienteId, $filtros, $page, $perPage);
+        $resumen     = $this->model->resumenCliente($clienteId, $clienteNombre);
+
+        $this->view('cta_cte/cliente', [
+            'modo'          => 'extracto',
+            'clienteId'     => $clienteId,
+            'clienteNombre' => $clienteNombre,
+            'clienteData'   => $clienteData ?: null,
+            'movimientos'   => $movimientos,
+            'filtros'       => $filtros,
+            'origenes'      => $this->model->origenes(),
+            'resumen'       => $resumen,
+            'page'          => $page,
+            'totalPages'    => $totalPages,
+            'totalRows'     => $totalRows,
         ]);
     }
 

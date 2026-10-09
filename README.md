@@ -104,7 +104,7 @@ app/
 │   ├── database.php           # Conexiones a BD (master + tenant)
 │   ├── Cache.php              # Cache en archivos
 │   └── env.php                # Parser de .env
-├── controllers/               # 25 controladores
+├── controllers/               # 32 controladores
 ├── core/
 │   ├── Router.php             # Enrutador URL
 │   ├── Controller.php         # Controlador base
@@ -122,12 +122,12 @@ app/
 │   ├── MigrationManager.php   # Gestor de migraciones
 │   ├── migrations/            # Migraciones SQL (003-015)
 │   └── squemadb/              # Schema SQL para tenants nuevos
-├── models/                    # 30 modelos
+├── models/                    # 37 modelos
 ├── services/
 │   ├── StockService.php       # Servicio de stock
 │   ├── MailService.php        # Servicio de emails con templates
 │   └── PdfService.php         # Generación de PDFs
-└── views/                     # 22 directorios de vistas
+└── views/                     # 24 directorios de vistas
     ├── layout/                # header.php, footer.php, alerts.php
     ├── auth/                  # Login, registro, selección de tenant
     ├── home/                  # Dashboard principal
@@ -141,6 +141,7 @@ app/
     ├── notas_pedido/          # Notas de Pedido (ventas)
     ├── presupuestos/          # Presupuestos / Cotizaciones
     ├── remitos_salida/        # Remitos de Salida (manuales y desde NP)
+    ├── devoluciones/          # Devoluciones de remitos
     ├── ordenes_compras/       # Órdenes de Compra
     ├── stock/                 # Consulta de stock
     ├── ajustes_stock/         # Ajustes manuales de stock
@@ -150,20 +151,6 @@ app/
     ├── impuestos/             # Impuestos (IVA)
     ├── pdf/                   # Templates HTML para PDFs
     └── mails/                 # Templates HTML para emails
-
-public/                        # Raíz web
-├── index.php                  # Front controller
-├── .htaccess                  # Reescritura Apache
-├── assets/css/app.css         # Estilos globales
-├── js/confirmations.js        # SweetAlert2 confirmaciones
-└── uploads/                   # Archivos subidos
-    ├── img_config/            # Logos de empresa para PDFs
-    ├── productos/             # Imágenes de productos
-    └── materiasprimas/        # Imágenes de materias primas
-
-storage/                       # PDFs generados
-├── pagos/                     # Recibos de pago
-└── remitos/                   # Remitos por año/mes
 ```
 
 ---
@@ -264,6 +251,32 @@ Presupuesto → Nota de Pedido → Remito de Salida → PDF → Email
   - Genera PDF con diseño corporativo, legal "R" y texto RG AFIP 1415.
   - Envía PDF por email al cliente.
   - Impacta stock (SALIDA) y genera débito en ctacte.
+- **Devoluciones**: Ver sección 2b.
+
+### 2b. Flujo de Devoluciones
+
+```
+Remito de Salida → Devolución → Stock + CtaCte + Caja + Asiento → PDF → Email
+                       ↓
+              Reembolso: NC (CtaCte) / Efectivo / Transferencia
+```
+
+- **Referencia obligatoria**: Siempre vinculada a un remito de salida existente.
+- **Validación de cantidades**: Se calcula `pendiente_devolver` por producto (cantidad remitida - ya devuelto en devoluciones anteriores). No se permite devolver más de lo pendiente.
+- **Condiciones de producto**: NUEVO, BUEN_ESTADO, ESTADO_REGULAR, DANADO, INSERVIBLE.
+- **Reingreso vs descarte**: `reingresa` = cantidad total devuelta. `descarta` ≤ `reingresa` (subconjunto que se descarta, no vuelve a stock).
+- **Reembolso**:
+  - *Nota de Crédito*: Siempre cubre el total de la devolución. Se registra como crédito en ctacte.
+  - *Efectivo / Transferencia*: Solo por el exceso sobre la deuda del cliente. Requiere caja/banco con saldo suficiente.
+  - La deuda del cliente se consulta en tiempo real y se muestra en el formulario.
+- **Validaciones server-side** (no dependen del cliente):
+  - Cantidad ≤ `pendiente_devolver` (verificado también con `FOR UPDATE` en transacción).
+  - Precio forzado desde el remito (no se acepta el precio del POST).
+  - Condición en lista blanca.
+  - Saldo de caja/banco ≥ monto del reembolso (verificado con `FOR UPDATE` en transacción).
+- **Distribución FIFO en ventas no cobradas**: Si una devolución excede el saldo de un remito, el exceso reduce el saldo de otros remitos del mismo cliente (más antiguo primero), evitando que el sobrante se pierda.
+- **Impactos**: Stock (ENTRADA por reingreso, SALIDA por descarte), CtaCte (crédito), Caja/Banco (EGRESO si reembolso en efectivo/transferencia), Asiento contable automático.
+- **Estados**: PENDIENTE → PROCESADA / ANULADA. La anulación revierte todos los impactos.
 
 ### 3. Flujo de Compras
 
@@ -359,7 +372,7 @@ Módulo para registrar movimientos de stock que no generan comprobante fiscal ni
 |-----------|--------|
 | **ABM** | `clientes`, `proveedores`, `productos`, `materias_primas`, `categorias_mp_id`, `unidad_medida`, `monedas` |
 | **Códigos** | `producto_codigos`, `materiaprima_codigos`, `conversiones` |
-| **Ventas** | `presupuestos`, `presupuestos_detalle`, `notas_pedido`, `notas_pedido_detalle`, `remitos_salida`, `remitos_salida_detalle` |
+| **Ventas** | `presupuestos`, `presupuestos_detalle`, `notas_pedido`, `notas_pedido_detalle`, `remitos_salida`, `remitos_salida_detalle`, `devoluciones`, `devoluciones_detalle`, `devoluciones_reembolsos` |
 | **Compras** | `ordenes_compra`, `ordenes_compra_detalle`, `ingresos_mercaderia`, `ingresos_mercaderia_detalle`, `compras`, `compras_detalle` |
 | **Producción** | `recetas`, `recetas_detalle`, `ordenes_produccion`, `orden_produccion_detalle`, `reservas_materia_prima` |
 | **Stock** | `movimientos_stock`, `vststock_movstock_producto`, `vststock_movstock_materiaprima` |
@@ -395,17 +408,17 @@ El `MigrationManager.php` controla la versión del schema por tenant. Cada tenan
 |---|---------|-------------|
 | 003 | `003_create_contabilidad_tables.sql` | Tablas de contabilidad (asientos, plan de cuentas, cajas, conciliación) |
 | 004 | `004_create_impuestos_table.sql` | Tabla de impuestos (IVA) |
-| 005 | `005_add_caja_banco_to_gastos.sql` | Agregar caja_banco_id a gastos |
-| 006 | `006_add_remitos_manuales.sql` | Remitos manuales (columnas de cliente) |
-| 007 | `007_add_precio_unitario_to_remitos_detalle.sql` | Precio unitario en detalle de remitos |
-| 008 | `008_add_caja_banco_anulado_to_pagos.sql` | Caja/banco y flag anulado en pagos |
-| 009 | `009_add_cliente_ocasional.sql` | Cliente genérico OCASIONAL (id=9999) |
-| 010 | `010_add_cliente_nombre_to_ctacte.sql` | Nombre de cliente en cuenta corriente |
-| 011 | `011_add_cliente_nombre_to_pagos.sql` | Nombre de cliente en pagos |
-| 012 | `012_add_numero_transaccion_to_conciliacion.sql` | Número de transacción en conciliación |
-| 013 | `013_add_remito_id_to_pagos.sql` | ID de remito en pagos |
-| 014 | `014_create_movimientos_no_declarados.sql` | Tablas de comprobantes internos (SDCOMP) |
-| 015 | `015_fix_detalle_no_declarados.sql` | Fix: agregar materia_prima_id al detalle |
+| 005 | `005_add_remitos_manuales.sql` | Remitos manuales (columnas de cliente) |
+| 006 | `006_add_remito_id_to_pagos.sql` | ID de remito en pagos |
+| 007 | `007_create_movimientos_no_declarados.sql` | Tablas de comprobantes internos (SDCOMP) |
+| 008 | `008_creditos_bancarios.sql` | Tabla de créditos bancarios |
+| 009 | `009_add_pdf_columns_sdcomp.sql` | Columnas PDF en SDCOMP |
+| 010 | `010_email_config_templates.sql` | Configuración y templates de email |
+| 011 | `011_email_default_templates.sql` | Templates de email por defecto |
+| 012 | `012_add_activo_to_unidad_medida_and_categorias.sql` | Baja lógica en UM y categorías |
+| 013 | `013_add_pdf_path_to_presupuestos.sql` | PDF path en presupuestos |
+| 014 | `014_add_pdf_path_to_notas_pedido.sql` | PDF path en notas de pedido |
+| 015 | `015_create_devoluciones.sql` | Tablas de devoluciones + cuentas contables 4400/5110 + numerador DEV- |
 
 ---
 
@@ -419,15 +432,17 @@ Utiliza **Dompdf** para generar PDFs a partir de templates HTML.
 
 | Tipo | Template | Descripción |
 |------|----------|------------|
-| Remito de Salida | `views/pdf/remito_salida.php` | Diseño corporativo con logo, "R" legal, texto RG AFIP 1415, tabla de productos,totales, footer fijo. |
+| Remito de Salida | `views/pdf/remito_salida.php` | Diseño corporativo con logo, "R" legal, texto RG AFIP 1415, tabla de productos, totales, footer fijo. |
 | Recibo de Pago | `views/mails/pago.php` | Comprobante de cobro con datos del cliente, monto, medio de pago. |
+| Devolución | `views/pdf/devolucion.php` | Comprobante de devolución con items, condiciones, reembolso, color suave (#B03A2E). |
 
 ### Almacenamiento
 
 ```
 storage/
 ├── pagos/pago_{id}.pdf
-└── remitos/{YYYY}/{MM}/remito_{id}.pdf
+├── remitos/{YYYY}/{MM}/remito_{id}.pdf
+└── devoluciones/devolucion_{numero}.pdf
 ```
 
 ---
@@ -444,6 +459,7 @@ Utiliza **PHPMailer** con SMTP (mail.dmtech.com.ar:465 SSL).
 |------|----------|---------|
 | Remito de Salida | `views/mails/remito.php` | PDF del remito |
 | Pago/Cobro | `views/mails/pago.php` | PDF del recibo |
+| Devolución | `views/mails/devolucion.php` | PDF de la devolución |
 
 ### Funcionalidades
 
@@ -559,8 +575,9 @@ define('DB_TENANT_PASS', '');
 ## Notas de Desarrollo
 
 - El sistema usa **event-sourcing para stock**: el stock actual se calcula sumando movimientos, no se almacena como valor estático.
-- Los **asientos contables** se generan automáticamente para cobros, pagos y remitos.
+- Los **asientos contables** se generan automáticamente para cobros, pagos, remitos y devoluciones.
 - El **cliente ocasional** (id=9999) permite registrar ventas sin cliente registrado en el ABM.
 - Los **remitos manuales** buscan productos por AJAX con autocompletado.
 - El módulo **SDCOMP** usa nomenclatura genérica ("AJUSTE") para no revelar la naturaleza de los movimientos.
 - Los **PDFs** incluyen diseño corporativo con logo de la empresa y texto legal argentino (RG AFIP 1415).
+- **Devoluciones**: Toda validación de cantidad, precio y saldo de caja es server-side con `FOR UPDATE` en transacción. El precio se fuerza desde el remito (no se acepta del cliente). La distribución de devoluciones en ventas no cobradas es FIFO para no perder excesos.

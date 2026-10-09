@@ -23,8 +23,12 @@ $develop = 1;
  * Constantes base//
  */
 define('BASE_PATH', dirname(__DIR__));
-if($develop === 1){
-   define('BASE_URL', 'http://localhost/app/public');// define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');////define('BASE_URL', 'https://interventral-inversely-santa.ngrok-free.dev/app/public');
+// Detección dinámica del protocolo (http o https)
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+// Detección dinámica del host (puede ser localhost, una IP como 192.168.1.50, o tu dominio remoto)
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+if($develop === 1 || $host === 'localhost' || filter_var(str_replace(':80', '', $host), FILTER_VALIDATE_IP)){
+   define('BASE_URL', $protocol . '://' . $host . '/app/public');
 }else{
     define('BASE_URL', 'https://erpcliente.dmtech.com.ar');
 }
