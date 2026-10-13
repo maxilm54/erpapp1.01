@@ -81,20 +81,7 @@ class Sdcomp extends Model
                     VALUES (?, ?, ?, ?, ?, ?)
                 ")->execute([$movId, $detProductoId, $detMPId, $itemDescripcion, $cantidad, $precioUnitario]);
 
-                // Solo registrar movimiento de stock si hay producto_id o materia_prima_id
-                if ($tipoItem === 'MATERIAPRIMA' && $materiaPrimaId) {
-                    $this->db->prepare("
-                        INSERT INTO movimientos_stock
-                        (tipo, origen, referencia_id, producto_id, materia_prima_id, cantidad, motivo, usuario_id)
-                        VALUES (?, ?, ?, NULL, ?, ?, ?, ?)
-                    ")->execute(['SALIDA', 'AJUSTE_SDCOMP', $movId, $materiaPrimaId, $cantidad, 'Ajuste de stock - Comprobante #' . $movId, $_SESSION['user_id']]);
-                } elseif ($tipoItem !== 'MANUAL' && $productoId) {
-                    $this->db->prepare("
-                        INSERT INTO movimientos_stock
-                        (tipo, origen, referencia_id, producto_id, materia_prima_id, cantidad, motivo, usuario_id)
-                        VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
-                    ")->execute(['SALIDA', 'AJUSTE_SDCOMP', $movId, $productoId, $cantidad, 'Ajuste de stock - Comprobante #' . $movId, $_SESSION['user_id']]);
-                }
+                // El movimiento de stock se registra por separado desde "Registrar Entrada/Salida"
             }
 
             $this->db->commit();
@@ -245,25 +232,6 @@ class Sdcomp extends Model
 
         $this->db->beginTransaction();
         try {
-            foreach ($mov['detalle'] as $d) {
-                $tipoStock = ($mov['tipo'] === 'VENTA') ? 'ENTRADA' : 'SALIDA';
-                $origen = 'ANULACION_AJUSTE_SDCOMP';
-                $motivo = 'Anulacion comprobante #' . $movId;
-
-                $esMP = ($d['tipo_item'] === 'MATERIAPRIMA');
-
-                $this->db->prepare("
-                    INSERT INTO movimientos_stock
-                    (tipo, origen, referencia_id, producto_id, materia_prima_id, cantidad, motivo, usuario_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ")->execute([
-                    $tipoStock, $origen, $movId,
-                    $esMP ? null : $d['producto_id'],
-                    $esMP ? $d['materia_prima_id'] : null, // Corregido: d['materia_prima_id'] si es MP
-                    $d['cantidad'], $motivo, $_SESSION['user_id']
-                ]);
-            }
-
             $this->db->prepare("
                 UPDATE movimientos_no_declarados
                 SET estado = 'ANULADO', saldo_pendiente = 0
@@ -275,6 +243,59 @@ class Sdcomp extends Model
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    public function registrarMovimientoStock(int $movId, string $tipo, array $items): void
+    {
+        $this->db->beginTransaction();
+        try {
+            $tipoStock = ($tipo === 'VENTA') ? 'SALIDA' : 'ENTRADA';
+            foreach ($items as $item) {
+                $productoId = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
+                $materiaPrimaId = !empty($item['materia_prima_id']) ? (int)$item['materia_prima_id'] : null;
+                $cantidad = (float)$item['cantidad'];
+                $tipoItem = $item['tipo_item'] ?? 'PRODUCTO';
+
+                if ($cantidad <= 0) continue;
+                if ($tipoItem === 'MANUAL' || (!$productoId && !$materiaPrimaId)) continue;
+
+                if ($tipoItem === 'MATERIAPRIMA') {
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, referencia_id, producto_id, materia_prima_id, cantidad, motivo, usuario_id)
+                        VALUES (?, ?, ?, NULL, ?, ?, ?, ?)
+                    ")->execute([$tipoStock, 'MOVIMIENTO_SDCOMP', $movId, $materiaPrimaId, $cantidad, 'Movimiento de stock - Comprobante #' . $movId, $_SESSION['user_id']]);
+                } else {
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, referencia_id, producto_id, materia_prima_id, cantidad, motivo, usuario_id)
+                        VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
+                    ")->execute([$tipoStock, 'MOVIMIENTO_SDCOMP', $movId, $productoId, $cantidad, 'Movimiento de stock - Comprobante #' . $movId, $_SESSION['user_id']]);
+                }
+            }
+
+            $this->db->commit();
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw new Exception('Error al registrar movimiento de stock: ' . $e->getMessage());
+        }
+    }
+
+    public function getMovimientosStock(int $movId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT ms.*, u.nombre AS usuario_nombre,
+                p.nombre AS producto_nombre,
+                mp.nombre AS materia_prima_nombre
+            FROM movimientos_stock ms
+            JOIN users u ON u.id = ms.usuario_id
+            LEFT JOIN productos p ON p.id = ms.producto_id
+            LEFT JOIN materias_primas mp ON mp.id = ms.materia_prima_id
+            WHERE ms.origen = 'MOVIMIENTO_SDCOMP' AND ms.referencia_id = ?
+            ORDER BY ms.created_at ASC
+        ");
+        $stmt->execute([$movId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function dashboard(): array

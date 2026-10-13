@@ -163,8 +163,11 @@ class SdcompController extends Controller
             exit;
         }
 
+        $movimientosStock = $this->model->getMovimientosStock((int)$id);
+
         $this->view('sdcomp/show', [
-            'mov' => $mov
+            'mov' => $mov,
+            'movimientosStock' => $movimientosStock
         ]);
     }
 
@@ -233,13 +236,100 @@ class SdcompController extends Controller
 
         try {
             $this->model->anular((int)$id);
-            $_SESSION['success'] = 'Comprobante anulado y stock ajustado.';
+            $_SESSION['success'] = 'Comprobante anulado.';
         } catch (Exception $e) {
             $_SESSION['error'] = $e->getMessage();
         }
 
         header('Location: ' . BASE_URL . '/sdcomp');
         exit;
+    }
+
+    public function movimientoStock($id)
+    {
+        $this->checkAccess();
+
+        $mov = $this->model->find((int)$id);
+        if (!$mov) {
+            $_SESSION['error'] = 'Comprobante no encontrado.';
+            header('Location: ' . BASE_URL . '/sdcomp');
+            exit;
+        }
+
+        $stockRegistrado = $this->model->getMovimientosStock((int)$id);
+
+        // Calcular cantidad ya registrada en stock por item
+        $registradoPorItem = [];
+        foreach ($stockRegistrado as $sr) {
+            $key = $sr['producto_id'] ? 'p' . $sr['producto_id'] : 'mp' . $sr['materia_prima_id'];
+            $registradoPorItem[$key] = ($registradoPorItem[$key] ?? 0) + (float)$sr['cantidad'];
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            try {
+                $items = $_POST['items'] ?? [];
+                if (empty($items) || !is_array($items)) {
+                    throw new Exception('Debe seleccionar al menos un item');
+                }
+
+                $itemsLimpios = [];
+                foreach ($items as $item) {
+                    $cant = (float)($item['cantidad'] ?? 0);
+                    if ($cant <= 0) continue;
+
+                    $productoId = $item['producto_id'] ?? null;
+                    $materiaPrimaId = $item['materia_prima_id'] ?? null;
+                    $tipoItem = $item['tipo_item'] ?? 'PRODUCTO';
+
+                    // Validar contra pendiente
+                    $key = $productoId ? 'p' . $productoId : 'mp' . $materiaPrimaId;
+                    $yaReg = (float)($registradoPorItem[$key] ?? 0);
+
+                    // Buscar cantidad original del detalle
+                    $cantOriginal = 0;
+                    foreach ($mov['detalle'] as $d) {
+                        $detKey = $d['producto_id'] ? 'p' . $d['producto_id'] : 'mp' . $d['materia_prima_id'];
+                        if ($detKey === $key) {
+                            $cantOriginal = (float)$d['cantidad'];
+                            break;
+                        }
+                    }
+
+                    $pendiente = max(0, $cantOriginal - $yaReg);
+                    if ($cant > $pendiente) {
+                        $nombre = $item['item_nombre'] ?? 'Item';
+                        throw new Exception("La cantidad del item '{$nombre}' supera el pendiente disponible ({$pendiente}). Maximo permitido: {$pendiente}");
+                    }
+
+                    $itemsLimpios[] = [
+                        'producto_id' => $productoId,
+                        'materia_prima_id' => $materiaPrimaId,
+                        'cantidad' => $cant,
+                        'tipo_item' => $tipoItem
+                    ];
+                }
+
+                if (empty($itemsLimpios)) {
+                    throw new Exception('Debe ingresar al menos un item con cantidad mayor a cero');
+                }
+
+                $this->model->registrarMovimientoStock((int)$id, $mov['tipo'], $itemsLimpios);
+                $_SESSION['success'] = 'Movimiento de stock registrado correctamente.';
+                header('Location: ' . BASE_URL . '/sdcomp/show/' . $id);
+                exit;
+
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/sdcomp/movimiento-stock/' . $id);
+                exit;
+            }
+        }
+
+        $this->view('sdcomp/movimiento_stock', [
+            'mov' => $mov,
+            'stockRegistrado' => $stockRegistrado,
+            'registradoPorItem' => $registradoPorItem
+        ]);
     }
 
     public function dashboard()

@@ -20,12 +20,17 @@ if ($mov['estado'] === 'COBRADO') $estadoLabel = $esVenta ? 'COBRADO' : 'PAGADO'
         <span class="badge <?= $badge ?> fs-6"><?= $estadoLabel ?></span>
     </h4>
     <div>
+        <?php if ($mov['estado'] !== 'ANULADO'): ?>
+        <a href="<?= BASE_URL ?>/sdcomp/movimiento-stock/<?= $mov['id'] ?>" class="btn btn-primary btn-sm">
+            <i class="bi bi-boxes"></i> <?= $esVenta ? 'Registrar Salida' : 'Registrar Entrada' ?>
+        </a>
+        <?php endif; ?>
         <?php if ($mov['estado'] !== 'ANULADO' && $mov['estado'] !== 'COBRADO'): ?>
         <a href="<?= BASE_URL ?>/sdcomp/pago/<?= $mov['id'] ?>" class="btn btn-success btn-sm">
             <i class="bi bi-cash"></i> <?= $esVenta ? 'Registrar Cobro' : 'Registrar Pago' ?>
         </a>
         <a href="<?= BASE_URL ?>/sdcomp/anular/<?= $mov['id'] ?>" class="btn btn-outline-danger btn-sm"
-           onclick="return confirm('Anular este comprobante? Se ajustara el stock.')">
+           onclick="return confirm('Anular este comprobante?')">
             <i class="bi bi-x-circle"></i> Anular
         </a>
         <?php endif; ?>
@@ -134,6 +139,43 @@ if ($mov['estado'] === 'COBRADO') $estadoLabel = $esVenta ? 'COBRADO' : 'PAGADO'
                     <td class="text-end">$ <?= number_format($pg['monto'], 2, ',', '.') ?></td>
                     <td><?= htmlspecialchars($pg['descripcion'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($pg['usuario_nombre']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($movimientosStock)): ?>
+<div class="card mb-3">
+    <div class="card-header"><strong>Movimientos de Stock</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-striped mb-0">
+            <thead class="table-info">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Producto / MP</th>
+                    <th class="text-end">Cantidad</th>
+                    <th>Usuario</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($movimientosStock as $ms):
+                    $esMP = $ms['materia_prima_id'] !== null;
+                    $nombreItem = $ms['producto_nombre'] ?? $ms['materia_prima_nombre'] ?? '-';
+                ?>
+                <tr>
+                    <td><?= date('d/m/Y H:i', strtotime($ms['created_at'])) ?></td>
+                    <td>
+                        <span class="badge <?= $ms['tipo'] === 'ENTRADA' ? 'bg-success' : 'bg-danger' ?>">
+                            <?= $ms['tipo'] === 'ENTRADA' ? 'Entrada' : 'Salida' ?>
+                        </span>
+                    </td>
+                    <td><?= htmlspecialchars($nombreItem) ?></td>
+                    <td class="text-end"><?= number_format((float)$ms['cantidad'], 2, ',', '.') ?></td>
+                    <td><?= htmlspecialchars($ms['usuario_nombre'] ?? '-') ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
