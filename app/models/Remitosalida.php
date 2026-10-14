@@ -268,9 +268,8 @@ if (!$remito) {
         ?string $observaciones = null
         ): int{
         try {
-            $numero = (new Numerador())->siguiente('REMITO');
-            error_log($numero.'-'.__FILE__.'-'.__LINE__);
             $this->db->beginTransaction();
+            $numero = (new Numerador())->siguiente('REMITO');
             $cc = new CuentaCorrienteCliente();
 
             // 1️⃣ Cabecera
@@ -326,17 +325,10 @@ if (!$remito) {
                 $precio=$npdata['precio'];
                 $subtotal=$precio*$cantidad;
 
-                // Obtener nombre del cliente para ctacte
-                $clienteNombre = null;
-                if ($cliente_id && $cliente_id != 9999) {
-                    $stmtCli = $this->db->prepare("SELECT razon_social FROM clientes WHERE id = ?");
-                    $stmtCli->execute([$cliente_id]);
-                    $clienteNombre = $stmtCli->fetchColumn() ?: null;
-                } else {
-                    $stmtCli = $this->db->prepare("SELECT cliente_nombre FROM notas_pedido WHERE id = ?");
-                    $stmtCli->execute([$notaPedidoId]);
-                    $clienteNombre = $stmtCli->fetchColumn() ?: null;
-                }
+                // Obtener nombre del cliente para ctacte (soporta cliente ocasional 9999)
+                $stmtCli = $this->db->prepare("SELECT razon_social FROM clientes WHERE id = ?");
+                $stmtCli->execute([$cliente_id]);
+                $clienteNombre = $stmtCli->fetchColumn() ?: null;
 
                 // Actualizar precio_unitario en el detalle
                 $this->db->prepare("
