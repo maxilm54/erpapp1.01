@@ -2,6 +2,7 @@
 
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Stock.php';
+require_once BASE_PATH.'/app/models/Deposito.php';
 
 class StockController extends Controller
 {
@@ -19,19 +20,25 @@ class StockController extends Controller
 
     public function productos()
     {
-        $stock = $this->model->stockProductos();
+        $depositoId = !empty($_GET['deposito_id']) ? (int)$_GET['deposito_id'] : null;
+        $stock = $this->model->stockProductos($depositoId);
 
         $this->view('stock/productos', [
-            'stock' => $stock
+            'stock' => $stock,
+            'depositos' => (new Deposito())->all(),
+            'deposito_id' => $depositoId
         ]);
     }
 
     public function materiasprimas()
     {
-        $stock = $this->model->stockMateriasPrimas();
+        $depositoId = !empty($_GET['deposito_id']) ? (int)$_GET['deposito_id'] : null;
+        $stock = $this->model->stockMateriasPrimas($depositoId);
 
         $this->view('stock/materiasprimas', [
-            'stock' => $stock
+            'stock' => $stock,
+            'depositos' => (new Deposito())->all(),
+            'deposito_id' => $depositoId
         ]);
     }
 }

@@ -11,7 +11,7 @@
 <!-- Búsqueda de cliente -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="get" class="row g-2 align-items-end">
+        <form method="get" action="<?= BASE_URL ?>/ctacte/cliente" class="row g-2 align-items-end">
             <div class="col-auto">
                 <label class="form-label mb-0 small">Buscar cliente</label>
                 <input type="text" name="q" class="form-control form-control-sm" placeholder="Nombre o CUIT..." value="<?= htmlspecialchars($q ?? '') ?>">
@@ -121,7 +121,7 @@
 <!-- Filtros del extracto -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="get" class="row g-2 align-items-end">
+        <form method="get" action="<?= BASE_URL ?>/ctacte/cliente/<?= (int)$clienteId ?><?= $titleParam ?? '' ?>" class="row g-2 align-items-end">
             <div class="col-auto">
                 <label class="form-label mb-0 small">Tipo</label>
                 <select name="tipo" class="form-select form-select-sm">

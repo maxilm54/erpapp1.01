@@ -9,6 +9,9 @@
                 <th>Referencia</th>
                 <th>Item</th>
                 <th>Cantidad</th>
+                <th>Depósito</th>
+                <th>Lote</th>
+                <th>Vencimiento</th>
                 <th>Usuario</th>
                 <th>Motivo</th>
                 <th>Obs</th>
@@ -23,9 +26,12 @@
                 <td><?= $a['referencia_id'] ?></td>
                 <td><?= $a['producto'] ?? $a['materia_prima'] ?></td>
                 <td><?= number_format($a['cantidad'],2,',','.') ?></td>
+                <td><?= htmlspecialchars($a['deposito'] ?? '') ?></td>
+                <td><?= htmlspecialchars($a['codigo_lote'] ?? '') ?></td>
+                <td><?= !empty($a['fecha_vencimiento']) ? $a['fecha_vencimiento'] : '' ?></td>
                 <td><?= htmlspecialchars($a['usuario']) ?></td>
                 <td><?= htmlspecialchars($a['motivo']) ?></td>
-                <td><?= htmlspecialchars($a['observaciones']) ?></td>
+                <td><?= htmlspecialchars($a['observaciones'] ?? '') ?></td>
             </tr>
             <?php endforeach; ?>
         </tbody>

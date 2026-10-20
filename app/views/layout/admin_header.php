@@ -107,6 +107,9 @@
             </a>
 
             <div class="section-title">Sistema</div>
+            <a href="<?= BASE_URL ?>/admin/tareas" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/tareas') ? 'active' : '' ?>">
+                <i class="bi bi-check2-square"></i> Tareas
+            </a>
             <a href="<?= BASE_URL ?>/admin/migrations" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/migrations') ? 'active' : '' ?>">
                 <i class="bi bi-database"></i> Migraciones
             </a>

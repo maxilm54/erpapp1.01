@@ -7,6 +7,13 @@
         <textarea class="form-control mb-2" name="descripcion" placeholder="Descripción"></textarea>
         <input class="form-control mb-2" name="precio_venta" type="number" step="0.01" required placeholder="Precio de Venta ($)">
 
+        <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="usa_serie" value="1" id="usaSerie">
+            <label class="form-check-label" for="usaSerie">
+                <strong>Controla N° de Serie</strong> — cada unidad se recepciona y remite individualmente con su número de serie propio.
+            </label>
+        </div>
+
         <select class="form-control mb-2" name="unidad_medida" required>
             <option value="">Seleccionar Unidad de Medida</option>
             <?php foreach ($umedida as $um): ?>

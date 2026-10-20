@@ -1,5 +1,5 @@
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card bg-primary text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-building"></i> Empresas</h6>
@@ -7,7 +7,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card bg-success text-white">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-people"></i> Usuarios</h6>
@@ -15,7 +15,17 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6 class="card-title"><i class="bi bi-check2-square"></i> Tareas Pendientes</h6>
+                <a href="<?= BASE_URL ?>/admin/tareas" class="text-white">
+                    <h2 class="mb-0"><?= (int)($totalTareas ?? 0) ?></h2>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card bg-warning text-dark">
             <div class="card-body">
                 <h6 class="card-title"><i class="bi bi-database"></i> Migraciones</h6>

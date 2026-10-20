@@ -55,7 +55,7 @@ class OrdenCompra extends Model
     public function detalle(int $id): array
     {
         $stmt = $this->db->prepare(
-            "SELECT d.*, mp.nombre, mp.unidad_medida
+            "SELECT d.*, mp.nombre, mp.id_unidadmedida
              FROM ordenes_compra_detalle d
              JOIN materias_primas mp ON mp.id = d.materia_prima_id
              WHERE d.orden_compra_id = :id"
@@ -102,6 +102,7 @@ class OrdenCompra extends Model
                 COALESCE(mp.nombre, pr.nombre) AS nombre,
                 COALESCE(mp.id_unidadmedida, pr.unidad_medida) AS id_unidadmedida,
                 COALESCE(um_mp.nombre, um_pr.nombre) AS nombre_medida,
+                COALESCE(mp.usa_serie, pr.usa_serie, 0) AS usa_serie,
                 d.cantidad AS pedida,
                 COALESCE(SUM(idt.cantidad), 0) AS recibida,
                 (d.cantidad - COALESCE(SUM(idt.cantidad), 0)) AS faltante,

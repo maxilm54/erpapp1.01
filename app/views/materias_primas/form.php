@@ -18,6 +18,13 @@
         <?php endforeach; ?>
     </select>
 
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="usa_serie" value="1" id="usaSerieMP">
+        <label class="form-check-label" for="usaSerieMP">
+            <strong>Controla N° de Serie</strong> — cada unidad se recepciona y remite individualmente con su número de serie propio.
+        </label>
+    </div>
+
     <label>Imagen:</label>
     <div class="row align-items-center mb-3">
         <div class="col-md-3 text-center">

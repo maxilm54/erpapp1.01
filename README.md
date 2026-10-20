@@ -1,4 +1,4 @@
-# ERP Alimentos Triba S.R.L.
+# ERP Cliente
 
 Sistema ERP multi-tenant para gestión integral de una empresa de alimentos (fabricación, ventas, compras, producción, contabilidad).
 
@@ -84,7 +84,7 @@ public/index.php
 | Capa | Tecnología |
 |------|-----------|
 | **Lenguaje** | PHP 8+ (strict types) |
-| **Base de datos** | MySQL 8 (InnoDB, utf8mb4) |
+| **Base de datos** | MariaDB 10.4 (InnoDB, utf8mb4) — compatible con MySQL 8 |
 | **Frontend** | Bootstrap 5.3 (CDN), Bootstrap Icons, SweetAlert2, Chart.js |
 | **PDF** | Dompdf 3.1 (vía Composer) |
 | **Email** | PHPMailer 7.0 (SMTP vía mail.dmtech.com.ar:465 SSL) |
@@ -104,7 +104,7 @@ app/
 │   ├── database.php           # Conexiones a BD (master + tenant)
 │   ├── Cache.php              # Cache en archivos
 │   └── env.php                # Parser de .env
-├── controllers/               # 32 controladores
+├── controllers/               # 35 controladores
 ├── core/
 │   ├── Router.php             # Enrutador URL
 │   ├── Controller.php         # Controlador base
@@ -120,14 +120,14 @@ app/
 │   ├── AsientoAutomatico.php  # Asientos contables automáticos
 │   ├── MailHelper.php         # Wrapper PHPMailer
 │   ├── MigrationManager.php   # Gestor de migraciones
-│   ├── migrations/            # Migraciones SQL (003-015)
+│   ├── migrations/            # Migraciones SQL (003-021)
 │   └── squemadb/              # Schema SQL para tenants nuevos
-├── models/                    # 37 modelos
+├── models/                    # 41 modelos
 ├── services/
 │   ├── StockService.php       # Servicio de stock
 │   ├── MailService.php        # Servicio de emails con templates
 │   └── PdfService.php         # Generación de PDFs
-└── views/                     # 24 directorios de vistas
+└── views/                     # 38 directorios de vistas
     ├── layout/                # header.php, footer.php, alerts.php
     ├── auth/                  # Login, registro, selección de tenant
     ├── home/                  # Dashboard principal
@@ -145,10 +145,25 @@ app/
     ├── ordenes_compras/       # Órdenes de Compra
     ├── stock/                 # Consulta de stock
     ├── ajustes_stock/         # Ajustes manuales de stock
+    ├── depositos/             # Depósitos (CRUD)
+    ├── lotes/                 # Lotes y vencimientos
+    ├── transferencias/        # Transferencias entre depósitos
     ├── cta_cte/               # Cuenta Corriente de clientes
+    ├── cuenta_corriente_emp/  # Cuenta Corriente de la empresa
     ├── cobros/                # Cobros a clientes
+    ├── perfil/                # "Mi Perfil" (datos del usuario logueado)
     ├── contabilidad/          # Contabilidad (asientos, plan de cuentas, etc.)
     ├── impuestos/             # Impuestos (IVA)
+    ├── sdcomp/                # Comprobantes internos
+    ├── ingresos/              # Ingresos de mercadería
+    ├── gastos/                # Gastos
+    ├── creditos/              # Créditos bancarios
+    ├── empresa/               # Info y configuración de la empresa
+    ├── numeradores/           # Numeradores de comprobantes
+    ├── email/                 # Configuración y envío de emails
+    ├── users/                 # Gestión de usuarios
+    ├── categoriamaterial/     # Categorías de materias primas
+    ├── unidadmedida/          # Unidades de medida
     ├── pdf/                   # Templates HTML para PDFs
     └── mails/                 # Templates HTML para emails
 ```
@@ -185,6 +200,8 @@ app/
 | `tenants` | Empresas registradas (nombre, dbname, host, activo, schema_version) |
 | `users` | Usuarios globales (nombre, email, password_hash, rol) |
 | `user_tenant` | Relación many-to-many usuario-tenant |
+| `tareas` | Registro de tareas del panel de administración (PENDIENTE / HECHA) |
+| `master_migrations` | Control de migraciones aplicadas al schema master |
 
 ### Flujo de Conexión
 
@@ -201,26 +218,29 @@ app/
 
 | Rol | Constante | Descripción |
 |-----|-----------|------------|
-| Superadmin | `ADMIN` | Acceso total: gestión de tenants, usuarios, migraciones. Puede cambiar de empresa. |
+| Superadmin | `SUPERADMIN` | Acceso total: gestión de tenants, usuarios, migraciones. **No accede a los módulos de tenant** (`Auth::requireTenant()` lo redirige al panel admin). |
+| Administrador | `ADMIN` | Admin de la empresa (tenant): ABM, ventas, compras, stock, cobros, contabilidad. Puede administrar los usuarios de su empresa. |
 | Operario | `USUARIO` | Acceso a módulos operativos: ABM, ventas, compras, stock, cobros. |
 | Gerente Financiero | `GERENTE_FINANCIERO` | Acceso a módulo SDCOMP (comprobantes internos) + visualización. |
 | Visor | `VISITOR` | Solo lectura (pendiente de implementación completa). |
 
+> `SUPERADMIN` y `ADMIN` son roles **distintos**: el primero administra la instalación (tenants) y **no accede a los módulos de tenant**; el segundo administra una empresa. Definidos en `app/core/Role.php`.
+
 ### Permisos por Rol
 
-| Módulo | ADMIN | USUARIO | GERENTE_FINANCIERO |
-|--------|-------|---------|-------------------|
-| ABM (clientes, productos, etc.) | ✅ | ✅ | ❌ |
-| Ventas (NP, remitos) | ✅ | ✅ | ❌ |
-| Compras (OC, ingresos) | ✅ | ✅ | ❌ |
-| Stock | ✅ | ✅ | ❌ |
-| Producción | ✅ | ✅ | ❌ |
-| Cobros | ✅ | ✅ | ❌ |
-| Contabilidad | ✅ | ✅ | ❌ |
-| Cta. Corriente | ✅ | ✅ | ❌ |
-| SDCOMP (comprobantes internos) | ✅ | ❌ | ✅ |
-| Admin (tenants, usuarios) | ✅ | ❌ | ❌ |
-| Empresa (info, usuarios propios) | ✅ | ✅ | ❌ |
+| Módulo | SUPERADMIN | ADMIN | USUARIO | GERENTE_FINANCIERO |
+|--------|-----------|-------|---------|-------------------|
+| ABM (clientes, productos, etc.) | ❌ | ✅ | ✅ | ❌ |
+| Ventas (NP, remitos) | ❌ | ✅ | ✅ | ❌ |
+| Compras (OC, ingresos) | ❌ | ✅ | ✅ | ❌ |
+| Stock | ❌ | ✅ | ✅ | ❌ |
+| Producción | ❌ | ✅ | ✅ | ❌ |
+| Cobros | ❌ | ✅ | ✅ | ❌ |
+| Contabilidad | ❌ | ✅ | ✅ | ❌ |
+| Cta. Corriente | ❌ | ✅ | ✅ | ❌ |
+| SDCOMP (comprobantes internos) | ❌ | ✅ | ❌ | ✅ |
+| Admin global (tenants, usuarios, migraciones) | ✅ | ❌ | ❌ | ❌ |
+| Empresa (info, usuarios propios) | ❌ | ✅ | ✅ | ❌ |
 
 ---
 
@@ -310,10 +330,22 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   Stock = SUM(CASE WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
                    WHEN tipo = 'SALIDA' THEN -cantidad END)
   ```
-- **Orígenes de movimientos**: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE, PRODUCCION, etc.
-- **Ajustes manuales**: Conjustificación, por producto o materia prima.
+- **Orígenes de movimientos**: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE, PRODUCCION, DEVOLUCION, TRANSFERENCIA, etc.
+- **Depósitos (nuevo)**: Stock desglosado por depósito físico. Cada movimiento de stock ahora puede asociarse a un depósito (`deposito_id`) mediante las columnas agregadas en migración 016.
+- **Lotes y Vencimientos (nuevo)**: Cada movimiento puede asociarse a un lote (`lote_id`) con código de lote, fecha de vencimiento y fecha de producción. Tabla `lotes` vinculada a `productos` o `materias_primas`.
+- **Control de N° de Serie por unidad (nuevo)**: Flag `usa_serie` en productos y materias primas (migración 020). Cuando está activo:
+  - El producto/MP se **recepciona y remite unidad a unidad**: la tabla `series` registra cada unidad con su `numero_serie` único, estado (`DISPONIBLE` → `REMITIDO` → `EN_DEVOLUCION`/`BAJA`), depósito, lote e ingreso/remito asociados.
+  - **Ingreso**: los items con serie se expanden en N filas (una por unidad), cada una con su N° de serie obligatorio y validación de unicidad.
+  - **Remito** (desde NP y manual): en lugar de cantidad se muestra un selector múltiple de series DISPONIBLES en el depósito (cargado vía AJAX a `remitossalida/seriesDisponibles`); al confirmar, cada serie se marca `REMITIDO` con su `remito_salida_id`.
+  - **Detalle**: `productos/show` y `materiasprimas/show` muestran la tabla de unidades con serie, su estado, depósito, lote, ingreso y remito.
+- **Transferencias entre Depósitos (nuevo)**: Módulo para mover stock de un depósito a otro en dos fases:
+  1. Confirmar salida → mercadería queda "En Tránsito" (depósito virtual).
+  2. Confirmar recepción → se acredita en el depósito destino.
+  La anulación devuelve el stock al origen si está en tránsito, o lo retira del destino si ya fue recibida.
+- **Ajustes manuales**: Con justificación, por producto o materia prima. Ahora incluyen selección de depósito y lote.
+- **Stock por depósito**: Las vistas de stock tienen filtro por depósito. Los remitos e ingresos de mercadería validan stock contra el depósito seleccionado.
 - **Alertas**: Stock crítico, bajo mínimo, sobre stock.
-- **Vistas**: Stock de productos, stock de materias primas, historial de movimientos.
+- **Vistas**: Stock de productos, stock de materias primas, historial de movimientos (ahora muestra depósito, lote y vencimiento).
 
 ### 6. Cuenta Corriente y Cobros
 
@@ -326,6 +358,18 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   - Registra crédito en ctacte.
   - Genera asiento contable automático.
 - **Pagos a Proveedores**: Similar a cobros pero para egresos.
+- **Cta. Corriente de la Empresa** (`/cuentacorrienteempresa`): libro de movimientos de la empresa.
+  - `INGRESO` = entra dinero a la empresa; `GASTO` = sale dinero. Saldo = ingresos - gastos.
+  - Cada movimiento tiene categoría (`categorias_gastos_ingresos`) y, opcionalmente, **proveedor**: con proveedor cargado, el saldo es la **deuda que la empresa tiene con ese proveedor**.
+  - Filtros por tipo, categoría, proveedor, rango de fechas y texto; paginado de 50 por página.
+  - Anulación por baja lógica (`activo = 0`): los movimientos contables no se borran físicamente.
+  - Ruta: `/cuentacorrienteempresa`, `/create`, `/edit/{id}`, `/delete/{id}`.
+
+### 6b. Perfil del Usuario
+
+- **Mi Perfil** (`/perfil`): el usuario logueado ve y edita sus propios datos (nombre, email y contraseña).
+- No permite cambiar el rol ni el estado: eso es exclusivo de un administrador de la empresa.
+- El cambio se guarda en la BD master (`app_master.users`) y se propaga a la copia del usuario en cada empresa (`users` del tenant) para que no quede desincronizado.
 
 ### 7. Contabilidad (Partida Doble)
 
@@ -357,13 +401,32 @@ Módulo para registrar movimientos de stock que no generan comprobante fiscal ni
 - **Dashboard**: KPIs, deudores, proveedores, resumen por tipo/estado.
 - **Acceso**: Solo roles ADMIN y GERENTE_FINANCIERO.
 
+### 10. Panel de Administración (SUPERADMIN)
+
+`/admin` — solo el superadmin (el `Router` manda al panel admin a `AdminController` y `UsersController`; el superadmin **no** entra a los módulos de tenant).
+
+- **Dashboard**: empresas, usuarios, tareas pendientes y accesos rápidos.
+- **Empresas**: alta/edición de tenants (crea la BD desde `tenant_schema.sql` y los directorios de la empresa).
+- **Usuarios**: gestión global y por empresa.
+- **Migraciones**: estado por tenant + migraciones pendientes de la BD master.
+- **Tareas** (`/admin/tareas`): registro de tareas de la instalación.
+
+#### Registro de tareas
+
+Reemplaza al viejo `tareas.json` de la raíz del repo (eliminado). Vive en la tabla `tareas` de la **BD master**.
+
+- **Estados**: `PENDIENTE` → `HECHA`. Acciones: crear, **confirmar**, reabrir y eliminar.
+- Cada tarea puede asociarse a una empresa (`tenant_id`) o ser general.
+- Al confirmar se guardan `completada_at` y `completada_por`; al reabrir, se limpian.
+- Rutas: `/admin/tareas`, `/admin/tareas-create`, `/admin/tareas-confirmar/{id}`, `/admin/tareas-reabrir/{id}`, `/admin/tareas-delete/{id}`.
+
 ---
 
 ## Base de Datos
 
 ### Estructura Multi-Tenant
 
-- **Master DB** (`app_master`): 3 tablas (tenants, users, user_tenant).
+- **Master DB** (`app_master`): 5 tablas (tenants, users, user_tenant, tareas, master_migrations).
 - **Tenant DB** (ej: `app_triba`): 50+ tablas con datos de la empresa.
 
 ### Tablas Principales del Tenant
@@ -375,13 +438,15 @@ Módulo para registrar movimientos de stock que no generan comprobante fiscal ni
 | **Ventas** | `presupuestos`, `presupuestos_detalle`, `notas_pedido`, `notas_pedido_detalle`, `remitos_salida`, `remitos_salida_detalle`, `devoluciones`, `devoluciones_detalle`, `devoluciones_reembolsos` |
 | **Compras** | `ordenes_compra`, `ordenes_compra_detalle`, `ingresos_mercaderia`, `ingresos_mercaderia_detalle`, `compras`, `compras_detalle` |
 | **Producción** | `recetas`, `recetas_detalle`, `ordenes_produccion`, `orden_produccion_detalle`, `reservas_materia_prima` |
-| **Stock** | `movimientos_stock`, `vststock_movstock_producto`, `vststock_movstock_materiaprima` |
+| **Stock** | `movimientos_stock`, `vststock_movstock_producto`, `vststock_movstock_materiaprima`, `depositos`, `lotes`, `series` |
+| **Transferencias** | `transferencias_depositos`, `transferencias_detalle` |
 | **Finanzas** | `cuentas_corriente_clientes`, `pagos`, `gastos`, `cajas_bancos`, `movimientos_caja` |
 | **Contabilidad** | `asientos_contables`, `asientos_detalle`, `cuentas_contables`, `conciliaciones_bancarias`, `conciliaciones_detalle` |
 | **Impuestos** | `impuestos` |
 | **Cta. Empresa** | `cuentas_corrientes_empresa`, `categorias_gastos_ingresos` |
 | **SDCOMP** | `movimientos_no_declarados`, `movimientos_no_declarados_detalle`, `movimientos_no_declarados_pagos` |
 | **Sistema** | `act_bd`, `numeradores`, `mails_log`, `users` (stub), `historial_cambio_precios`, `stock_mp_transito`, `tbl_historico_reserva_mp` |
+| **Cta. Empresa** | `cuentas_corrientes_empresa`, `categorias_gastos_ingresos` |
 
 ### Vistas SQL
 
@@ -405,7 +470,7 @@ El `MigrationManager.php` controla la versión del schema por tenant. Cada tenan
 ### Migraciones SQL
 
 | # | Archivo | Descripción |
-|---|---------|-------------|
+|---|-------|--------------|
 | 003 | `003_create_contabilidad_tables.sql` | Tablas de contabilidad (asientos, plan de cuentas, cajas, conciliación) |
 | 004 | `004_create_impuestos_table.sql` | Tabla de impuestos (IVA) |
 | 005 | `005_add_remitos_manuales.sql` | Remitos manuales (columnas de cliente) |
@@ -419,6 +484,24 @@ El `MigrationManager.php` controla la versión del schema por tenant. Cada tenan
 | 013 | `013_add_pdf_path_to_presupuestos.sql` | PDF path en presupuestos |
 | 014 | `014_add_pdf_path_to_notas_pedido.sql` | PDF path en notas de pedido |
 | 015 | `015_create_devoluciones.sql` | Tablas de devoluciones + cuentas contables 4400/5110 + numerador DEV- |
+| 016 | `016_depositos_lotes.sql` | Tablas `depositos` y `lotes`, columnas `deposito_id`/`lote_id` en `movimientos_stock` |
+| 017 | `017_transferencias_depositos.sql` | Tablas `transferencias_depositos` y `transferencias_detalle` + numerador TRANSFERENCIA |
+| 018 | `018_transferencias_transito.sql` | Columna `es_transito` en `depositos`, depósito virtual "En Tránsito", estado `EN_TRANSITO` + `recibida_at`/`recibida_por` |
+| 019 | `019_lotes_serie.sql` | Columna `numero_serie` en `lotes` |
+| 020 | `020_serie_unidades.sql` | Columna `usa_serie` en `productos` y `materias_primas`, tabla `series` (unidades individuales con control de N° de serie) |
+| 021 | `021_cuenta_corriente_empresa.sql` | Tablas `categorias_gastos_ingresos` y `cuentas_corrientes_empresa` (ctacte de la empresa, con deuda por proveedor) |
+
+### Migraciones de la BD Master
+
+El schema de la **base master** (instalación) tiene su propio mecanismo, independiente del de los tenants:
+
+- Archivos en `app/helpers/squemadb/master_migrations/NNN_descripcion.sql`.
+- `MasterMigrationManager.php` los aplica y lleva el control en la tabla `master_migrations` de la master.
+- Se ejecutan desde **Admin → Migraciones → "Migraciones de la BD Master"**.
+
+| # | Archivo | Descripción |
+|---|---------|--------------|
+| 001 | `001_create_tareas.sql` | Tabla `tareas` (registro de tareas del panel de administración) |
 
 ---
 
@@ -438,12 +521,20 @@ Utiliza **Dompdf** para generar PDFs a partir de templates HTML.
 
 ### Almacenamiento
 
+Los archivos son **por tenant**: `empresaStoragePath($tipo)` (helper en `app/config/config.php`) resuelve `storage/empresa_{tenantId}/{$tipo}` y crea el directorio si no existe.
+
 ```
-storage/
+storage/empresa_{tenantId}/
 ├── pagos/pago_{id}.pdf
 ├── remitos/{YYYY}/{MM}/remito_{id}.pdf
-└── devoluciones/devolucion_{numero}.pdf
+├── devoluciones/devolucion_{numero}.pdf
+├── notas_pedido/nota_pedido_{id}.pdf
+├── presupuestos/presupuesto_{id}.pdf
+├── sdcomp/{YYYY}/{MM}/
+└── logs/{YYYY-MM-DD}.log
 ```
+
+La ruta absoluta se persiste en la columna `pdf_path` de la tabla correspondiente (`remitos_salida`, `notas_pedido`, `presupuestos`).
 
 ---
 
@@ -474,7 +565,7 @@ Utiliza **PHPMailer** con SMTP (mail.dmtech.com.ar:465 SSL).
 ### Requisitos
 
 - PHP 8.0+
-- MySQL 8.0+
+- MariaDB 10.4 (o MySQL 8.0+)
 - Apache (con mod_rewrite habilitado)
 - Composer
 
@@ -511,6 +602,27 @@ Utiliza **PHPMailer** con SMTP (mail.dmtech.com.ar:465 SSL).
    - Login como superadmin
    - Admin → Nueva Empresa
    - Seleccionar empresa para trabajar
+
+---
+
+## Actualización en el servidor (instalación existente)
+
+Al desplegar código nuevo en un servidor que **ya tiene** la base master y los tenants, el orden es:
+
+1. **Copiar el código** y correr `composer install` si cambiaron las dependencias.
+2. **Migraciones de los tenants** (datos de cada empresa): entrar como superadmin →
+   **Admin → Migraciones** → "Ejecutar Todas las Migraciones", o "Ejecutar" por tenant.
+   Cada tenant lleva su propio `schema_version` (en la master), así que hay que correrlas en **todos**.
+3. **Migraciones de la BD master** (instalación: tareas, etc.): en la **misma pantalla** de
+   Admin → Migraciones, está la sección **"Migraciones de la BD Master"**. Si hay pendientes
+   aparece el botón **"Aplicar N pendiente(s)"** → lo apretás y listo.
+
+No hace falta buscar el `.sql` ni abrir un gestor web: los dos tipos de migración se ejecutan
+desde el panel. La de la master además es **auto-aplicable**: al abrir por primera vez
+`/admin/tareas` el sistema aplica solo lo pendiente.
+
+> Instalación nueva: `create_master.sql` ya incluye las tablas de la master (incluida `tareas`),
+> y la migración master 001 queda como no-op (`CREATE TABLE IF NOT EXISTS`).
 
 ---
 
@@ -564,11 +676,14 @@ define('DB_TENANT_PASS', '');
 
 ## Comandos Útiles
 
-| Comando | Descripción |
+| Tarea | Cómo se hace |
 |---------|------------|
-| `php app/migrations/add_role_to_users.php` | Agregar campo rol a users |
-| `php app/migrations/create_cuentas_corrientes_empresa_table.php` | Crear tabla ctacte empresa |
-| Admin → Migraciones | Panel web para ejecutar migraciones SQL pendientes |
+| Aplicar migraciones SQL pendientes | Panel web: **Admin → Migraciones** (`/admin/migrations`), por tenant (`/admin/migrations-run/{id}`) o para todos (`/admin/migrations-run-all`) |
+| Agregar un cambio de schema | Crear `app/helpers/migrations/NNN_descripcion.sql` y correrlo desde el panel en **cada** tenant |
+| Cambios rápidos de DB | Editar `app/config/database.php` (lee `.env`) o usar PHP/PDO. No hay cliente `mysql` en el PATH |
+| Ver logs | `storage/empresa_{tenantId}/logs/YYYY-MM-DD.log` (app) y `error_log` en la raíz (PHP/Apache) |
+
+> Los scripts PHP sueltos de `app/migrations/` (carpeta gitignored) son **legacy**: dependen de la constante `BASE_PATH`, que solo define `app/bootstrap.php`, así que no se pueden ejecutar con `php app/migrations/x.php` de forma directa. Usar el panel de migraciones.
 
 ---
 
@@ -581,3 +696,6 @@ define('DB_TENANT_PASS', '');
 - El módulo **SDCOMP** usa nomenclatura genérica ("AJUSTE") para no revelar la naturaleza de los movimientos.
 - Los **PDFs** incluyen diseño corporativo con logo de la empresa y texto legal argentino (RG AFIP 1415).
 - **Devoluciones**: Toda validación de cantidad, precio y saldo de caja es server-side con `FOR UPDATE` en transacción. El precio se fuerza desde el remito (no se acepta del cliente). La distribución de devoluciones en ventas no cobradas es FIFO para no perder excesos.
+- **Depósitos**: Stock desglosado por depósito físico. Cada movimiento de stock se asocia a `deposito_id`. Los depósitos con `es_transito=1` son virtuales (Ej: "En Tránsito" para transferencias).
+- **Lotes y Vencimientos**: La tabla `lotes` registra códigos de lote con fecha de vencimiento y producción, vinculados a productos o materias primas. El stock se consulta por lote mediante filtro en `movimientos_stock`.
+- **Transferencias entre Depósitos**: Flujo en dos fases: 1) salida de origen + entrada a "En Tránsito" (estado `EN_TRANSITO`), 2) confirmación de recepción + entrada a destino (estado `COMPLETADA`). Anulación revierte según estado.

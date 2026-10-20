@@ -2,7 +2,7 @@
 
 <form method="post" id="form-ajuste-mp">
     <div class="row">
-        <div class="col-5">
+        <div class="col-6">
             <label>Materia Prima</label>
             <input type="text" id="buscador-mp" class="form-control" autocomplete="off" required>
             <input type="hidden" name="materia_prima_id" id="materia_prima_id">
@@ -12,25 +12,40 @@
                 style="z-index:1000; display:none;">
             </div>
         </div>
-        <div class="col-5">
+        <div class="col-6">
             <label>Tipo</label>
             <select name="tipo" class="form-control" required>
                 <option value="ENTRADA">Entrada</option>
                 <option value="SALIDA">Salida</option>
             </select>
         </div>
-        <div class="col-2">
-            <label for="cantidad">Cantidad</label>
+    </div>
+    <div class="row">
+        <div class="col-4">
+            <label class="mt-3">Cantidad</label>
             <input type="number" step="0.01" min="0.01" name="cantidad" class="form-control" required>
+        </div>
+        <div class="col-4">
+            <label class="mt-3">Depósito</label>
+            <select name="deposito_id" class="form-control">
+                <option value="">Sin depósito</option>
+                <?php foreach ($depositos as $d): ?>
+                <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['nombre']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-4">
+            <label class="mt-3">Lote</label>
+            <input type="text" name="codigo_lote" class="form-control" placeholder="N° de lote">
         </div>
     </div>
     <div class="row">
         <div class="col-6">
-            <label class="mt-3" for="motivo">Motivo del ajuste</label>
+            <label class="mt-3">Motivo del ajuste</label>
             <input type="text" name="motivo" class="form-control" maxlength="40" required placeholder="Ej: Diferencia inventario, rotura, conteo físico">
         </div>
         <div class="col-6">
-            <label class="mt-3" for="observaciones">Observaciones</label>
+            <label class="mt-3">Observaciones</label>
             <textarea name="observaciones" class="form-control"></textarea>
         </div>
     </div>

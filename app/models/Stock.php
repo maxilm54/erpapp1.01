@@ -1,9 +1,16 @@
 <?php
 class Stock extends Model
 {
-    public function stockProductos(): array
+    public function stockProductos(?int $depositoId = null): array
     {
-        return $this->db->query("
+        $depositoFilter = '';
+        $params = [];
+        if ($depositoId) {
+            $depositoFilter = ' AND m.deposito_id = :deposito_id';
+            $params[':deposito_id'] = $depositoId;
+        }
+
+        $stmt = $this->db->prepare("
             SELECT
                 p.id,
                 p.sku,
@@ -33,7 +40,7 @@ class Stock extends Model
                         END
                     ),0) AS stock
                 FROM productos p
-                LEFT JOIN movimientos_stock m ON m.producto_id = p.id
+                LEFT JOIN movimientos_stock m ON m.producto_id = p.id{$depositoFilter}
                 GROUP BY p.id
             ) AS p
             ORDER BY
@@ -44,12 +51,21 @@ class Stock extends Model
                     ELSE 4
                 END,
                 stock ASC;
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function stockMateriasPrimas(): array
+    public function stockMateriasPrimas(?int $depositoId = null): array
     {
-        return $this->db->query("
+        $depositoFilter = '';
+        $params = [];
+        if ($depositoId) {
+            $depositoFilter = ' AND m.deposito_id = :deposito_id';
+            $params[':deposito_id'] = $depositoId;
+        }
+
+        $stmt = $this->db->prepare("
             SELECT
                 mp.id,
                 mp.nombre,
@@ -76,7 +92,7 @@ class Stock extends Model
                     FROM reservas_materia_prima r
                     WHERE r.materia_prima_id = mp.id
                 ) AS stockreserva,
-                CASE 
+                CASE
                     WHEN mp.stock_critico > 0
                         AND COALESCE(SUM(
                             CASE
@@ -105,7 +121,7 @@ class Stock extends Model
                 END AS estado
             FROM materias_primas mp
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
-            LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id
+            LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id{$depositoFilter}
             GROUP BY mp.id
             ORDER BY
                 CASE
@@ -133,6 +149,27 @@ class Stock extends Model
                     ELSE 4
                 END,
                 stock ASC;
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function stockDesglosadoPorDeposito(int $productoId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT d.id AS deposito_id, d.nombre AS deposito_nombre,
+                   COALESCE(SUM(
+                       CASE WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                            WHEN m.tipo = 'SALIDA' THEN -m.cantidad END
+                   ), 0) AS stock
+            FROM depositos d
+            LEFT JOIN movimientos_stock m ON m.deposito_id = d.id AND m.producto_id = ?
+            WHERE d.activo = 1
+            GROUP BY d.id, d.nombre
+            HAVING stock != 0
+            ORDER BY d.nombre
+        ");
+        $stmt->execute([$productoId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

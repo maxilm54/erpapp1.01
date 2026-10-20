@@ -184,6 +184,7 @@ class NotaPedido extends Model
                 d.producto_id,
                 p.nombre,
                 p.unidad_medida,
+                p.usa_serie,
                 um.nombre AS unidad_nombre,
                 d.cantidad AS pedida,
                 COALESCE(SUM(rsd.cantidad), 0) AS remitida,

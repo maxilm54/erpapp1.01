@@ -12,6 +12,21 @@ $clientes = $clientes ?? [];
 
 <form method="POST" action="<?= BASE_URL ?>/remitossalida/store-manual" id="formRemitoManual" class="mt-3">
 
+    <!-- Depósito de origen -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-building"></i> Depósit de origen</h5>
+        </div>
+        <div class="card-body">
+            <select name="deposito_id" id="depositoManual" class="form-select">
+                <option value="">Seleccionar depósito...</option>
+                <?php foreach ($depositos as $d): ?>
+                <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['nombre']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </div>
+
     <!-- Sección: Datos del Cliente -->
     <div class="card mb-4">
         <div class="card-header">
@@ -253,7 +268,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         busquedaTimeout = setTimeout(function() {
-            fetch('<?= BASE_URL ?>/remitossalida/search-products?q=' + encodeURIComponent(q))
+            const depSel = document.getElementById('depositoManual');
+            const depVal = depSel ? depSel.value : '';
+            const url = '<?= BASE_URL ?>/remitossalida/search-products?q=' + encodeURIComponent(q) +
+                        (depVal ? '&deposito_id=' + depVal : '');
+            fetch(url)
                 .then(r => r.json())
                 .then(data => {
                     if (data.length === 0) {
@@ -283,6 +302,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                             stockBadge = '<span class="badge bg-success">Stock: ' + stock.toFixed(2) + '</span>';
                         }
+                        if (p.usa_serie == 1) {
+                            stockBadge += ' <span class="badge bg-danger ms-1">SERIE</span>';
+                        }
 
                         const nameStyle = sinStock ? ' style="text-decoration: line-through; color: #dc3545;"' : '';
                         const precioStyle = sinStock ? ' style="color: #dc3545;"' : ' style="color: #198754;"';
@@ -290,7 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         html += '<a href="#" class="' + itemClass + '" '
                             + 'data-id="' + p.id + '" data-nombre="' + escHtml(p.nombre) + '" '
                             + 'data-sku="' + escHtml(p.sku || '') + '" data-stock="' + stock + '" '
-                            + 'data-precio="' + precio + '"'
+                            + 'data-precio="' + precio + '" data-serie="' + (p.usa_serie == 1 ? '1' : '0') + '"'
                             + (sinStock ? ' style="pointer-events: none; opacity: 0.7;"' : '') + '>'
                             + '<div class="d-flex justify-content-between align-items-center">'
                             + '<div><strong' + nameStyle + '>' + escHtml(p.nombre) + '</strong>'
@@ -310,7 +332,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             const id = this.dataset.id;
                             if (productosSeleccionados[id]) return;
                             agregarProducto(id, this.dataset.nombre, this.dataset.sku,
-                                parseFloat(this.dataset.stock), parseFloat(this.dataset.precio));
+                                parseFloat(this.dataset.stock), parseFloat(this.dataset.precio),
+                                this.dataset.serie === '1');
                             bootstrap.Modal.getInstance(document.getElementById('modalProductos')).hide();
                             buscador.value = '';
                             resultados.innerHTML = '';
@@ -321,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Agregar producto a la tabla
-    function agregarProducto(id, nombre, sku, stock, precio) {
+    function agregarProducto(id, nombre, sku, stock, precio, usaSerie) {
         if (productosSeleccionados[id]) return;
         productosSeleccionados[id] = {
             id: id,
@@ -329,9 +352,30 @@ document.addEventListener('DOMContentLoaded', function() {
             sku: sku,
             stock: stock,
             precio: precio,
-            cantidad: 1
+            cantidad: usaSerie ? 0 : 1,
+            usa_serie: !!usaSerie,
+            series: [],
+            seriesDisponibles: []
         };
+        if (usaSerie) {
+            cargarSeriesProducto(id);
+        }
         renderTabla();
+    }
+
+    // Cargar series disponibles para un producto con serie
+    function cargarSeriesProducto(id) {
+        const depositoId = document.getElementById('depositoManual').value || '';
+        if (!depositoId) return;
+        fetch('<?= BASE_URL ?>/remitossalida/seriesDisponibles?producto_id=' + id + '&deposito_id=' + depositoId)
+            .then(r => r.json())
+            .then(series => {
+                if (productosSeleccionados[id]) {
+                    productosSeleccionados[id].seriesDisponibles = series || [];
+                    renderTabla();
+                }
+            })
+            .catch(() => {});
     }
 
     // Quitar producto de la tabla
@@ -438,18 +482,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
             html += '<tr>'
                 + '<td><strong>' + escHtml(p.nombre) + '</strong>'
-                + (p.sku ? ' <small class="text-muted">(SKU: ' + escHtml(p.sku) + ')</small>' : '') + '</td>'
+                + (p.sku ? ' <small class="text-muted">(SKU: ' + escHtml(p.sku) + ')</small>' : '')
+                + (p.usa_serie ? ' <span class="badge bg-danger ms-1">SERIE</span>' : '') + '</td>'
                 + '<td class="text-center"><span class="badge bg-info">PRODUCTO</span></td>'
                 + '<td><input type="number" step="0.01" min="0" '
                 + 'value="' + p.precio + '" class="form-control form-control-sm text-end" '
                 + 'onchange="actualizarPrecio(' + id + ', this.value)" '
                 + 'oninput="actualizarPrecio(' + id + ', this.value)"></td>'
-                + '<td>' + parseFloat(p.stock).toFixed(2) + '</td>'
-                + '<td><input type="number" step="0.01" min="0.01" max="' + p.stock + '" '
-                + 'value="' + p.cantidad + '" class="form-control form-control-sm" '
-                + 'onchange="actualizarCantidad(' + id + ', this.value)" '
-                + 'oninput="actualizarCantidad(' + id + ', this.value)"></td>'
-                + '<td class="text-end fw-bold" id="subtotal-' + id + '">' + formatMoney(subtotal) + '</td>'
+                + '<td>' + parseFloat(p.stock).toFixed(2) + '</td>';
+
+            if (p.usa_serie) {
+                // Producto con serie: selector múltiple de series
+                let opts = '';
+                const disp = p.seriesDisponibles || [];
+                if (!disp.length) {
+                    opts = '<option value="" disabled selected>No hay series disponibles</option>';
+                } else {
+                    disp.forEach(function(s) {
+                        const sel = (p.series.indexOf(s.id) >= 0) ? ' selected' : '';
+                        opts += '<option value="' + s.id + '"' + sel + '>'
+                            + escHtml(s.numero_serie)
+                            + (s.codigo_lote ? ' (Lote: ' + escHtml(s.codigo_lote) + ')' : '')
+                            + '</option>';
+                    });
+                }
+                html += '<td><select multiple size="3" class="form-select form-select-sm series-select" '
+                    + 'data-id="' + id + '" onchange="actualizarSeries(' + id + ', this)" '
+                    + 'style="min-width: 180px;">' + opts + '</select></td>';
+            } else {
+                html += '<td><input type="number" step="0.01" min="0.01" max="' + p.stock + '" '
+                    + 'value="' + p.cantidad + '" class="form-control form-control-sm" '
+                    + 'onchange="actualizarCantidad(' + id + ', this.value)" '
+                    + 'oninput="actualizarCantidad(' + id + ', this.value)"></td>';
+            }
+
+            html += '<td class="text-end fw-bold" id="subtotal-' + id + '">' + formatMoney(subtotal) + '</td>'
                 + '<td><button type="button" class="btn btn-sm btn-outline-danger" '
                 + 'onclick="quitarProducto(' + id + ')"><i class="bi bi-x-lg"></i></button></td>'
                 + '</tr>';
@@ -485,6 +552,16 @@ document.addEventListener('DOMContentLoaded', function() {
         updateHiddenInputs();
     }
 
+    // Actualizar series seleccionadas de un producto con serie
+    window.actualizarSeries = function(id, selectEl) {
+        const seleccionadas = Array.from(selectEl.selectedOptions).map(o => parseInt(o.value));
+        if (productosSeleccionados[id]) {
+            productosSeleccionados[id].series = seleccionadas;
+            productosSeleccionados[id].cantidad = seleccionadas.length;
+            actualizarFilaYTotal(id);
+        }
+    };
+
     // Actualizar hidden inputs para el submit
     function updateHiddenInputs() {
         let html = '';
@@ -492,12 +569,26 @@ document.addEventListener('DOMContentLoaded', function() {
         // Productos desde busqueda
         Object.keys(productosSeleccionados).forEach(function(id) {
             const p = productosSeleccionados[id];
-            if (p.cantidad > 0) {
+            if (p.usa_serie) {
+                // Producto con serie: enviar series seleccionadas
+                if (p.series && p.series.length > 0) {
+                    html += '<input type="hidden" name="items[' + id + '][producto_id]" value="' + p.id + '">';
+                    html += '<input type="hidden" name="items[' + id + '][nombre]" value="' + escHtml(p.nombre) + '">';
+                    html += '<input type="hidden" name="items[' + id + '][sku]" value="' + escHtml(p.sku) + '">';
+                    html += '<input type="hidden" name="items[' + id + '][cantidad]" value="' + p.series.length + '">';
+                    html += '<input type="hidden" name="items[' + id + '][precio]" value="' + p.precio + '">';
+                    html += '<input type="hidden" name="items[' + id + '][deposito_id]" value="' + (document.getElementById('depositoManual').value || '') + '">';
+                    p.series.forEach(function(serieId) {
+                        html += '<input type="hidden" name="items[' + id + '][series][]" value="' + serieId + '">';
+                    });
+                }
+            } else if (p.cantidad > 0) {
                 html += '<input type="hidden" name="items[' + id + '][producto_id]" value="' + p.id + '">';
                 html += '<input type="hidden" name="items[' + id + '][nombre]" value="' + escHtml(p.nombre) + '">';
                 html += '<input type="hidden" name="items[' + id + '][sku]" value="' + escHtml(p.sku) + '">';
                 html += '<input type="hidden" name="items[' + id + '][cantidad]" value="' + p.cantidad + '">';
                 html += '<input type="hidden" name="items[' + id + '][precio]" value="' + p.precio + '">';
+                html += '<input type="hidden" name="items[' + id + '][deposito_id]" value="' + (document.getElementById('depositoManual').value || '') + '">';
             }
         });
 

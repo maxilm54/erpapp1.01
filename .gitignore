@@ -3,6 +3,7 @@
 .env
 public/error_log
 public/error_log
+/error_log
 public/uploads
 app/config/Database/*
 app/migrations/*

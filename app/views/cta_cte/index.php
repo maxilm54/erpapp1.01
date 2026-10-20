@@ -13,7 +13,7 @@
 <!-- Filtros -->
 <div class="card mb-3">
     <div class="card-body py-2">
-        <form method="get" class="row g-2 align-items-end">
+        <form method="get" action="<?= BASE_URL ?>/ctacte" class="row g-2 align-items-end">
             <div class="col-auto">
                 <label class="form-label mb-0 small">Cliente</label>
                 <select name="cliente_id" class="form-select form-select-sm">

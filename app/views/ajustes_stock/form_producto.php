@@ -26,6 +26,21 @@
             <input type="number" name="cantidad" class="form-control" step="0.01" required>
         </div>
         <div class="col-4">
+            <label class="mt-3">Depósito</label>
+            <select name="deposito_id" class="form-control">
+                <option value="">Sin depósito</option>
+                <?php foreach ($depositos as $d): ?>
+                <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['nombre']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-4">
+            <label class="mt-3">Lote</label>
+            <input type="text" name="codigo_lote" class="form-control" placeholder="N° de lote">
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-4">
             <label class="mt-3">Motivo del ajuste</label>
             <input type="text" name="motivo" class="form-control" maxlength="40" required placeholder="Ej: Diferencia inventario, rotura, conteo físico">
         </div>
@@ -86,7 +101,6 @@ function initBuscador(inputId, resultadosId, endpoint) {
             });
     });
 
-    // cerrar al perder foco
     document.addEventListener('click', e => {
         if (!resultados.contains(e.target) && e.target !== input) {
             resultados.style.display = 'none';
@@ -94,18 +108,12 @@ function initBuscador(inputId, resultadosId, endpoint) {
     });
 }
 
-/* ===============================
-   INICIALIZACIÓN
-================================ */
 initBuscador(
     'buscador-producto',
     'resultados-producto',
     '<?= BASE_URL ?>/productos/search?q='
 );
 
-/* ===============================
-   VALIDACIÓN SUBMIT
-================================ */
 document.getElementById('form-ajuste-producto').addEventListener('submit', e => {
     if (!seleccionado) {
         e.preventDefault();

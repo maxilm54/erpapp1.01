@@ -240,7 +240,7 @@ if (!$remito) {
         return $remito;
     }
 
-    private function stockDisponibleProducto(int $productoId): float
+    public function stockDisponibleProducto(int $productoId): float
     {
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(
@@ -254,6 +254,55 @@ if (!$remito) {
         ");
         $stmt->execute([$productoId]);
         return (float)$stmt->fetchColumn();
+    }
+
+    public function stockDisponibleProductoPorDeposito(int $productoId, int $depositoId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                    WHEN tipo = 'SALIDA' THEN -cantidad
+                END
+            ),0) AS stock
+            FROM movimientos_stock
+            WHERE producto_id = ?
+              AND deposito_id = ?
+        ");
+        $stmt->execute([$productoId, $depositoId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    /**
+     * 📝 Enriquece observaciones con los N° de serie remitidos
+     * Formato: "S/N remitidos — Producto: SN001, SN002"
+     */
+    private function conObservacionesConSeries(array $items, ?string $observaciones): ?string
+    {
+        $lineas = [];
+        foreach ($items as $productoId => $itemValue) {
+            if (!is_array($itemValue) || empty($itemValue['series']) || !is_array($itemValue['series'])) {
+                continue;
+            }
+            $ids = array_values(array_unique(array_filter(array_map('intval', $itemValue['series']))));
+            if (!$ids) continue;
+
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $this->db->prepare("SELECT numero_serie FROM series WHERE id IN ($ph) ORDER BY numero_serie");
+            $stmt->execute($ids);
+            $nums = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            if (!$nums) continue;
+
+            $stmtP = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
+            $stmtP->execute([$productoId]);
+            $nombre = $stmtP->fetchColumn() ?: "ID $productoId";
+
+            $lineas[] = $nombre . ': ' . implode(', ', $nums);
+        }
+        if (!$lineas) return $observaciones;
+
+        $texto = "S/N remitidos — " . implode(' | ', $lineas);
+        return trim(($observaciones ? $observaciones . "\n" : '') . $texto);
     }
 
     /**
@@ -272,6 +321,9 @@ if (!$remito) {
             $numero = (new Numerador())->siguiente('REMITO');
             $cc = new CuentaCorrienteCliente();
 
+            // Agregar S/N de series seleccionadas a observaciones
+            $observaciones = $this->conObservacionesConSeries($items, $observaciones);
+
             // 1️⃣ Cabecera
             $stmt = $this->db->prepare("
                 INSERT INTO remitos_salida
@@ -284,28 +336,42 @@ if (!$remito) {
             error_log('Remito de Salida creado con ID: ' . $remitoId . ' - ' . __FILE__ . ':' . __LINE__);
 
             // 2️⃣ Detalle + impacto stock
-            foreach ($items as $productoId => $cantidad) {
-                $cantidad = (float)$cantidad;
+            foreach ($items as $productoId => $itemValue) {
+                // Soporta tanto formato simple [id => cantidad] como [id => ['cantidad' => n, 'deposito_id' => n, 'lote_id' => n]]
+                $depositoId = null;
+                $loteId = null;
+                if (is_array($itemValue)) {
+                    $cantidad = (float)($itemValue['cantidad'] ?? 0);
+                    $depositoId = !empty($itemValue['deposito_id']) ? (int)$itemValue['deposito_id'] : null;
+                    $loteId = !empty($itemValue['lote_id']) ? (int)$itemValue['lote_id'] : null;
+                } else {
+                    $cantidad = (float)$itemValue;
+                }
                 if ($cantidad <= 0) continue;
 
                 if (!is_numeric($productoId)) {
                     throw new Exception('ID de producto inválido');
                 }
 
-                $stock = $this->stockDisponibleProducto($productoId);
-                
+                $nombreProd = '';
+                $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
+                $stmtProd->execute([$productoId]);
+                $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
+
+                // Validar stock por depósito si se indicó uno
+                if ($depositoId) {
+                    $stock = $this->stockDisponibleProductoPorDeposito($productoId, $depositoId);
+                } else {
+                    $stock = $this->stockDisponibleProducto($productoId);
+                }
+
                 if ($stock <= 0) {
-                    $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
-                    $stmtProd->execute([$productoId]);
-                    $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
                     throw new Exception("El producto '$nombreProd' no tiene stock disponible (Stock: 0). No se puede remitar.");
                 }
 
                 if ($stock < $cantidad) {
-                    $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
-                    $stmtProd->execute([$productoId]);
-                    $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
-                    throw new Exception("Stock insuficiente para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
+                    $ubicacion = $depositoId ? ' del depósito seleccionado' : '';
+                    throw new Exception("Stock insuficiente en " . trim($ubicacion) . " para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
                 }
 
                 // Detalle
@@ -352,19 +418,35 @@ if (!$remito) {
                 } catch (Exception $e) {
                     error_log("Error generando asiento para remito #{$remitoId}: " . $e->getMessage());
                 }
-                // Movimiento de stock (salida)
+// Movimiento de stock (salida)
                 $this->db->prepare("
                     INSERT INTO movimientos_stock
-                    (tipo, origen, referencia_id, producto_id, cantidad, observaciones, usuario_id)
-                    VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?)
+                    (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id)
+                    VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?, ?, ?)
                 ")->execute([
                     $remitoId,
                     $productoId,
                     $cantidad,
+                    $depositoId,
+                    $loteId,
                     'Remito de salida #' . $remitoId,
                     $usuarioId
                 ]);
-                
+
+                // Si el item tiene series, marcarlas como remitidas
+                if (!empty($itemValue['series']) && is_array($itemValue['series'])) {
+                    require_once BASE_PATH . '/app/models/Serie.php';
+                    $serieModel = new Serie();
+                    foreach ($itemValue['series'] as $serieId) {
+                        $ok = $serieModel->marcarRemitida((int)$serieId, $remitoId);
+                        if (!$ok) {
+                            $s = $serieModel->find((int)$serieId);
+                            $num = $s['numero_serie'] ?? $serieId;
+                            throw new Exception("La serie #$num no está disponible (ya fue remitida o no existe).");
+                        }
+                    }
+                }
+
             }
 
             /// 🔄 Actualizar estado de la NP
@@ -560,6 +642,9 @@ if (!$remito) {
                 $clienteEmail = 'contacto@alimentostriba.com.ar';
             }
 
+            // Agregar S/N de series seleccionadas a observaciones
+            $observaciones = $this->conObservacionesConSeries($items, $observaciones);
+
             $stmt = $this->db->prepare("
                 INSERT INTO remitos_salida
                 (numero, nota_pedido_id, cliente_id, usuario_id, observaciones,
@@ -588,13 +673,20 @@ if (!$remito) {
             foreach ($items as $productoId => $itemData) {
                 $cantidad = is_array($itemData) ? (float)($itemData['cantidad'] ?? 0) : (float)$itemData;
                 $precioUnitario = is_array($itemData) ? (float)($itemData['precio'] ?? 0) : 0;
+                $depositoId = is_array($itemData) ? (!empty($itemData['deposito_id']) ? (int)$itemData['deposito_id'] : null) : null;
+                $loteId = is_array($itemData) ? (!empty($itemData['lote_id']) ? (int)$itemData['lote_id'] : null) : null;
                 if ($cantidad <= 0) continue;
 
                 if (!is_numeric($productoId)) {
                     throw new Exception('ID de producto inválido');
                 }
 
-                $stock = $this->stockDisponibleProducto($productoId);
+                // Validar stock por depósito si se indicó uno
+                if ($depositoId) {
+                    $stock = $this->stockDisponibleProductoPorDeposito($productoId, $depositoId);
+                } else {
+                    $stock = $this->stockDisponibleProducto($productoId);
+                }
 
                 if ($stock <= 0) {
                     $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
@@ -607,7 +699,8 @@ if (!$remito) {
                     $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
                     $stmtProd->execute([$productoId]);
                     $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
-                    throw new Exception("Stock insuficiente para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
+                    $ubicacion = $depositoId ? ' del depósito seleccionado' : '';
+                    throw new Exception("Stock insuficiente en" . $ubicacion . " para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
                 }
 
                 $this->db->prepare("
@@ -625,15 +718,31 @@ if (!$remito) {
 
                 $this->db->prepare("
                     INSERT INTO movimientos_stock
-                    (tipo, origen, referencia_id, producto_id, cantidad, observaciones, usuario_id)
-                    VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?)
+                    (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id)
+                    VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?, ?, ?)
                 ")->execute([
                     $remitoId,
                     $productoId,
                     $cantidad,
+                    $depositoId,
+                    $loteId,
                     'Remito manual #' . $remitoId,
                     $usuarioId
                 ]);
+
+                // Si el item tiene series, marcarlas como remitidas
+                if (!empty($itemValue['series']) && is_array($itemValue['series'])) {
+                    require_once BASE_PATH . '/app/models/Serie.php';
+                    $serieModel = new Serie();
+                    foreach ($itemValue['series'] as $serieId) {
+                        $ok = $serieModel->marcarRemitida((int)$serieId, $remitoId);
+                        if (!$ok) {
+                            $s = $serieModel->find((int)$serieId);
+                            $num = $s['numero_serie'] ?? $serieId;
+                            throw new Exception("La serie #$num no está disponible (ya fue remitida o no existe).");
+                        }
+                    }
+                }
             }
 
             // 2b️⃣ Detalle de items manuales (servicios, sin stock)

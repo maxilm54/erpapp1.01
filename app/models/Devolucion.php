@@ -217,14 +217,30 @@ class Devolucion extends Model
                 $subtotal = $precioUnitario * $cantidadTotal;
                 $totalDevolucion += $subtotal;
 
-                if ($cantidadReingresa > 0) {
+if ($cantidadReingresa > 0) {
                     $this->db->prepare("
                         INSERT INTO movimientos_stock
-                        (tipo, origen, referencia_id, producto_id, cantidad, motivo, observaciones, usuario_id)
-                        VALUES ('ENTRADA', 'DEVOLUCION', ?, ?, ?, 'Reingreso por devolución', ?, ?)
+                        (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, motivo, observaciones, usuario_id)
+                        VALUES ('ENTRADA', 'DEVOLUCION', ?, ?, ?, ?, ?, 'Reingreso por devolución', ?, ?)
                     ")->execute([
                         $devolucionId, $productoId, $cantidadReingresa,
+                        $item['deposito_id'] ?? null,
+                        $item['lote_id'] ?? null,
                         'Devolución #DEV-' . str_pad($numero, 6, '0', STR_PAD_LEFT),
+                        $usuarioId
+                    ]);
+                }
+
+                if ($cantidadDescarta > 0) {
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, motivo, observaciones, usuario_id)
+                        VALUES ('SALIDA', 'DEVOLUCION_DESCARTE', ?, ?, ?, ?, ?, 'Descarte por devolución', ?, ?)
+                    ")->execute([
+                        $devolucionId, $productoId, $cantidadDescarta,
+                        $item['deposito_id'] ?? null,
+                        $item['lote_id'] ?? null,
+                        'Descarte devolución #DEV-' . str_pad($numero, 6, '0', STR_PAD_LEFT),
                         $usuarioId
                     ]);
                 }
@@ -341,10 +357,10 @@ class Devolucion extends Model
             foreach ($devolucion['detalle'] as $item) {
                 $subtotal = (float)$item['precio_unitario'] * (float)$item['cantidad_total'];
 
-                $this->db->prepare("
+$this->db->prepare("
                     INSERT INTO movimientos_stock
-                    (tipo, origen, referencia_id, producto_id, cantidad, motivo, observaciones, usuario_id)
-                    VALUES ('SALIDA', 'ANULACION_DEVOLUCION', ?, ?, ?, 'Anulación devolución', ?, ?)
+                    (tipo, origen, referencia_id, producto_id, cantidad, observaciones, usuario_id)
+                    VALUES ('SALIDA', 'ANULACION_DEVOLUCION', ?, ?, ?, 'Anulación devolución', ?)
                 ")->execute([
                     $id, $item['producto_id'], $item['cantidad_total'],
                     'Anulación de devolución #DEV-' . str_pad($devolucion['numero'], 6, '0', STR_PAD_LEFT),
@@ -354,8 +370,8 @@ class Devolucion extends Model
                 if ((float)$item['cantidad_reingresa'] > 0) {
                     $this->db->prepare("
                         INSERT INTO movimientos_stock
-                        (tipo, origen, referencia_id, producto_id, cantidad, motivo, observaciones, usuario_id)
-                        VALUES ('SALIDA', 'ANULACION_DEVOLUCION', ?, ?, ?, 'Reverso reingreso por anulación', ?, ?)
+                        (tipo, origen, referencia_id, producto_id, cantidad, observaciones, usuario_id)
+                        VALUES ('SALIDA', 'ANULACION_DEVOLUCION', ?, ?, ?, 'Reverso reingreso por anulación', ?)
                     ")->execute([
                         $id, $item['producto_id'], $item['cantidad_reingresa'],
                         'Reverso reingreso devolución #DEV-' . str_pad($devolucion['numero'], 6, '0', STR_PAD_LEFT),

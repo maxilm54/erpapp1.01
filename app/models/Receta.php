@@ -87,7 +87,7 @@ class Receta extends Model
     public function addDetalle(int $recetaId, int $mpId, float $cant): bool
     {
         return $this->db->prepare(
-            "INSERT INTO receta_detalle 
+            "INSERT INTO recetas_detalle 
             (receta_id, materia_prima_id, cantidad)
             VALUES (:r,:m,:c)"
         )->execute([

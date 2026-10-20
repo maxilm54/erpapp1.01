@@ -3,6 +3,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Ingresomercaderia.php';
 require_once BASE_PATH.'/app/models/Ordencompra.php';
 require_once BASE_PATH.'/app/models/Materiaprima.php';
+require_once BASE_PATH.'/app/models/Deposito.php';
 
 class IngresosMercaderiaController extends Controller
 {
@@ -68,17 +69,61 @@ class IngresosMercaderiaController extends Controller
             }
             //todo ok sin errores llamo a la funcion para registrar el ingreso.
             $items = [];
+            $seriesUsadas = [];
             if (!empty($_POST['items'])) {
                 foreach ($_POST['items'] as $index => $cantidad) {
                     if (empty($cantidad) || $cantidad <= 0) continue;
-                    
+
+                    $loteId = null;
+                    $codigoLote = trim($_POST['codigo_lote'][$index] ?? '');
+                    $numeroSerie = trim($_POST['numero_serie'][$index] ?? '');
+                    $fechaVencimiento = !empty($_POST['fecha_vencimiento'][$index]) ? $_POST['fecha_vencimiento'][$index] : null;
+                    $esSerie = !empty($_POST['usa_serie'][$index]);
+
+                    // Si es item con serie: vacío = no recibir ahora (recepción parcial)
+                    if ($esSerie) {
+                        if ($numeroSerie === '') {
+                            continue; // recepción parcial: unidad omitida
+                        }
+                        if (in_array($numeroSerie, $seriesUsadas)) {
+                            $_SESSION['error'] = 'El número de serie '.$numeroSerie.' está repetido en el ingreso.';
+                            header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
+                            exit;
+                        }
+                        $seriesUsadas[] = $numeroSerie;
+                    }
+
+                    if (!empty($codigoLote)) {
+                        require_once BASE_PATH . '/app/models/Lote.php';
+                        $loteModel = new Lote();
+                        $tipo = $_POST['tipo'][$index] ?? 'materia_prima';
+                        $loteId = $loteModel->findOrCreate([
+                            'codigo_lote' => $codigoLote,
+                            'numero_serie' => $esSerie ? $numeroSerie : ($numeroSerie ?: null),
+                            'producto_id' => $tipo === 'producto' ? (int)($_POST['producto_id'][$index]) : null,
+                            'materia_prima_id' => $tipo === 'materia_prima' ? (int)($_POST['materia_prima_id'][$index]) : null,
+                            'fecha_vencimiento' => $fechaVencimiento
+                        ]);
+                    }
+
                     $items[] = [
                         'tipo' => $_POST['tipo'][$index] ?? 'materia_prima',
                         'materia_prima_id' => !empty($_POST['materia_prima_id'][$index]) ? (int)$_POST['materia_prima_id'][$index] : null,
                         'producto_id' => !empty($_POST['producto_id'][$index]) ? (int)$_POST['producto_id'][$index] : null,
-                        'cantidad' => (float)$cantidad
+                        'cantidad' => (float)$cantidad,
+                        'deposito_id' => !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null,
+                        'lote_id' => $loteId,
+                        'usa_serie' => $esSerie,
+                        'numero_serie' => $esSerie ? $numeroSerie : null
                     ];
                 }
+            }
+
+            // Validar que al menos un item tenga contenido
+            if (empty($items)) {
+                $_SESSION['error'] = 'Debe ingresar al menos un item (cantidad o N° de serie).';
+                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
+                exit;
             }
             
             $data = [
@@ -101,7 +146,8 @@ class IngresosMercaderiaController extends Controller
             'orden' => $orden,
             'detalle'=>$orden['detalle'],
             'proveedor'=>$orden['razon_social'],
-            'orden_compra_id'=>$ordenCompraId
+            'orden_compra_id'=>$ordenCompraId,
+            'depositos' => (new Deposito())->allSeleccionables()
         ]);
     }
 

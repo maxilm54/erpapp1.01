@@ -74,7 +74,7 @@ class OrdenProduccion extends Model
             $this->db->prepare("
                 INSERT INTO movimientos_stock
                 (tipo,origen,referencia_id,materia_prima_id,cantidad,observaciones,usuario_id,created_at)
-                values ('SALIDA','RESERVA',?,?,?,'Reserva de MP para Prden de Produccion',?,?)
+                values ('SALIDA','RESERVA',?,?,?,'Reserva de MP para Orden de Produccion',?,?)
             ")->execute([$ordenId,$item['materia_prima_id'],$cantidadNecesaria,$_SESSION['user_id'],FECHA_ACTUAL]);
         }
     }
@@ -313,14 +313,16 @@ class OrdenProduccion extends Model
             if ($cantidad == 0) {
             throw new Exception('La cantidad no puede ser 0');
             }
-            $this->db->prepare("
+$this->db->prepare("
                 INSERT INTO movimientos_stock
-                (tipo, origen, producto_id, cantidad, observaciones, usuario_id,referencia_id)
-                VALUES (?, 'OP', ?, ?, ?, ?,?)
+                (tipo, origen, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id,referencia_id)
+                VALUES (?, 'OP', ?, ?, ?, ?, ?, ?, ?)
             ")->execute([
                 $tipo,
                 $productoId,
                 $cantidad,
+                $data['deposito_id'] ?? null,
+                $data['lote_id'] ?? null,
                 $motivo,
                 $usuarioId,
                 $orden_id

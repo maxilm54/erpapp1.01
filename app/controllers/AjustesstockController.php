@@ -1,6 +1,7 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Ajustestock.php';
+require_once BASE_PATH . '/app/models/Deposito.php';
 class AjustesstockController extends Controller
 {
     private AjusteStock $model;
@@ -34,8 +35,9 @@ class AjustesstockController extends Controller
                     htmlspecialchars($motivo),
                     (int)$_SESSION['user_id'],
                     htmlspecialchars($_POST['tipo']),
-                    htmlspecialchars($_POST['observaciones'])
-
+                    htmlspecialchars($_POST['observaciones']),
+                    !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null,
+                    !empty($_POST['lote_id']) ? (int)$_POST['lote_id'] : null
                 );
                 error_log('AjusteStockController: Producto ID ' . (int)$_POST['producto_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
                 //$_SESSION['success'] = 'Ajuste de producto realizado exitosamente.';
@@ -49,7 +51,9 @@ class AjustesstockController extends Controller
             }
         }
 
-        $this->view('ajustes_stock/form_producto');
+        $this->view('ajustes_stock/form_producto', [
+            'depositos' => (new Deposito())->allSeleccionables()
+        ]);
     }
     //llama a la vista materia prima ajuste y espera el post para ajustar salida o entrada
     public function materiaPrima()
@@ -67,7 +71,9 @@ class AjustesstockController extends Controller
                     htmlspecialchars($motivo),
                     (int)$_SESSION['user_id'],
                     htmlspecialchars($_POST['tipo']),
-                    htmlspecialchars($_POST['observaciones'])
+                    htmlspecialchars($_POST['observaciones']),
+                    !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null,
+                    !empty($_POST['lote_id']) ? (int)$_POST['lote_id'] : null
                 );
                 error_log('AjusteStockController: Materia Prima ID ' . (int)$_POST['materia_prima_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
                 //$_SESSION['success'] = 'Ajuste de materia prima realizado exitosamente.';
@@ -81,6 +87,8 @@ class AjustesstockController extends Controller
             }
         }
 
-        $this->view('ajustes_stock/form_materia_prima');
+        $this->view('ajustes_stock/form_materia_prima', [
+            'depositos' => (new Deposito())->allSeleccionables()
+        ]);
     }
 }

@@ -106,6 +106,11 @@ Stock
     <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock">Movimientos</a></li>
     <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock/producto">Aj Producto</a></li>
     <li><a class="dropdown-item" href="<?= BASE_URL ?>/ajustesstock/materiaprima">Aj Materia Prima</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/transferencias">Transferencias</a></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/depositos">Depósitos</a></li>
+    <li><hr class="dropdown-divider"></li>
+    <li><a class="dropdown-item" href="<?= BASE_URL ?>/lotes"><i class="bi bi-calendar-x"></i> Lotes / Vencimientos</a></li>
 </ul>
 </li>
 <!-- PRODUCCIÓN -->
@@ -150,6 +155,7 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/dashboard"><i class="bi bi-graph-up"></i> Dashboard Gastos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos"><i class="bi bi-list-ul"></i> Gastos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/gastos/create"><i class="bi bi-plus-lg"></i> Nuevo Gasto</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/cuentacorrienteempresa"><i class="bi bi-building"></i> Cta. Cte. Empresa</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/asientos"><i class="bi bi-journal-text"></i> Libro Diario</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/contabilidad/asientos/create"><i class="bi bi-plus-circle"></i> Nuevo Asiento</a></li>

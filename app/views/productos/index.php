@@ -30,8 +30,9 @@
                 <td><?= $p['sku'] ?></td>
                 <td>$<?= $p['precio_venta'] ?></td>
                 <td>
-                    <a href="<?= BASE_URL ?>/productos/update/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-pencil-square"></i></a>
-                    <a href="<?= BASE_URL ?>/productos/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-upc-scan"></i></a>
+                    <a href="<?= BASE_URL ?>/productos/show/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-eye"></i></a>
+                    <a href="<?= BASE_URL ?>/productos/update/<?= $p['id'] ?>" class="btn btn-sm btn-warning"><i class="bi bi-pencil-square"></i></a>
+                    <a href="<?= BASE_URL ?>/productos/updatebarcode/<?= $p['id'] ?>" class="btn btn-sm btn-secondary"><i class="bi bi-upc-scan"></i></a>
                     <!-- <a href="<?php //BASE_URL ?>/productos/uploadImagen/<?php //$p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-image"></i></a> -->
                     <a href="<?= BASE_URL ?>/productos/stockdata/<?= $p['id'] ?>" class="btn btn-sm btn-info"><i class="bi bi-boxes"></i></a>
                     <a href="<?= BASE_URL ?>/productos/preciocompra/<?= $p['id'] ?>" class="btn btn-sm btn-success" title="Costos y Precios"><i class="bi bi-tag"></i></a>

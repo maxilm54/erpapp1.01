@@ -130,16 +130,37 @@ class IngresoMercaderia extends Model
                     $orden_id,
                     $cantidad
                 ]);
-                
+
+                // Si controla serie, crear registro individual en tabla series
+                if (!empty($item['usa_serie']) && !empty($item['numero_serie'])) {
+                    require_once BASE_PATH . '/app/models/Serie.php';
+                    $serieModel = new Serie();
+                    // Verificar unicidad del número de serie
+                    if ($serieModel->existe($item['numero_serie'])) {
+                        throw new Exception('El número de serie '.$item['numero_serie'].' ya existe en el sistema.');
+                    }
+                    $serieModel->create([
+                        'producto_id' => $prodId,
+                        'materia_prima_id' => $mpId,
+                        'numero_serie' => $item['numero_serie'],
+                        'lote_id' => $item['lote_id'] ?? null,
+                        'deposito_id' => $item['deposito_id'] ?? null,
+                        'estado' => 'DISPONIBLE',
+                        'ingreso_id' => $ingreso_id
+                    ]);
+                }
+
                 // Insertar movimiento de stock
                 $this->db->prepare(
                     "INSERT INTO movimientos_stock
-                     (tipo, origen, referencia_id, materia_prima_id, producto_id, cantidad, motivo, usuario_id, observaciones)
-                     VALUES ('ENTRADA', 'OC', ?, ?, ?, ?, 'Ingreso mercadería', ?, 'Ingreso mercadería')"
+                     (tipo, origen, referencia_id, materia_prima_id, producto_id, deposito_id, lote_id, cantidad, motivo, usuario_id, observaciones)
+                     VALUES ('ENTRADA', 'OC', ?, ?, ?, ?, ?, ?, 'Ingreso mercadería', ?, 'Ingreso mercadería')"
                 )->execute([
                     $ingreso_id,
                     $mpId,
                     $prodId,
+                    $item['deposito_id'] ?? null,
+                    $item['lote_id'] ?? null,
                     $cantidad,
                     $usuario_id
                 ]);

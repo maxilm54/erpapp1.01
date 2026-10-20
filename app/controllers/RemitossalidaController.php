@@ -3,6 +3,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Remitosalida.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
+require_once BASE_PATH.'/app/models/Deposito.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller
 {
@@ -23,6 +24,28 @@ class RemitosSalidaController extends Controller
         $this->view('remitos_salida/index', [
             'remitos' => $remitos
         ]);
+    }
+
+    /**
+     * AJAX: devuelve las series DISPONIBLES en un depósito para un producto o MP.
+     * GET: deposito_id, producto_id (opcional), materia_prima_id (opcional)
+     */
+    public function seriesDisponibles(): void
+    {
+        header('Content-Type: application/json');
+        $depositoId = (int)($_GET['deposito_id'] ?? 0);
+        $productoId = !empty($_GET['producto_id']) ? (int)$_GET['producto_id'] : null;
+        $mpId = !empty($_GET['materia_prima_id']) ? (int)$_GET['materia_prima_id'] : null;
+
+        if ($depositoId <= 0 || ($productoId === null && $mpId === null)) {
+            echo json_encode([]);
+            return;
+        }
+
+        require_once BASE_PATH . '/app/models/Serie.php';
+        $serieModel = new Serie();
+        $series = $serieModel->disponibles($depositoId, $productoId, $mpId);
+        echo json_encode($series);
     }
         public function pdf($id) // funcion para descargar los pdf remitados
     {
@@ -91,10 +114,36 @@ class RemitosSalidaController extends Controller
                     throw new Exception('No hay productos para remitar');
                 }
                 error_log('Creando Remito de Salida '.print_r($_POST['items'], true).'-'.__FILE__.'-'.__LINE__); //se ascienta un log de los items a remitir
+
+                // Normalizar items: pasar de [producto_id => cantidad] a [producto_id => ['cantidad' => ..., 'deposito_id' => ..., 'series' => [...]]]
+                $itemsNormalizados = [];
+                foreach ($_POST['items'] as $productoId => $cantidad) {
+                    if (is_array($cantidad)) {
+                        $itemNorm = [
+                            'cantidad' => (float)($cantidad['cantidad'] ?? 0),
+                            'deposito_id' => !empty($cantidad['deposito_id']) ? (int)$cantidad['deposito_id'] : null,
+                            'lote_id' => !empty($cantidad['lote_id']) ? (int)$cantidad['lote_id'] : null
+                        ];
+                        // Series seleccionadas (para productos con usa_serie)
+                        if (!empty($cantidad['series']) && is_array($cantidad['series'])) {
+                            $itemNorm['series'] = array_values(array_filter(array_map('intval', $cantidad['series'])));
+                            // Si hay series, la cantidad es el número de series seleccionadas
+                            $itemNorm['cantidad'] = count($itemNorm['series']);
+                        }
+                        $itemsNormalizados[(int)$productoId] = $itemNorm;
+                    } else {
+                        $itemsNormalizados[(int)$productoId] = [
+                            'cantidad' => (float)$cantidad,
+                            'deposito_id' => !empty($_POST['deposito_' . $productoId]) ? (int)$_POST['deposito_' . $productoId] : null,
+                            'lote_id' => null
+                        ];
+                    }
+                }
+
                 $id = $this->model->create(
                     (int)$notaPedidoId,
                     (int)$_SESSION['user_id'],
-                    $_POST['items'],
+                    $itemsNormalizados,
                     $_POST['observaciones'] ?? null
                 );
                 error_log('Remito de Salida creado con ID: ' . $id . ' - ' . __FILE__ . ':' . __LINE__);
@@ -113,7 +162,8 @@ class RemitosSalidaController extends Controller
         }
 
         $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
-            'np' => $np
+            'np' => $np,
+            'depositos' => (new Deposito())->allSeleccionables()
         ]);
     }
 
@@ -177,6 +227,7 @@ class RemitosSalidaController extends Controller
         $this->view('remitos_salida/form_manual', [
             'clientes' => $clientes,
             'productos' => $productos,
+            'depositos' => (new Deposito())->allSeleccionables()
         ]);
     }
 
@@ -213,10 +264,19 @@ class RemitosSalidaController extends Controller
             foreach ($items as $productoId => $datos) {
                 if (is_numeric($productoId)) {
                     if (is_array($datos)) {
-                        $itemsNormalizados[(int)$productoId] = [
+                        $itemNorm = [
                             'cantidad' => (float)($datos['cantidad'] ?? 0),
                             'precio' => (float)($datos['precio'] ?? 0),
+                            'deposito_id' => !empty($datos['deposito_id']) ? (int)$datos['deposito_id'] : null,
                         ];
+                        // Series seleccionadas (para productos con usa_serie)
+                        if (!empty($datos['series']) && is_array($datos['series'])) {
+                            $itemNorm['series'] = array_values(array_filter(array_map('intval', $datos['series'])));
+                            $itemNorm['cantidad'] = count($itemNorm['series']);
+                        }
+                        if ($itemNorm['cantidad'] > 0) {
+                            $itemsNormalizados[(int)$productoId] = $itemNorm;
+                        }
                     }
                 }
             }
@@ -309,7 +369,8 @@ class RemitosSalidaController extends Controller
     {
         require_once BASE_PATH . '/app/models/Producto.php';
         $productoModel = new Producto();
-        return $productoModel->allConStock();
+        $depositoId = !empty($_GET['deposito_id']) ? (int)$_GET['deposito_id'] : null;
+        return $productoModel->allConStock($depositoId);
     }
 
     /**
@@ -320,6 +381,7 @@ class RemitosSalidaController extends Controller
         header('Content-Type: application/json');
 
         $q = trim($_GET['q'] ?? '');
+        $depositoId = !empty($_GET['deposito_id']) ? (int)$_GET['deposito_id'] : null;
         if (strlen($q) < 2) {
             echo json_encode([]);
             return;
@@ -327,8 +389,38 @@ class RemitosSalidaController extends Controller
 
         require_once BASE_PATH . '/app/models/Producto.php';
         $productoModel = new Producto();
-        $productos = $productoModel->searchConStock($q);
+        $productos = $productoModel->searchConStock($q, $depositoId);
 
         echo json_encode($productos);
+    }
+
+    /**
+     * AJAX: stock de un producto en un depósito específico.
+     */
+    public function stockDeposito(): void
+    {
+        header('Content-Type: application/json');
+
+        $productoId = (int)($_GET['producto_id'] ?? 0);
+        $depositoId = (int)($_GET['deposito_id'] ?? 0);
+
+        if ($productoId <= 0) {
+            echo json_encode(['stock' => 0, 'stock_total' => 0]);
+            return;
+        }
+
+        if ($depositoId <= 0) {
+            $stock = $this->model->stockDisponibleProducto($productoId);
+            echo json_encode(['stock' => $stock, 'stock_total' => $stock]);
+            return;
+        }
+
+        $stock = $this->model->stockDisponibleProductoPorDeposito($productoId, $depositoId);
+        $stockTotal = $this->model->stockDisponibleProducto($productoId);
+
+        echo json_encode([
+            'stock' => $stock,
+            'stock_total' => $stockTotal
+        ]);
     }
 }

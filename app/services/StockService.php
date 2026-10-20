@@ -12,14 +12,16 @@ class StockService
     public function registerMovement(array $data): bool
     {
         $sql = "INSERT INTO movimientos_stock 
-                (producto_id, materia_prima_id, cantidad, tipo, origen, 
+                (producto_id, materia_prima_id, deposito_id, lote_id, cantidad, tipo, origen, 
                  referencia_id, observaciones, usuario_id) 
-                VALUES (:producto_id, :materia_prima_id, :cantidad, :tipo, :origen,
+                VALUES (:producto_id, :materia_prima_id, :deposito_id, :lote_id, :cantidad, :tipo, :origen,
                         :referencia_id, :observaciones, :usuario_id)";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
             ':producto_id' => $data['producto_id'] ?? null,
             ':materia_prima_id' => $data['materia_prima_id'] ?? null,
+            ':deposito_id' => $data['deposito_id'] ?? null,
+            ':lote_id' => $data['lote_id'] ?? null,
             ':cantidad' => $data['cantidad'],
             ':tipo' => $data['tipo'],
             ':origen' => $data['origen'],
@@ -29,7 +31,7 @@ class StockService
         ]);
     }
 
-    public function updateStockProducto(int $productoId, float $cantidad, string $tipo = 'ENTRADA', ?int $referenciaId = null, ?string $observaciones = null, ?int $usuarioId = null): bool
+    public function updateStockProducto(int $productoId, float $cantidad, string $tipo = 'ENTRADA', ?int $referenciaId = null, ?string $observaciones = null, ?int $usuarioId = null, ?int $depositoId = null, ?int $loteId = null): bool
     {
         $currentStock = $this->getStockProducto($productoId);
         $nuevoStock = ($tipo === 'ENTRADA') ? $currentStock + $cantidad : $currentStock - $cantidad;
@@ -46,15 +48,17 @@ class StockService
             'origen' => 'MANUAL',
             'referencia_id' => $referenciaId,
             'observaciones' => $observaciones,
-            'usuario_id' => $usuarioId
+            'usuario_id' => $usuarioId,
+            'deposito_id' => $depositoId,
+            'lote_id' => $loteId
         ]);
     }
 
-    public function updateStockMateriaPrima(int $materiaPrimaId, float $cantidad, string $tipo = 'ENTRADA', ?int $referenciaId = null, ?string $observaciones = null, ?int $usuarioId = null): bool
+    public function updateStockMateriaPrima(int $materiaPrimaId, float $cantidad, string $tipo = 'ENTRADA', ?int $referenciaId = null, ?string $observaciones = null, ?int $usuarioId = null, ?int $depositoId = null, ?int $loteId = null): bool
     {
         $currentStock = $this->getStockMateriaPrima($materiaPrimaId);
         $nuevoStock = ($tipo === 'ENTRADA') ? $currentStock + $cantidad : $currentStock - $cantidad;
-        
+
         if ($nuevoStock < 0) {
             error_log("Stock insuficiente para materia prima ID {$materiaPrimaId}. Stock actual: {$currentStock}, cantidad solicitada: {$cantidad}");
             return false;
@@ -67,7 +71,9 @@ class StockService
             'origen' => 'MANUAL',
             'referencia_id' => $referenciaId,
             'observaciones' => $observaciones,
-            'usuario_id' => $usuarioId
+            'usuario_id' => $usuarioId,
+            'deposito_id' => $depositoId,
+            'lote_id' => $loteId
         ]);
     }
 
@@ -165,5 +171,75 @@ class StockService
         }
 
         return $resultado;
+    }
+
+    public function getStockPorDeposito(?int $productoId = null, ?int $materiaPrimaId = null, ?int $depositoId = null): float
+    {
+        $sql = "
+            SELECT COALESCE(SUM(
+                CASE WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                     WHEN tipo = 'SALIDA' THEN -cantidad END
+            ), 0) as stock
+            FROM movimientos_stock WHERE 1=1";
+        $params = [];
+
+        if ($productoId) {
+            $sql .= " AND producto_id = :producto_id";
+            $params[':producto_id'] = $productoId;
+        }
+        if ($materiaPrimaId) {
+            $sql .= " AND materia_prima_id = :materia_prima_id";
+            $params[':materia_prima_id'] = $materiaPrimaId;
+        }
+        if ($depositoId) {
+            $sql .= " AND deposito_id = :deposito_id";
+            $params[':deposito_id'] = $depositoId;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (float)$stmt->fetchColumn();
+    }
+
+    public function getStockPorLote(int $loteId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(
+                CASE WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                     WHEN tipo = 'SALIDA' THEN -cantidad END
+            ), 0) as stock
+            FROM movimientos_stock WHERE lote_id = :id
+        ");
+        $stmt->execute([':id' => $loteId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    public function getStockDesglosado(?int $productoId = null, ?int $materiaPrimaId = null): array
+    {
+        $sql = "
+            SELECT d.id AS deposito_id, d.nombre AS deposito_nombre,
+                   l.id AS lote_id, l.codigo_lote, l.fecha_vencimiento,
+                   COALESCE(SUM(
+                       CASE WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                            WHEN m.tipo = 'SALIDA' THEN -m.cantidad END
+                   ), 0) AS stock
+            FROM depositos d
+            LEFT JOIN lotes l ON (l.producto_id = :prod_id OR l.materia_prima_id = :mp_id)
+                AND l.activo = 1
+            LEFT JOIN movimientos_stock m ON m.deposito_id = d.id AND m.lote_id = l.id
+                AND (m.producto_id = :prod_id2 OR m.materia_prima_id = :mp_id2)
+            WHERE d.activo = 1
+            GROUP BY d.id, l.id
+            HAVING stock != 0
+            ORDER BY d.nombre, l.fecha_vencimiento, l.codigo_lote
+        ";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            ':prod_id' => $productoId,
+            ':mp_id' => $materiaPrimaId,
+            ':prod_id2' => $productoId,
+            ':mp_id2' => $materiaPrimaId
+        ]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

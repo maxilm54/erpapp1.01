@@ -80,6 +80,40 @@ CREATE TABLE `user_tenant` (
   COMMENT='Un usuario puede acceder a uno o mas tenants';
 
 -- -----------------------------------------------------------
+-- TABLA: tareas (registro de tareas del panel de administracion)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tareas` (
+  `id`            INT NOT NULL AUTO_INCREMENT,
+  `texto`         VARCHAR(500) NOT NULL,
+  `estado`        ENUM('PENDIENTE','HECHA') NOT NULL DEFAULT 'PENDIENTE',
+  `tenant_id`     INT DEFAULT NULL,
+  `usuario_id`    INT DEFAULT NULL,
+  `completada_at` DATETIME DEFAULT NULL,
+  `completada_por` INT DEFAULT NULL,
+  `created_at`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_estado` (`estado`),
+  KEY `idx_tenant` (`tenant_id`),
+  CONSTRAINT `fk_tareas_tenant`       FOREIGN KEY (`tenant_id`)      REFERENCES `tenants` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tareas_usuario`      FOREIGN KEY (`usuario_id`)     REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tareas_completada_por` FOREIGN KEY (`completada_por`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Tareas pendientes y completadas del panel de administracion';
+
+-- -----------------------------------------------------------
+-- TABLA: master_migrations (control de migraciones del schema master)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `master_migrations` (
+  `id`         INT NOT NULL AUTO_INCREMENT,
+  `version`    INT NOT NULL,
+  `filename`   VARCHAR(255) NOT NULL,
+  `applied_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_version` (`version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Migraciones aplicadas sobre la BD master';
+
+-- -----------------------------------------------------------
 -- DATOS INICIALES
 -- -----------------------------------------------------------
 

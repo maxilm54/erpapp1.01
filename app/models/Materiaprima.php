@@ -28,9 +28,9 @@ class MateriaPrima extends Model
     {
         try {
             $this->db->beginTransaction();
-            $this->db->prepare("INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen)
-                VALUES (:n,:s,:u,:c,:i)"
-                )->execute(['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['id_unidadmedida'],'c'=>$d['categoria'],'i'=>$img]);
+            $this->db->prepare("INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen, usa_serie)
+                VALUES (:n,:s,:u,:c,:i,:us)"
+                )->execute(['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['id_unidadmedida'],'c'=>$d['categoria'],'i'=>$img,'us'=>!empty($d['usa_serie']) ? 1 : 0]);
             $mpId = $this->db->lastInsertId();
             if ($barcode) {
                 $this->db->prepare("INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo) VALUES (:mpId, :codigo, :tipo)")
@@ -78,8 +78,8 @@ class MateriaPrima extends Model
     {
         try {
             $this->db->beginTransaction();
-            $sql = "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u, categoria = :c";
-            $params = ['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['unidad_medida'],'c'=>$d['categoria'],'id'=>$id];
+            $sql = "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u, categoria = :c, usa_serie = :us";
+            $params = ['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['unidad_medida'],'c'=>$d['categoria'],'us'=>!empty($d['usa_serie']) ? 1 : 0,'id'=>$id];
 
             if ($imagen !== null) {
                 $sql .= ", imagen = :imagen";

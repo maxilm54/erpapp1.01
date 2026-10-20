@@ -27,11 +27,21 @@ class AdminController extends Controller{
         $userModel = new User();
         $totalUsers = count($userModel->getAllUsers());
 
+        // Tareas pendientes (solo si el schema master ya tiene la tabla)
+        $totalTareas = 0;
+        try {
+            require_once BASE_PATH . '/app/models/Tarea.php';
+            $totalTareas = (new Tarea())->countPendientes();
+        } catch (Throwable $e) {
+            error_log('[Admin] No se pudo leer el registro de tareas: ' . $e->getMessage());
+        }
+
         $this->adminView('admin/dashboard', [
             'title' => 'Panel de Administracion',
             'tenants' => $tenants,
             'totalTenants' => count($tenants),
-            'totalUsers' => $totalUsers
+            'totalUsers' => $totalUsers,
+            'totalTareas' => $totalTareas
         ]);
     }
 
@@ -465,13 +475,47 @@ class AdminController extends Controller{
             $t['pending'] = $mm->getPending($t['id']);
             $t['applied'] = $mm->getApplied($t['id']);
         }
+        unset($t);
+
+        require_once BASE_PATH . '/app/helpers/MasterMigrationManager.php';
+        $masterMm = new MasterMigrationManager();
 
         $this->adminView('admin/migrations', [
-            'title'         => 'Migraciones de Base de Datos',
-            'tenants'       => $tenants,
-            'allMigrations' => $allMigrations,
-            'latestVersion' => $latestVersion
+            'title'           => 'Migraciones de Base de Datos',
+            'tenants'         => $tenants,
+            'allMigrations'   => $allMigrations,
+            'latestVersion'   => $latestVersion,
+            'masterMigrations' => $masterMm->getAllMigrations(),
+            'masterPending'   => $masterMm->getPending(),
+            'masterApplied'   => $masterMm->getApplied(),
         ]);
+    }
+
+    /**
+     * Ejecuta las migraciones pendientes del schema MASTER (no de los tenants).
+     */
+    public function migrationsRunMaster(): void{
+        $this->requireAdmin();
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/migrations');
+                exit;
+            }
+        }
+
+        require_once BASE_PATH . '/app/helpers/MasterMigrationManager.php';
+        $applied = (new MasterMigrationManager())->runAll();
+
+        if (!empty($applied)) {
+            $_SESSION['success'] = 'Migraciones master aplicadas: ' . implode(', ', $applied);
+        } else {
+            $_SESSION['info'] = 'No hay migraciones master pendientes.';
+        }
+
+        header('Location: ' . BASE_URL . '/admin/migrations');
+        exit;
     }
 
     /**
@@ -515,5 +559,170 @@ class AdminController extends Controller{
 
         header('Location: ' . BASE_URL . '/admin/migrations');
         exit;
+    }
+
+    // =====================================================
+    // TAREAS (registro de tareas del panel de administracion)
+    // Reemplaza al viejo tareas.json de la raiz del repo.
+    // =====================================================
+
+    /**
+     * Listado de tareas con filtros (estado, empresa, texto).
+     */
+    public function tareas(): void{
+        $this->requireAdmin();
+
+        // El schema master se mantiene al dia solo (idempotente)
+        require_once BASE_PATH . '/app/helpers/MasterMigrationManager.php';
+        $masterMm = new MasterMigrationManager();
+        $masterMm->ensureSchema();
+
+        $filtros = [
+            'estado'    => strtoupper(trim($_GET['estado'] ?? '')),
+            'tenant_id' => $_GET['tenant_id'] ?? '',
+            'q'         => trim($_GET['q'] ?? ''),
+        ];
+
+        // Si la tabla 'tareas' todavia no existe (schema master sin migrar),
+        // se avisa en vez de mostrar una pantalla en blanco.
+        $tareas = [];
+        $pendientes = 0;
+        $error = null;
+        try {
+            $tareas = $this->tareaModel()->all($filtros);
+            $pendientes = $this->tareaModel()->countPendientes();
+        } catch (PDOException $e) {
+            error_log('[Admin] Tabla de tareas no disponible: ' . $e->getMessage());
+            $error = 'La tabla de tareas todavia no existe en la BD master. '
+                   . 'Ejecuta la migracion master pendiente desde Admin -> Migraciones.';
+        }
+
+        $this->adminView('admin/tareas', [
+            'title'            => 'Tareas',
+            'tareas'           => $tareas,
+            'tenants'          => $this->tareaModel()->getTenants(),
+            'filtros'          => $filtros,
+            'pendientes'       => $pendientes,
+            'masterPendientes' => count($masterMm->getPending()),
+            'error'            => $error,
+        ]);
+    }
+
+    /**
+     * Crea una tarea.
+     */
+    public function tareasCreate(): void{
+        $this->requireAdmin();
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $texto = trim($_POST['texto'] ?? '');
+            if($texto === ''){
+                $_SESSION['error'] = 'La descripcion de la tarea es obligatoria.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $this->tareaModel()->create([
+                'texto'      => $texto,
+                'tenant_id'  => $_POST['tenant_id'] ?? null,
+                'usuario_id' => $_SESSION['user_id'] ?? null,
+            ]);
+
+            $_SESSION['success'] = 'Tarea creada correctamente.';
+            header('Location: ' . BASE_URL . '/admin/tareas');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/tareas');
+        exit;
+    }
+
+    /**
+     * Confirma una tarea (la marca como HECHA).
+     */
+    public function tareasConfirmar(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/tareas');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $this->tareaModel()->confirmar($id, (int)($_SESSION['user_id'] ?? 0));
+
+            $_SESSION['success'] = 'Tarea confirmada.';
+            header('Location: ' . BASE_URL . '/admin/tareas');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/tareas');
+        exit;
+    }
+
+    /**
+     * Reabre una tarea confirmada.
+     */
+    public function tareasReabrir(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/tareas');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $this->tareaModel()->reabrir($id);
+
+            $_SESSION['success'] = 'Tarea reabierta.';
+            header('Location: ' . BASE_URL . '/admin/tareas');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/tareas');
+        exit;
+    }
+
+    /**
+     * Elimina una tarea.
+     */
+    public function tareasDelete(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/tareas');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $this->tareaModel()->delete($id);
+
+            $_SESSION['success'] = 'Tarea eliminada.';
+            header('Location: ' . BASE_URL . '/admin/tareas');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/tareas');
+        exit;
+    }
+
+    /**
+     * Modelo de tareas (BD master), instanciado por demanda.
+     */
+    private function tareaModel(): Tarea{
+        require_once BASE_PATH . '/app/models/Tarea.php';
+        return new Tarea();
     }
 }

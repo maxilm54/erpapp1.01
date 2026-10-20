@@ -16,7 +16,7 @@ ERP multi-tenant en PHP 8+ (Custom MVC, sin frameworks). Gestión integral para 
 | Capa | Tecnología |
 |------|-----------|
 | PHP 8+ | strict_types |
-| MySQL 8 | InnoDB, utf8mb4 |
+| MariaDB 10.4 (compatible MySQL 8) | InnoDB, utf8mb4 |
 | Frontend | Bootstrap 5.3 (CDN), SweetAlert2, Chart.js |
 | PDF | Dompdf 3.1 |
 | Email | PHPMailer 7.0 (SMTP) |
@@ -193,14 +193,17 @@ public function delete(int $id): bool {
 | DevolucionesController | Ventas | Devoluciones de remitos (stock, ctacte, caja, asientos, PDF, email) |
 | CobrosController | Finanzas | Cobros a clientes |
 | CtacteController | Finanzas | Cuenta corriente de clientes |
-| CuentacorrienteempresaController | Finanzas | Cuenta corriente de la empresa |
+| CuentacorrienteempresaController | Finanzas | Cuenta corriente de la empresa (ingresos/gastos + deuda por proveedor) |
+| PerfilController | Perfil | "Mi Perfil": ver/editar nombre, email y contraseña del usuario logueado |
 | OrdenescompraController | Compras | Órdenes de compra |
 | IngresosmercaderiaController | Compras | Ingresos de mercadería |
-| ComprasController | Compras | Compras (facturación) |
 | GastosController | Finanzas | Gestión de gastos |
 | CreditosController | Finanzas | Créditos bancarios |
 | StockController | Stock | Consulta de stock |
 | AjustesstockController | Stock | Ajustes manuales de stock |
+| DepositosController | Stock | CRUD de depósitos (gestión de ubicaciones físicas) |
+| TransferenciasController | Stock | Transferencias de stock entre depósitos (salida→tránsito→recepción) |
+| LotesController | Stock | Listado central de lotes vencidos y próximos a vencer |
 | Producción | Producción | Órdenes de producción |
 | OrdenproduccionController | Producción | Órdenes de producción |
 | RecetasController | Producción | Recetas (BOM) de producción |
@@ -209,7 +212,7 @@ public function delete(int $id): bool {
 | SdcompController | SDCOMP | Comprobantes internos (movimientos sin comprobante fiscal) |
 | EmailController | Email | Envío de emails |
 
-### Modelos (37)
+### Modelos (41)
 
 | Modelo | Tabla | Conexión |
 |--------|-------|----------|
@@ -250,6 +253,10 @@ public function delete(int $id): bool {
 | EmailTemplate | email_templates | Tenant |
 | EmailConfig | email_config | Tenant |
 | Maillog | mails_log | Tenant |
+| **Deposito** | **depositos** | **Tenant** |
+| **Lote** | **lotes** | **Tenant** |
+| **Transferencia** | **transferencias_depositos** | **Tenant** |
+| **Serie** | **series** | **Tenant** |
 
 ## Flujo de Datos Clave
 
@@ -315,7 +322,17 @@ Stock = SUM(CASE WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
                  WHEN tipo = 'SALIDA' THEN -cantidad END)
 ```
 
-Orígenes: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE, PRODUCCION, etc.
+Orígenes: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE, PRODUCCION, DEVOLUCION, TRANSFERENCIA, etc.
+
+Desde migración 016, cada movimiento puede asociarse a un **depósito** (`deposito_id`) y a un **lote** (`lote_id`) con vencimiento, permitiendo stock desglosado por ubicación física y trazabilidad por lote.
+
+### Transferencias entre Depósitos
+
+Flujo en dos fases:
+1. **Confirmar Salida**: stock sale del depósito origen, entra al depósito virtual "En Tránsito" → estado `EN_TRANSITO`.
+2. **Confirmar Recepción**: stock sale de "En Tránsito", entra al depósito destino → estado `COMPLETADA`.
+
+La anulación revierte según el estado: si está en tránsito devuelve al origen; si está completada retira del destino y devuelve al origen.
 
 ### Contabilidad (Partida Doble)
 
@@ -323,6 +340,14 @@ Orígenes: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE,
 - Asientos automáticos generados por: cobros, pagos, remitos, órdenes de compra.
 - Estados contables: ACTIVO = PASIVO + PATRIMONIO
 - Estado de Resultados: INGRESOS - EGRESOS
+
+### Cuenta Corriente de la Empresa
+
+- Movimientos de la empresa: `INGRESO` (entra dinero) / `GASTO` (sale dinero). Saldo = ingresos - gastos.
+- Con `proveedor_id` cargado, el saldo por proveedor es la deuda que la empresa tiene con él.
+- Categorías en `categorias_gastos_ingresos` (PROVEEDORES, SUELDOS, SERVICIOS, ALQUILER, IMPUESTOS, OTROS / VENTAS, COBRO CLIENTES, OTROS INGRESOS).
+- Anulación por baja lógica (`activo = 0`).
+- Ruta: `/cuentacorrienteempresa` + `/create`, `/edit/{id}`, `/delete/{id}`.
 
 ## Puntos Críticos
 
@@ -344,7 +369,19 @@ Orígenes: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE,
 
 9. **Tenant selection**: Login → si 1 tenant → auto-connect; si múltiples → select-tenant; si 0 → error.
 
-10. **File uploads**: Organizados por tenant: `public/uploads/{tipo}/empresa_{id}/`.
+12. **Depósitos y Lotes**: `movimientos_stock` ahora tiene `deposito_id` y `lote_id`. La tabla `depositos` almacena ubicaciones físicas (`es_transito=1` para depósitos virtuales). La tabla `lotes` vincula códigos de lote y vencimiento a productos o materias primas.
+
+13. **Transferencias en dos fases**: La mercadería sale del origen al depósito virtual "En Tránsito" al crear la transferencia, y se acredita al destino al confirmar la recepción. La anulación es inteligente según el estado.
+
+14. **Control de N° de Serie por unidad**: `productos.usa_serie` y `materias_primas.usa_serie` (flag booleano, migración 020). Cuando está activo, el producto/MP se **recepciona y remite UNIDAD A UNIDAD**: la tabla `series` registra cada unidad individual con su `numero_serie` único (UNIQUE), estado (`DISPONIBLE` → `REMITIDO` → `EN_DEVOLUCION`/`BAJA`), depósito, lote e ingreso/remito asociados. En el ingreso de mercadería, los items con serie se expanden en N filas (una por unidad, cada una con su N° de serie obligatorio y validación de unicidad). En el remito (desde NP y manual), en vez de cantidad se muestra un selector múltiple de series DISPONIBLES en el depósito (cargado vía AJAX a `remitossalida/seriesDisponibles`); al confirmar, cada serie seleccionada se marca `REMITIDO` con el `remito_salida_id`. El detalle de producto/MP (`show`) muestra la tabla de unidades con serie y su estado.
+
+15. **Cta. Cte. Empresa** (`/cuentacorrienteempresa`, migración 021): libro de ingresos (`INGRESO`) y gastos (`GASTO`) de la empresa. Con `proveedor_id` cargado, el saldo es la deuda con ese proveedor. Anulación por baja lógica (`activo = 0`), no se borra físicamente.
+
+16. **"Mi Perfil"** (`/perfil`): el usuario logueado edita su nombre, email y contraseña. El `User` model escribe en la BD **master**; hay que llamar `syncToTenant()` para propagar el cambio a cada empresa del usuario.
+
+17. **Formularios de filtro con `method="get"`**: el router lee la ruta de `?url=`. Un form GET **sin `action`** borra el query string y manda al home. Todos los forms de filtro deben llevar `action="<?= BASE_URL ?>/<ruta>"`.
+
+18. **Registro de tareas**: vive en la tabla `tareas` de la **BD master** (no en los tenants) y se administra desde el panel admin (`/admin/tareas`, solo superadmin). Reemplaza al viejo `tareas.json` de la raíz, que se eliminó. Acciones: crear, confirmar (HECHA), reabrir y eliminar. `MasterMigrationManager` mantiene el schema master al día (archivos en `app/helpers/squemadb/master_migrations/`), que es independiente del `MigrationManager` de tenants.
 
 ## Cómo Agregar un Módulo Nuevo
 
@@ -463,7 +500,9 @@ Editar `app/views/layout/header.php` para agregar enlace al menú.
 
 ### 5. Migración (si se necesita)
 
-Crear archivo SQL en `app/helpers/squemadb/` y ejecutar desde Admin → Migraciones.
+Crear archivo SQL en `app/helpers/migrations/` con el nombre `NNN_descripcion.sql` (prefijo numérico de 3 dígitos, correlativo) y ejecutarlo desde Admin → Migraciones, **en cada tenant** (el estado va en `tenants.schema_version` de la BD master).
+
+> `app/helpers/squemadb/` NO es la carpeta de migraciones: ahí vive el schema base (`create_master.sql` para la BD master y `tenant_schema.sql` para crear la BD de un tenant nuevo). `app/helpers/migdiscontnuadas/` guarda las migraciones retiradas.
 
 ## Errores Comunes
 
@@ -477,6 +516,7 @@ Crear archivo SQL en `app/helpers/squemadb/` y ejecutar desde Admin → Migracio
 | "Tabla no existe" | Verificar migración aplicada en Admin → Migraciones |
 | Soft delete no funciona | Verificar que `activo = 0` y no `activo = 1` en queries de listado |
 | Stock negativo | Verificar que `movimientos_stock` tiene los tipos correctos (ENTRADA, SALIDA, AJUSTE) |
+| Stock no se filtra por depósito | Verificar que migración 016 está aplicada y que `deposito_id` se envía en el POST |
 
 ## Archivos Clave (Referencia Rápida)
 
@@ -511,4 +551,5 @@ Crear archivo SQL en `app/helpers/squemadb/` y ejecutar desde Admin → Migracio
 | `public/js/confirmations.js` | SweetAlert2 confirmaciones |
 | `public/assets/css/app.css` | Estilos globales |
 | `.env` | Variables de entorno |
-| `tareas.json` | Tareas pendientes/realizadas |
+| `app/helpers/MasterMigrationManager.php` | Migraciones del schema de la BD master |
+| `app/models/Tarea.php` | Tareas del panel admin (tabla `tareas` en la BD master) |

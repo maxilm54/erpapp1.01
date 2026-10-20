@@ -3,6 +3,7 @@
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Productocodigo.php';
+require_once BASE_PATH . '/app/models/Lote.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -17,11 +18,46 @@ class ProductosController extends Controller
         $this->codigo = new ProductoCodigo();
     }
 
-    public function index(): void
+public function index(): void
     {
+        $productos = $this->producto->all();
         $this->view('productos/index', [
             'title' => 'Productos',
-            'productos' => $this->producto->all()
+            'productos' => $productos
+        ]);
+    }
+
+    public function show(int $id): void
+    {
+        validarId($id, BASE_URL . '/productos');
+        $producto = $this->producto->find($id);
+        if (!$producto) {
+            $_SESSION['error'] = 'Producto no encontrado.';
+            header('Location: ' . BASE_URL . '/productos');
+            exit;
+        }
+
+        $loteModel = new Lote();
+        $lotes = $loteModel->searchByProducto($id);
+        $vencidos = $loteModel->expiredByProducto($id);
+        $proximos = $loteModel->expiringSoonByProducto($id);
+        $codigos = $this->codigo->byProducto($id);
+
+        $series = [];
+        if (!empty($producto['usa_serie'])) {
+            require_once BASE_PATH . '/app/models/Serie.php';
+            $series = (new Serie())->byProducto($id);
+        }
+
+        $this->view('productos/show', [
+            'title' => htmlspecialchars($producto['nombre']),
+            'producto' => $producto,
+            'lotes' => $lotes,
+            'vencidos' => $vencidos,
+            'proximos' => $proximos,
+            'codigos' => $codigos,
+            'series' => $series,
+            'stock' => $this->producto->stockByProductoId_movstock($id)['stock'] ?? 0
         ]);
     }
 
@@ -52,7 +88,8 @@ class ProductosController extends Controller
                 'precio_venta' => (float)$_POST['precio_venta'],
                 'imagen' => $imagen,
                 'user_create' => $_SESSION['user_id'],
-                'unidad_medida' => (int)$_POST['unidad_medida']
+                'unidad_medida' => (int)$_POST['unidad_medida'],
+                'usa_serie' => !empty($_POST['usa_serie']) ? 1 : 0
             ], $imagen);
 
             foreach ($_POST['codigos'] as $i => $codigo) {

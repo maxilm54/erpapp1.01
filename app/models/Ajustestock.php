@@ -15,11 +15,16 @@ class AjusteStock extends Model
             m.motivo,
             u.nombre AS usuario,
             p.nombre AS producto,
-            mp.nombre AS materia_prima
+            mp.nombre AS materia_prima,
+            d.nombre AS deposito,
+            l.codigo_lote,
+            l.fecha_vencimiento
             FROM movimientos_stock m
             JOIN users u ON u.id = m.usuario_id
             LEFT JOIN productos p ON p.id = m.producto_id
             LEFT JOIN materias_primas mp ON mp.id = m.materia_prima_id
+            LEFT JOIN depositos d ON d.id = m.deposito_id
+            LEFT JOIN lotes l ON l.id = m.lote_id
             ORDER BY m.created_at DESC
         ");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -30,7 +35,9 @@ class AjusteStock extends Model
         string $motivo,
         int $usuarioId,
         string $tipo,
-        string $obs
+        string $obs,
+        ?int $depositoId = null,
+        ?int $loteId = null
     ): void {
         $this->db->beginTransaction();
 
@@ -41,12 +48,14 @@ class AjusteStock extends Model
 
             $this->db->prepare("
                 INSERT INTO movimientos_stock
-                (tipo, origen, producto_id, cantidad,motivo, observaciones, usuario_id)
-                VALUES (?, 'AJUSTE_STOCK', ?, ?, ?, ?, ?)
+                (tipo, origen, producto_id, cantidad, deposito_id, lote_id, motivo, observaciones, usuario_id)
+                VALUES (?, 'AJUSTE_STOCK', ?, ?, ?, ?, ?, ?, ?)
             ")->execute([
                 $tipo,
                 $productoId,
                 $cantidad,
+                $depositoId,
+                $loteId,
                 $motivo,
                 $obs,
                 $usuarioId
@@ -70,7 +79,9 @@ class AjusteStock extends Model
         string $motivo,
         int $usuarioId,
         string $tipo,
-        string $obs
+        string $obs,
+        ?int $depositoId = null,
+        ?int $loteId = null
     ): void {
         $this->db->beginTransaction();
 
@@ -80,13 +91,15 @@ class AjusteStock extends Model
             }
             $this->db->prepare("
                 INSERT INTO movimientos_stock
-                (tipo, origen, materia_prima_id, cantidad,motivo, observaciones, usuario_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (tipo, origen, materia_prima_id, cantidad, deposito_id, lote_id, motivo, observaciones, usuario_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ")->execute([
                 $tipo,
                 'AJUSTE_STOCK',
                 $mpId,
                 $cantidad,
+                $depositoId,
+                $loteId,
                 $motivo,
                 $obs,
                 $usuarioId

@@ -1,6 +1,7 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Materiaprima.php';
+require_once BASE_PATH . '/app/models/Lote.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 class MateriasprimasController extends Controller
@@ -17,6 +18,39 @@ class MateriasprimasController extends Controller
         $this->view('materias_primas/index', [
             'title'=>'Materias Primas',
             'items'=>$this->mp->all()
+        ]);
+    }
+
+    public function show(int $id): void
+    {
+        validarId($id, BASE_URL . '/materiasprimas');
+        $mp = $this->mp->find($id);
+        if (!$mp) {
+            $_SESSION['error'] = 'Materia prima no encontrada.';
+            header('Location: ' . BASE_URL . '/materiasprimas');
+            exit;
+        }
+
+        $loteModel = new Lote();
+        $lotes = $loteModel->searchByMateriaPrima($id);
+        $vencidos = $loteModel->expiredByMateriaPrima($id);
+        $proximos = $loteModel->expiringSoonByMateriaPrima($id);
+        $stock = $this->mp->stockByProductoId_movstock($id)['stock'] ?? 0;
+
+        $series = [];
+        if (!empty($mp['usa_serie'])) {
+            require_once BASE_PATH . '/app/models/Serie.php';
+            $series = (new Serie())->byMateriaPrima($id);
+        }
+
+        $this->view('materias_primas/show', [
+            'title' => htmlspecialchars($mp['nombre']),
+            'materiaprima' => $mp,
+            'lotes' => $lotes,
+            'vencidos' => $vencidos,
+            'proximos' => $proximos,
+            'series' => $series,
+            'stock' => $stock
         ]);
     }
 

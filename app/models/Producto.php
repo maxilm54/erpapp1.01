@@ -17,9 +17,15 @@ class Producto extends Model
     /**
      * Productos activos con stock calculado.
      */
-    public function allConStock(): array
+    public function allConStock(?int $depositoId = null): array
     {
-        return $this->db->query("
+        $depositoFilter = ' ON ms.producto_id = p.id';
+        $params = [];
+        if ($depositoId) {
+            $depositoFilter = " ON ms.producto_id = p.id AND ms.deposito_id = :deposito_id";
+            $params[':deposito_id'] = $depositoId;
+        }
+        $stmt = $this->db->prepare("
             SELECT p.id, p.nombre, p.sku, p.precio_venta,
                 COALESCE(SUM(
                     CASE
@@ -28,21 +34,29 @@ class Producto extends Model
                     END
                 ),0) AS stock
             FROM productos p
-            LEFT JOIN movimientos_stock ms ON ms.producto_id = p.id
+            LEFT JOIN movimientos_stock ms{$depositoFilter}
             WHERE p.activo = 1
             GROUP BY p.id, p.nombre, p.sku, p.precio_venta
             ORDER BY p.nombre
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
      * Buscar productos activos con stock por nombre/sku/codigo de barra.
      */
-    public function searchConStock(string $query): array
+    public function searchConStock(string $query, ?int $depositoId = null): array
     {
         $like = '%' . $query . '%';
+        $depositoFilter = ' ON ms.producto_id = p.id';
+        $params = [':q' => $like, ':q2' => $like, ':q3' => $like];
+        if ($depositoId) {
+            $depositoFilter = " ON ms.producto_id = p.id AND ms.deposito_id = :deposito_id";
+            $params[':deposito_id'] = $depositoId;
+        }
         $stmt = $this->db->prepare("
-            SELECT p.id, p.nombre, p.sku, p.precio_venta,
+            SELECT p.id, p.nombre, p.sku, p.precio_venta, p.usa_serie,
                 GROUP_CONCAT(DISTINCT pc.codigo SEPARATOR ', ') AS codigos_barra,
                 COALESCE(SUM(
                     CASE
@@ -51,15 +65,15 @@ class Producto extends Model
                     END
                 ),0) AS stock
             FROM productos p
-            LEFT JOIN movimientos_stock ms ON ms.producto_id = p.id
+            LEFT JOIN movimientos_stock ms{$depositoFilter}
             LEFT JOIN producto_codigos pc ON pc.producto_id = p.id
             WHERE p.activo = 1
               AND (p.nombre LIKE :q OR p.sku LIKE :q2 OR pc.codigo LIKE :q3)
-            GROUP BY p.id, p.nombre, p.sku, p.precio_venta
+            GROUP BY p.id, p.nombre, p.sku, p.precio_venta, p.usa_serie
             ORDER BY CASE WHEN COALESCE(SUM(CASE WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad END),0) > 0 THEN 0 ELSE 1 END, p.nombre
             LIMIT 20
         ");
-        $stmt->execute([':q' => $like, ':q2' => $like, ':q3' => $like]);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -120,8 +134,8 @@ class Producto extends Model
         try {
             $stmt = $this->db->prepare(
             "INSERT INTO productos
-            (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated, unidad_medida)
-            VALUES (:nombre, :sku, :descripcion, :precio, :imagen, :user_create, :last_user_updated, :unidad_medida)"
+            (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated, unidad_medida, usa_serie)
+            VALUES (:nombre, :sku, :descripcion, :precio, :imagen, :user_create, :last_user_updated, :unidad_medida, :usa_serie)"
             );
 
             $stmt->execute([
@@ -132,7 +146,8 @@ class Producto extends Model
                 'imagen' => $imagen,
                 'user_create' => $_SESSION['user_id'],
                 'last_user_updated' => $_SESSION['user_id'],
-                'unidad_medida' => $data['unidad_medida']
+                'unidad_medida' => $data['unidad_medida'],
+                'usa_serie' => !empty($data['usa_serie']) ? 1 : 0
             ]);
             $_SESSION['success'] = "Producto creado correctamente.";
             error_log('Producto creado con ID '.$this->db->lastInsertId().' y data: '.print_r($data, true).' - '.__FILE__.':'.__LINE__);
@@ -153,6 +168,7 @@ class Producto extends Model
                         descripcion = :descripcion,
                         precio_venta = :precio,
                         unidad_medida = :unidad_medida,
+                        usa_serie = :usa_serie,
                         last_user_updated = :user_update";
 
             $params = [
@@ -162,6 +178,7 @@ class Producto extends Model
                 'descripcion' => $data['descripcion'],
                 'precio' => $data['precio_venta'],
                 'unidad_medida' => $data['unidad_medida'],
+                'usa_serie' => !empty($data['usa_serie']) ? 1 : 0,
                 'user_update' => $_SESSION['user_id']
             ];
 
