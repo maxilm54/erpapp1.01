@@ -647,8 +647,8 @@ ALTER TABLE `reservas_materia_prima` ADD CONSTRAINT `reservas_mp_orden_fk` FOREI
 ALTER TABLE `stock_mp_transito` ADD CONSTRAINT `stock_mp_transito_ibfk_1` FOREIGN KEY (`materia_prima_id`) REFERENCES `materias_primas` (`id`);
 ALTER TABLE `tbl_historico_reserva_mp` ADD CONSTRAINT `historico_mp_materia_fk` FOREIGN KEY (`materia_prima_id`) REFERENCES `materias_primas` (`id`) ON UPDATE CASCADE;
 ALTER TABLE `tbl_historico_reserva_mp` ADD CONSTRAINT `historico_mp_orden_fk` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON UPDATE CASCADE;
-ALTER TABLE `gastos` ADD CONSTRAINT `gastos_orden_compra_fk` FOREIGN KEY (`orden_compra_id`) REFERENCES `ordenes_compra` (`id`) ON DELETE SET NULL;
-ALTER TABLE `gastos` ADD CONSTRAINT `gastos_usuario_fk` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT;
+-- La tabla `gastos` la crea la migracion 004 (con sus FKs ya declaradas).
+-- Agregar aqui sus ALTERs fallaba porque la tabla todavia no existia.
 
 -- Trigger (PDO-safe, sin DELIMITER)
 DROP TRIGGER IF EXISTS `historico_reserva_mp_trig`;

@@ -18,6 +18,7 @@
   ```
 - `storage/` y `public/uploads/` están gitignored y se crean solos (`Tenant::crearDirectorios()`, `empresaStoragePath()` con `mkdir`).
 - No hay cliente `mysql` en el PATH: para tocar la BD usar PHP/PDO o el panel web (Admin → Migraciones).
+- **Backup**: `php app/helpers/backup.php [destino]` vuelca la master + todos los tenants en `<destino>/erp_YYYYMMDD_HHMM/`. Es el único respaldo de las BD: `storage/` y `public/uploads/` están aparte. En PowerShell 5.1 el `>` escribe UTF-16 y arruina los dumps → usar siempre `--result-file`.
 - Bases: `app/helpers/squemadb/create_master.sql` (master `app_master`) y `app/helpers/squemadb/tenant_schema.sql` (BD de cada tenant).
 
 ## Verificación (no hay tests)

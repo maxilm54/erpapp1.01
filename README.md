@@ -621,6 +621,57 @@ No hace falta buscar el `.sql` ni abrir un gestor web: los dos tipos de migraci�
 desde el panel. La de la master además es **auto-aplicable**: al abrir por primera vez
 `/admin/tareas` el sistema aplica solo lo pendiente.
 
+---
+
+## Instalación desde cero
+
+Todos los SQL inicial **están en el repo**, no hace falta ningún archivo externo:
+
+| Archivo | Para qué |
+|---------|----------|
+| `app/helpers/squemadb/create_master.sql` | Crea la BD master `app_master` (empresas, usuarios, tareas) + el usuario superadmin inicial |
+| `app/helpers/squemadb/tenant_schema.sql` | Crea la BD de un tenant (40 tablas base) |
+| `app/helpers/migrations/003..021_*.sql` | Migraciones incrementales (se aplican después del schema) |
+| `app/helpers/squemadb/master_migrations/001_*.sql` | Migraciones del schema master |
+
+### Orden
+
+1. **Master**: correr `create_master.sql` (crea `app_master` con `tenants`, `users`, `user_tenant`, `tareas`, `master_migrations` y el superadmin). La password del superadmin inicial está en el comentario del propio archivo.
+2. **Tenant**: crearlo desde el panel (**Admin → Nueva Empresa**): el sistema crea la BD clonando `tenant_schema.sql` y deja el tenant en `schema_version = 0`.
+3. **Migraciones del tenant**: **Admin → Migraciones → "Ejecutar"** en ese tenant. Aplica 003..021 y deja `schema_version = 21`.
+4. **Migraciones master**: **Admin → Migraciones → "Migraciones de la BD Master" → "Aplicar"**. Aplica la 001 (la tabla `tareas`).
+
+> Instalación nueva: si corriste `create_master.sql` actualizado, la tabla `tareas` ya existe y la migración master 001 queda como no-op (`CREATE TABLE IF NOT EXISTS`).
+>
+> El tenant nuevo queda **idéntico** a uno migrado: 66 tablas. Verificado.
+
+---
+
+## Backup de las bases
+
+```bash
+php app/helpers/backup.php [directorio-destino]
+```
+
+Vuelca la master y todos los tenants activos en `<destino>/erp_YYYYMMDD_HHMM/`, un `.sql` por base.
+Destino por defecto: `C:/xampp/mysql/backup/`. Es **el respaldo que hay que tener a mano**: si se pierde
+el datadir de MySQL, los `.sql` reconstruyen todo (el `schema_version` de cada tenant viaja en el dump).
+
+> Ojo con el shell: en **PowerShell 5.1** el `>` escribe **UTF-16** y genera un dump ilegible.
+> Por eso el script usa `--result-file` de mysqldump. Si generás dumps a mano, usá siempre
+> `mysqldump --result-file=dump.sql` y no `> dump.sql`.
+
+### Restaurar
+
+```bash
+mysql -u root -e "CREATE DATABASE app_master CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root app_master < app_master.sql
+```
+
+> Ojo: `storage/` (PDFs) y `public/uploads/` (imágenes) **no están en MySQL**. Son carpetas del
+> repo y hay que respaldarlas aparte (o versionarlas, si no son pesadas).
+
+
 > Instalación nueva: `create_master.sql` ya incluye las tablas de la master (incluida `tareas`),
 > y la migración master 001 queda como no-op (`CREATE TABLE IF NOT EXISTS`).
 
