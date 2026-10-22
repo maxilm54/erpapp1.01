@@ -713,21 +713,36 @@ En producción casi seguro no va a ser la misma ruta. Las dos claves del `.env` 
 | `BACKUP_PATH` | Dónde se guardan los respaldos | `BACKUP_PATH=/var/backups/erp` |
 | `MYSQLDUMP_PATH` | Ruta absoluta de mysqldump | `MYSQLDUMP_PATH=/usr/bin/mysqldump` |
 
-Si no se definen, se busca `mysqldump` en el `PATH` y la carpeta de respaldos queda un nivel
-arriba del proyecto. **Admin → Backups** chequea el entorno antes de dejar generar uno y avisa
-con un mensaje claro si algo falta. Tres problemas típicos en hosting:
+Si no se definen, se busca `mysqldump` en el `PATH` y la carpeta de respaldos se resuelve sola:
+se prueban varios destinos y queda el primero que sea **escribible y esté fuera del webroot**.
+Hacen falta varios porque la altura de la raíz del proyecto cambía según el servidor:
+
+| Servidor | Proyecto | Candidato que funciona |
+|---|---|---|
+| XAMPP | `C:/xampp/htdocs/app` | dos arriba → `C:/xampp/_erp_backups` |
+| Hosting | `/home/usuario/app` | **uno arriba** → `/home/usuario/_erp_backups` |
+
+Con un único destino fijo, en uno de los dos servidores falla. **Admin → Backups** chequea el
+entorno antes de dejar generar uno y avisa con un mensaje claro si algo falta. Tres problemas
+típicos en hosting:
 
 1. **`exec()` deshabilitada** — muy común en hosting compartido. Sin ella no se puede invocar
    a mysqldump; hay que pedir que la habiliten o correr los respaldos por consola.
-2. **`mysqldump` no disponible** — resolver con `MYSQLDUMP_PATH`.
+2. **`mysqldump` no disponible** — resolver con `MYSQLDUMP_PATH`. Ojo: si la clave está mal
+   escrita **no se ignora en silencio**, el panel la marca y hay que corregirla.
 3. **Destino sin permisos de escritura** — resolver con `BACKUP_PATH` apuntando a una carpeta
    escribible **y fuera del webroot**.
 
+> `BACKUP_PATH` y `MYSQLDUMP_PATH` se pueden poner en el `.env` **o** como variable de entorno
+> (la variable manda). Así el cron puede apuntar a otro destino sin tocar el archivo.
+
 ### Dónde quedan los archivos
 
-Por defecto en `C:\xampp\_erp_backups\` — **fuera del webroot**. Es a propósito: si los `.sql`
-vivieran bajo `C:\xampp\htdocs`, Apache los serviría como archivos estáticos y quedarían expuestos
-los hashes de password y los datos de las empresas.
+Por defecto, en el primer destino escribible y externo al webroot de la lista de arriba. En XAMPP
+eso es `C:\xampp\_erp_backups\`. Es a propósito: si los `.sql` vivieran bajo `C:\xampp\htdocs`,
+Apache los serviría como archivos estáticos y quedarían expuestos los hashes de password y los
+datos de las empresas. Para comprobarlo, el chequeo usa `DOCUMENT_ROOT` cuando hay una petición
+web (es el webroot real, sin adivinar) y el patrón de la app cuando corre por consola.
 
 ### Importante
 
@@ -763,11 +778,15 @@ SMTP_USERNAME=...
 SMTP_PASSWORD=...
 
 # Opcional. Carpeta donde se guardan los respaldos (Admin -> Backups y el cron).
-# Si no esta, se usa C:\xampp\_erp_backups. Debe quedar FUERA del webroot.
-# BACKUP_PATH=D:/respaldos_erp
+# Si no esta, se prueba una lista de destinos y queda el primero escribible y
+# FUERA del webroot: en XAMPP C:\xampp\_erp_backups, en hosting algo tipo
+# /home/usuario/_erp_backups. Conviene ponerlo explicito en produccion.
+# Tambien puede ir como variable de entorno (manda sobre el .env).
+# BACKUP_PATH=/home/usuario/_erp_backups
 
 # Opcional. Ruta absoluta de mysqldump si no esta en el PATH (necesario en
-# hosting de Linux). En Windows con XAMPP se detecta solo.
+# hosting de Linux). En Windows con XAMPP se detecta solo. Si la clave esta mal
+# escrita, Admin -> Backups la marca en vez de ignorarla en silencio.
 # MYSQLDUMP_PATH=/usr/bin/mysqldump
 ```
 

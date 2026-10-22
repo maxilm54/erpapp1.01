@@ -25,20 +25,21 @@ $formatearFecha = function (int $ts): string {
     <?php endif; ?>
 </div>
 
-<?php if (!empty($error)): ?>
-<div class="alert alert-danger">
-    <i class="bi bi-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
-</div>
-<?php endif; ?>
-
 <?php if (!empty($problemas)): ?>
 <div class="alert alert-danger">
     <h6 class="alert-heading"><i class="bi bi-x-octagon"></i> El entorno no permite generar respaldos</h6>
-    <ul class="mb-0 small">
+    <ul class="mb-2 small">
         <?php foreach ($problemas as $p): ?>
         <li><?= htmlspecialchars($p) ?></li>
         <?php endforeach; ?>
     </ul>
+    <hr class="my-2">
+    <p class="small mb-0">
+        La solución casi siempre es una clave en el <code>.env</code> de la raíz del proyecto:
+        <code>BACKUP_PATH=/ruta/absoluta/de/respaldos</code>, apuntando a una carpeta con permisos
+        de escritura y <strong>fuera de la carpeta publicable</strong>. Después de editar el
+        <code>.env</code>, recargá esta pantalla: el chequeo se hace en cada carga.
+    </p>
 </div>
 <?php endif; ?>
 

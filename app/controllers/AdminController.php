@@ -733,24 +733,29 @@ class AdminController extends Controller{
         $respaldos = [];
         $bases     = [];
         $destino   = '';
-        $error     = null;
+        $problemas = [];
 
         try {
+            $destino   = $servicio->destinoBase();
             $respaldos = $servicio->listarRespaldos();
             $bases     = $servicio->bases();
-            $destino   = $servicio->destinoBase();
         } catch (Throwable $e) {
             error_log('[Admin] No se pudo leer el directorio de respaldos: ' . $e->getMessage());
-            $error = 'No se pudo acceder al directorio de respaldos: ' . $e->getMessage();
+            $problemas[] = $e->getMessage();
         }
 
-        // Comprobacion del entorno (exec habilitado, mysqldump, destino escribible).
-        $problemas = [];
+        // Comprobacion del entorno (exec habilitado, mysqldump, destino
+        // escribible). Se deduplica contra lo anterior: suelen ser el mismo
+        // problema visto dos veces, y en pantalla no aporta duplicarlo.
         try {
-            $problemas = $servicio->comprobarEntorno();
+            foreach ($servicio->comprobarEntorno() as $p) {
+                $problemas[] = $p;
+            }
         } catch (Throwable $e) {
-            $problemas = [$e->getMessage()];
+            $problemas[] = $e->getMessage();
         }
+
+        $problemas = array_values(array_unique($problemas));
 
         $this->adminView('admin/backups', [
             'title'     => 'Backups',
@@ -758,7 +763,7 @@ class AdminController extends Controller{
             'bases'     => $bases,
             'destino'   => $destino,
             'problemas' => $problemas,
-            'error'     => $error,
+            'error'     => null,
         ]);
     }
 

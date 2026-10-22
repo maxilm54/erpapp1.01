@@ -20,6 +20,8 @@ class BackupService
 {
     /** @var string mysqldump a ejecutar. */
     private string $mysqldump;
+    /** @var string valor configurado en MYSQLDUMP_PATH ('' si no hay). */
+    private string $mysqldumpConfigurado;
     private string $dbHost;
     private string $dbUser;
     private string $dbPass;
@@ -32,12 +34,22 @@ class BackupService
         $this->dbUser = $env['DB_USER'] ?? 'root';
         $this->dbPass = $env['DB_PASS'] ?? '';
 
-        $this->mysqldump = $this->resolverMysqldump($env['MYSQLDUMP_PATH'] ?? '');
+        // La variable de entorno manda sobre el .env (igual que con
+        // BACKUP_PATH): asi el cron puede sobreescribirla sin editar nada.
+        $configurado = getenv('MYSQLDUMP_PATH') ?: ($env['MYSQLDUMP_PATH'] ?? '');
+
+        $this->mysqldumpConfigurado = $configurado;
+        $this->mysqldump            = $this->resolverMysqldump($configurado);
     }
 
     /**
      * Busca mysqldump: primero la ruta del .env, despues la de XAMPP en
      * Windows, por ultimo el PATH (Linux / hosting).
+     *
+     * Si MYSQLDUMP_PATH esta mal escrito NO se falla aca: se cae al binario
+     * siguiente y comprobarEntorno() avisa del problema en firme. Un
+     * MYSQLDUMP_PATH equivocado que se ignorara en silencio dejaria el panel
+     * diciendo "entorno listo" y el respaldo reventaria despues.
      */
     private function resolverMysqldump(string $configurado): string
     {
@@ -78,53 +90,184 @@ class BackupService
      * Por defecto queda FUERA del webroot (se sirve por HTTP lo que este
      * bajo C:/xampp/htdocs). Se puede cambiar con BACKUP_PATH en el .env.
      */
+    /**
+     * Directorio base donde viven los respaldos.
+     *
+     * Si BACKUP_PATH esta definido en el .env, manda ese y si no sirve se
+     * falla en firme (no se cae en silencio a otro lado).
+     *
+     * Sin configurar, se prueban varios candidatos y queda el primero que
+     * sea escribible y este fuera del webroot. Hacen falta varios porque
+     * la altura de la raiz del proyecto cambia segun el servidor:
+     *   - XAMPP:      C:/xampp/htdocs/app  -> dos arriba da C:/xampp
+     *   - hosting:    /home/usuario/app    -> UNO arriba da /home/usuario
+     * Con un solo candidato fijo, en un servidor de los dos falla.
+     */
     public function destinoBase(): string
     {
-        // 1) variable de entorno (la puede setear el CLI con --destino=)
-        // 2) clave BACKUP_PATH del .env
-        // 3) fuera del webroot, por defecto
-        $destino = getenv('BACKUP_PATH') ?: '';
-        if ($destino === '') {
-            $destino = $this->leerEnv()['BACKUP_PATH'] ?? '';
+        // 1) el que este configurado: manda el, y si no anda se avisa.
+        $configurado = getenv('BACKUP_PATH') ?: '';
+        if ($configurado === '') {
+            $configurado = $this->leerEnv()['BACKUP_PATH'] ?? '';
         }
 
-        if ($destino === '') {
-            // Raiz del proyecto: app/services/BackupService.php -> 2 niveles arriba.
-            $raiz = dirname(__DIR__, 2);
-            // El webroot es el padre del proyecto (ver AGENTS.md: BASE_URL es
-            // {esquema}://{host}/app/public). Dos niveles arriba del proyecto
-            // queda fuera del webroot, que es lo que queremos.
-            $destino = dirname($raiz, 2) . '/_erp_backups';
+        if ($configurado !== '') {
+            if (!is_dir($configurado) && !mkdir($configurado, 0775, true) && !is_dir($configurado)) {
+                throw new RuntimeException(
+                    "BACKUP_PATH apunta a '{$configurado}' y no se pudo crear el directorio. "
+                    . "Revisa la clave en el .env o dale permisos de escritura a la carpeta."
+                );
+            }
+
+            $this->avisarSiEsWebroot($configurado);
+
+            return $this->normalizarRuta($configurado);
         }
 
-        if (!is_dir($destino) && !mkdir($destino, 0775, true) && !is_dir($destino)) {
-            throw new RuntimeException("No se pudo crear el directorio de respaldos: {$destino}");
+        // 2) candidatos por defecto.
+        $ultimoError = null;
+        foreach ($this->candidatosDestino() as $candidato) {
+            // Si no se puede crear, seguimos con el siguiente.
+            if (!is_dir($candidato) && !@mkdir($candidato, 0775, true) && !is_dir($candidato)) {
+                $ultimoError = $candidato;
+                continue;
+            }
+
+            // Un destino dentro del webroot dejaria los .sql (con hashes de
+            // password) servidos por HTTP: no lo usamos.
+            if ($this->esWebrootProbable($candidato)) {
+                continue;
+            }
+
+            return $this->normalizarRuta($candidato);
         }
 
-        // Aviso si alguien apunta el destino a una carpeta publicable: los
-        // .sql llevan hashes de password y datos de las empresas.
-        if ($this->estaEnWebroot($destino)) {
-            error_log(
-                '[Backup] ATENCION: BACKUP_PATH apunta a una carpeta dentro del webroot '
-                . "({$destino}). Los .sql quedarian accesibles por HTTP."
-            );
-        }
-
-        return rtrim($destino, '/\\');
+        throw new RuntimeException(
+            'No hay ningun directorio de respaldos escribible y fuera del webroot. '
+            . 'Defini BACKUP_PATH en el .env con una carpeta con permisos de escritura'
+            . ($ultimoError !== null ? " (se probo '{$ultimoError}')" : '') . '.'
+        );
     }
 
     /**
-     * True si el directorio queda bajo el webroot del proyecto.
+     * Pone todas las barras en un mismo sentido. En Windows dirname() devuelve
+     * contrabarra y el resto del repo usa '/', lo que deja rutas con separadores
+     * mezclados en el panel.
      */
-    private function estaEnWebroot(string $dir): bool
+    private function normalizarRuta(string $ruta): string
     {
-        $webroot = dirname(dirname(__DIR__, 2)); // padre del proyecto
-        $real    = realpath($dir);
-        $realWeb = realpath($webroot);
+        return rtrim(str_replace('\\', '/', $ruta), '/');
+    }
 
-        return $real !== false
-            && $realWeb !== false
-            && str_starts_with($real . DIRECTORY_SEPARATOR, $realWeb . DIRECTORY_SEPARATOR);
+    /**
+     * Destinos por defecto, en orden de prioridad.
+     * Se calculan desde la raiz del proyecto (app/services/BackupService.php
+     * -> dos niveles arriba).
+     *
+     * @param string|null $raiz Raiz del proyecto. Solo para los tests: deja
+     *                          simular otro layout de servidor.
+     * @return string[]
+     */
+    private function candidatosDestino(?string $raiz = null): array
+    {
+        $raiz = $raiz ?? dirname(__DIR__, 2);
+
+        $candidatos = [
+            // hosting tipico: /home/usuario/app -> /home/usuario/_erp_backups
+            dirname($raiz) . '/_erp_backups',
+            // XAMPP: C:/xampp/htdocs/app -> C:/xampp/_erp_backups
+            dirname($raiz, 2) . '/_erp_backups',
+            // ultimo recurso: siempre escribible, nunca esta en el webroot.
+            rtrim(sys_get_temp_dir(), '/\\') . '/erp_backups',
+        ];
+
+        return array_values(array_unique($candidatos));
+    }
+
+    /**
+     * True si el directorio quedaria servible por el web server.
+     *
+     * Se fija en dos señales concretas, no en suposiciones:
+     *   - DOCUMENT_ROOT, cuando hay (peticion web).
+     *   - El patron de esta app: BASE_URL es {host}/{nombre_proyecto}/public,
+     *     asi que si el padre del proyecto contiene <nombre>/public, ese padre
+     *     es el webroot. Es lo que pasa en XAMPP y en hosting con public_html.
+     *
+     * @param string|null $raiz Raiz del proyecto. Solo para los tests.
+     */
+    private function esWebrootProbable(string $dir, ?string $raiz = null): bool
+    {
+        $dirReal = realpath($dir);
+        if ($dirReal === false) {
+            // Todavia no existe el directorio (chequeo previo a crearlo):
+            // se normaliza contra el padre, que si existe, y se le agrega
+            // el nombre. Asi la comprobacion sirve en los dos ordenes.
+            $padreReal = realpath(dirname($dir));
+            if ($padreReal === false) {
+                return false;
+            }
+            $dirReal = $padreReal . DIRECTORY_SEPARATOR . basename($dir);
+        }
+
+        // 1) Con DOCUMENT_ROOT no hay que adivinar: es el webroot real del
+        //    servidor. Este es el caso del panel, y el que decide sobre
+        //    produccion. OJO: en CLI ese superglobal trae el directorio de
+        //    trabajo, no el webroot, asi que solo se confia con una peticion
+        //    web de verdad.
+        $enWeb = (PHP_SAPI !== 'cli' && PHP_SAPI !== 'phpdbg');
+        if ($enWeb && !empty($_SERVER['DOCUMENT_ROOT'])) {
+            return $this->bajoDocumentoRoot($dirReal, $_SERVER['DOCUMENT_ROOT']);
+        }
+
+        // 2) Sin DOCUMENT_ROOT (CLI / cron) se infiere por el patron de la
+        //    app: BASE_URL es {host}/{nombre_proyecto}/public, asi que si el
+        //    padre del proyecto contiene <nombre>/public, ese padre es el
+        //    webroot. Es lo que pasa en XAMPP y en hosting con public_html.
+        $raiz  = $raiz ?? dirname(__DIR__, 2);
+        $padre = dirname($raiz);
+
+        if (!is_dir($padre . DIRECTORY_SEPARATOR . basename($raiz) . DIRECTORY_SEPARATOR . 'public')) {
+            return false;
+        }
+
+        $raizWeb = realpath($padre);
+        if ($raizWeb === false) {
+            return false;
+        }
+
+        return str_starts_with($dirReal . DIRECTORY_SEPARATOR, $raizWeb . DIRECTORY_SEPARATOR);
+    }
+
+    /**
+     * True si la ruta absoluta queda bajo el DOCUMENT_ROOT del servidor.
+     * Es la comprobacion definitiva: no infiere nada, usa el webroot real.
+     */
+    private function bajoDocumentoRoot(string $dirAbsoluta, string $docRoot): bool
+    {
+        $docReal = realpath($docRoot);
+        if ($docReal === false) {
+            return false;
+        }
+
+        return str_starts_with(
+            $dirAbsoluta . DIRECTORY_SEPARATOR,
+            $docReal . DIRECTORY_SEPARATOR
+        );
+    }
+
+    /**
+     * Avisa por log si un BACKUP_PATH configurado quedo dentro del webroot.
+     * No lo bloquea: quien lo configuro tiene la ultima palabra, pero que
+     * quede registrado.
+     */
+    private function avisarSiEsWebroot(string $dir): void
+    {
+        if ($this->esWebrootProbable($dir)) {
+            error_log(
+                '[Backup] ATENCION: BACKUP_PATH apunta a una carpeta dentro del webroot '
+                . "({$dir}). Los .sql quedarian accesibles por HTTP."
+            );
+        }
     }
 
     /**
@@ -146,6 +289,12 @@ class BackupService
         }
 
         // 2) mysqldump localizable.
+        if ($this->mysqldumpConfigurado !== '' && !file_exists($this->mysqldumpConfigurado)) {
+            $problemas[] = "MYSQLDUMP_PATH apunta a '{$this->mysqldumpConfigurado}' y ese archivo "
+                         . 'no existe. Se ignora y se busca solo, pero conviene corregir la clave '
+                         . 'en el .env (o borrarla) antes de que el cron falle.';
+        }
+
         if (!file_exists($this->mysqldump) && !$this->estaEnPath($this->mysqldump)) {
             $problemas[] = "No se encontro mysqldump (se probo '{$this->mysqldump}' y el PATH). "
                          . 'Defini MYSQLDUMP_PATH en el .env con la ruta absoluta del binario.';
@@ -385,7 +534,11 @@ class BackupService
             $n++;
         }
 
-        return $ruta;
+        // Se normaliza para que el camino que se muestra (y el hint de
+        // restauracion, que es para copiar y pegar) no quede con barras
+        // mezcladas: en Windows DIRECTORY_SEPARATOR es contrabarra y el
+        // destinoBase() devuelve '/'.
+        return $this->normalizarRuta($ruta);
     }
 
     /**
