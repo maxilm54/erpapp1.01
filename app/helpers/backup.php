@@ -1,94 +1,127 @@
 <?php
 /**
- * Backup de todas las bases del ERP (master + tenants).
- * Script standalone - no depende del framework.
+ * Backup de las bases del ERP (master + tenants). Script CLI.
  *
- * Uso: php app/helpers/backup.php [directorio-destino]
+ * Usa el mismo servicio que el panel admin (app/services/BackupService.php),
+ * asi que un respaldo hecho desde el panel y uno por cron son identicos.
  *
- * Genera un .sql por base en <destino>/erp_YYYYMMDD_HHMM/ usando mysqldump.
- * Deja el directorio con la fecha para no pisar respaldos anteriores.
+ * Uso:
+ *   php app/helpers/backup.php                  full por defecto
+ *   php app/helpers/backup.php --master         solo la BD master
+ *   php app/helpers/backup.php --tenants        solo los tenants (uno por BD)
+ *   php app/helpers/backup.php --full           master + todos los tenants
+ *   php app/helpers/backup.php --daily          full rotativo (cron diario)
+ *   php app/helpers/backup.php --daily --keep=7 full rotativo, deja 7 copias
+ *   php app/helpers/backup.php --destino=D:/respaldos   destino alternativo
  *
- * OJO: no usar redirect de shell (>) para generar los .sql: en PowerShell 5.1
- * escribe UTF-16 y el dump queda ilegible. Por eso se usa --result-file.
+ * El destino por defecto queda FUERA del webroot (se cambia con BACKUP_PATH
+ * en el .env o con --destino=). Un respaldo que viva bajo C:/xampp/htdocs
+ * quedaria servido por Apache, con los hashes de password a la vista.
+ *
+ * Cron:
+ *   Windows (Programador de tareas):
+ *     php.exe C:\xampp\htdocs\app\app\helpers\backup.php --daily
+ *   Linux (crontab -e), a las 2:00:
+ *     0 2 * * * php /var/www/app/app/helpers/backup.php --daily
+ *
+ * OJO: --daily con --keep=1 pisa el unico respaldo que tenes. Si la BD se
+ * corrompe antes de que corra el cron, respaldas la corrupcion y encima
+ * tiras la ultima copia buena. Con --keep=7 tenes una semana de margen.
  */
 
+// mysqldump y la clave de la BD salen del .env, igual que en la app.
 $BASE_PATH = dirname(dirname(__DIR__));
-
-// ---------------------------------------------------------------- configuracion
-$env = [];
-if (file_exists($BASE_PATH . '/.env')) {
-    $env = parse_ini_file($BASE_PATH . '/.env', false, INI_SCANNER_TYPED) ?: [];
-}
-$dbHost = $env['DB_HOST'] ?? 'localhost';
-$dbUser = $env['DB_USER'] ?? 'root';
-$dbPass = $env['DB_PASS'] ?? '';
-
-// mysqldump de XAMPP (Windows). En Linux seria 'mysqldump' del PATH.
-$mysqldump = 'C:/xampp/mysql/bin/mysqldump.exe';
-if (!file_exists($mysqldump)) {
-    $mysqldump = 'mysqldump';
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', $BASE_PATH);
 }
 
-// ---------------------------------------------------------------- destino
-$destinoBase = $argv[1] ?? 'C:/xampp/mysql/backup';
-$destino = rtrim($destinoBase, '/') . '/erp_' . date('Ymd_His');
-if (!is_dir($destino) && !mkdir($destino, 0775, true)) {
-    echo "ERROR: no se pudo crear el directorio $destino\n";
-    exit(1);
-}
+// Requerimos config.php (igual que bootstrap.php) para que el CLI use la MISMA
+// zona horaria que la app. Sin esto PHP usa la del php.ini y los respaldos del
+// cron se nombrarian con una hora distinta a los hechos desde el panel.
+require_once BASE_PATH . '/app/config/config.php';
+ini_set('display_errors', '1'); // en CLI conviene ver los errores
 
-echo "=== Backup de bases ERP ===\n";
-echo "Destino: $destino\n\n";
+require_once BASE_PATH . '/app/services/BackupService.php';
 
-// ---------------------------------------------------------------- que bases
-$bases = [];
-try {
-    $pdo = new PDO("mysql:host={$dbHost};dbname=app_master;charset=utf8mb4", $dbUser, $dbPass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
-    $bases['app_master'] = 'Base master (empresas, usuarios, tareas)';
-    foreach ($pdo->query("SELECT dbname FROM tenants WHERE activo = 1 ORDER BY id") as $t) {
-        $bases[$t['dbname']] = 'Tenant';
-    }
-} catch (PDOException $e) {
-    echo "ERROR: no se pudo conectar a app_master: " . $e->getMessage() . "\n";
-    exit(1);
-}
+// ---------------------------------------------------------------- opciones
+$modo     = 'full';
+$keep     = 0;
+$destino  = null;
 
-// ---------------------------------------------------------------- dump
-$errores = 0;
-foreach ($bases as $nombre => $tipo) {
-    $archivo = $destino . '/' . $nombre . '.sql';
-    $cmd = sprintf(
-        '"%s" -h %s -u %s %s --skip-lock-tables --default-character-set=utf8mb4 --result-file="%s" %s 2>&1',
-        $mysqldump,
-        escapeshellarg($dbHost),
-        escapeshellarg($dbUser),
-        $dbPass !== '' ? '-p' . escapeshellarg($dbPass) : '',
-        $archivo,
-        escapeshellarg($nombre)
-    );
-    exec($cmd, $out, $rc);
-
-    $bytes = file_exists($archivo) ? filesize($archivo) : 0;
-    if ($rc === 0 && $bytes > 0) {
-        printf("  OK    %-22s %10s bytes  (%s)\n", $nombre, number_format($bytes), $tipo);
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '--daily') {
+        // Rotativo: mantiene solo los N mas recientes (1 por defecto).
+        $modo = 'full';
+        $keep = ($keep > 0) ? $keep : 1;
+    } elseif ($arg === '--master') {
+        $modo = 'master';
+    } elseif ($arg === '--tenants') {
+        $modo = 'tenants';
+    } elseif ($arg === '--full') {
+        $modo = 'full';
+    } elseif (str_starts_with($arg, '--keep=')) {
+        $keep = max(0, (int) substr($arg, 7));
+    } elseif (str_starts_with($arg, '--destino=')) {
+        $destino = substr($arg, 10);
+    } elseif ($arg === '--help' || $arg === '-h') {
+        // El uso esta arriba, en el docblock del archivo.
+        echo "Uso: php app/helpers/backup.php [--master|--tenants|--full|--daily] [--keep=N] [--destino=RUTA]\n";
+        exit(0);
     } else {
-        printf("  FALLA %-22s %s\n", $nombre, implode(' | ', array_slice($out, 0, 2)));
-        $errores++;
+        echo "Opcion desconocida: {$arg}\n";
+        echo "Uso: php app/helpers/backup.php [--master|--tenants|--full|--daily] [--keep=N] [--destino=RUTA]\n";
+        exit(1);
     }
-    $out = [];
 }
 
-// ---------------------------------------------------------------- resumen
-echo "\n";
-if ($errores > 0) {
-    echo "备份 con $errores error(es). Revisar la salida de mysqldump.\n";
+if ($destino !== null) {
+    // El override por CLI manda: lo dejamos en el env para que el servicio
+    // lo lea, sin tener que tocar el .env.
+    putenv('BACKUP_PATH=' . $destino);
+    $_ENV['BACKUP_PATH'] = $destino;
+}
+
+// ---------------------------------------------------------------- ejecutar
+echo "=== Backup de bases ERP (modo: {$modo}) ===\n";
+
+try {
+    $servicio = new BackupService();
+
+    $base = $servicio->destinoBase();
+    echo "Destino: {$base}\n";
+    echo "Bases:   " . implode(', ', array_keys($servicio->bases())) . "\n\n";
+
+    $inicio = microtime(true);
+    $res    = $servicio->respaldar($modo, $keep);
+    $tiempo = round(microtime(true) - $inicio, 1);
+
+    foreach ($res['archivos'] as $a) {
+        printf(
+            "  OK    %-22s %12s bytes  (%s)\n",
+            $a['base'],
+            number_format($a['bytes']),
+            $a['tipo']
+        );
+    }
+
+    echo "\n";
+    printf(
+        "Backup OK: %d base(s), %s MB, en %.1f s\n",
+        $res['bases'],
+        number_format($res['total'] / 1048576, 2),
+        $tiempo
+    );
+    echo "Directorio: {$res['dir']}\n";
+
+    if ($keep > 0) {
+        echo "Rotacion: se conservan los ultimos {$keep} respaldo(s).\n";
+    }
+
+    echo "\nPara restaurar:\n";
+    echo "  mysql -u root <base> < {$res['dir']}/<base>.sql\n";
+
+    exit(0);
+} catch (Throwable $e) {
+    echo "\nFALLO: " . $e->getMessage() . "\n";
     exit(1);
 }
-
-$total = 0;
-foreach (glob($destino . '/*.sql') as $f) $total += filesize($f);
-echo "Backup OK: " . count($bases) . " bases, " . number_format($total / 1048576, 1) . " MB en $destino\n";
-echo "Para restaurar: mysql -u root <base> < <destino>/<base>.sql\n";

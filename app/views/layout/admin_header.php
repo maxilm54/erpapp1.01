@@ -113,6 +113,9 @@
             <a href="<?= BASE_URL ?>/admin/migrations" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/migrations') ? 'active' : '' ?>">
                 <i class="bi bi-database"></i> Migraciones
             </a>
+            <a href="<?= BASE_URL ?>/admin/backups" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/backups') ? 'active' : '' ?>">
+                <i class="bi bi-save2"></i> Backups
+            </a>
         </div>
 
         <div class="mt-auto p-3" style="position: absolute; bottom: 0; width: 100%; border-top: 1px solid rgba(255,255,255,0.1);">

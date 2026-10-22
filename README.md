@@ -649,28 +649,101 @@ Todos los SQL inicial **están en el repo**, no hace falta ningún archivo exter
 
 ## Backup de las bases
 
+Hay dos formas, con la misma lógica de volcado (`app/services/BackupService.php`):
+
+### 1. Desde el panel (a mano)
+
+Entrar como superadmin → **Admin → Backups**. Tres botones:
+
+| Botón | Qué vuelca |
+|-------|------------|
+| **Master** | Solo `app_master` (empresas, usuarios, tareas) |
+| **Tenants** | Un `.sql` por cada empresa activa, sin la master |
+| **Full (todo)** | Master + todos los tenants en una sola carpeta |
+
+Cada respaldo queda en una carpeta propia `erp_YYYYMMDD_HHMM/` (con sufijo `_2`, `_3`… si dos
+corren en el mismo segundo). Desde la misma pantalla se descarga cualquier `.sql` o se borra
+un respaldo entero.
+
+### 2. Desde la consola (para el cron)
+
 ```bash
-php app/helpers/backup.php [directorio-destino]
+php app/helpers/backup.php                  # full
+php app/helpers/backup.php --master         # solo la master
+php app/helpers/backup.php --tenants        # solo los tenants
+php app/helpers/backup.php --daily          # full rotativo: deja la ultima copia
+php app/helpers/backup.php --daily --keep=7 # full rotativo: deja las 7 ultimas
+php app/helpers/backup.php --destino=D:/respaldos   # destino alternativo
 ```
 
-Vuelca la master y todos los tenants activos en `<destino>/erp_YYYYMMDD_HHMM/`, un `.sql` por base.
-Destino por defecto: `C:/xampp/mysql/backup/`. Es **el respaldo que hay que tener a mano**: si se pierde
-el datadir de MySQL, los `.sql` reconstruyen todo (el `schema_version` de cada tenant viaja en el dump).
+### Respaldo diario automatico (cron)
 
-> Ojo con el shell: en **PowerShell 5.1** el `>` escribe **UTF-16** y genera un dump ilegible.
-> Por eso el script usa `--result-file` de mysqldump. Si generás dumps a mano, usá siempre
-> `mysqldump --result-file=dump.sql` y no `> dump.sql`.
+- **Windows** (Programador de tareas), una vez al dia:
+  ```
+  php.exe C:\xampp\htdocs\app\app\helpers\backup.php --daily --keep=14
+  ```
+- **Linux** (`crontab -e`), a las 2:00:
+  ```
+  0 2 * * * php /var/www/app/app/helpers/backup.php --daily --keep=14
+  ```
+
+**`--keep` es la cantidad de carpetas, no de dias.** Si corrés una vez por dia, `--keep=7`
+da una semana. Si corrés dos (p. ej. 06:00 y 21:00), con `--keep=7` solo tenés 3 días y
+medio, así que usá `--keep=14` para cubrir la semana.
+
+| Corridas/dia | `--keep` | Historial real |
+|---|---|---|
+| 1 (21:00) | `--keep=7` | 7 dias |
+| 2 (06:00 y 21:00) | `--keep=7` | 3 dias y medio |
+| 2 (06:00 y 21:00) | `--keep=14` | 7 dias |
+
+> Con `--keep=1` (default de `--daily`) solo queda la última copia: si la BD se corrompe
+> antes de que corra el cron, se respalda la corrupción y se tira la última copia buena.
+>
+> Y una aclaración de alcance: el cron protege contra **corrupción de datos**, no contra
+> **pérdida de la máquina**. Si se rompe el disco se van los dos, así que conviene copiar la
+> carpeta de respaldos a otro lado (nube o disco) con algo tan simple como un `robocopy`.
+
+### Cuando cambie el servidor
+
+En producción casi seguro no va a ser la misma ruta. Las dos claves del `.env` que resuelven eso:
+
+| Clave | Para qué | Ejemplo |
+|---|---|---|
+| `BACKUP_PATH` | Dónde se guardan los respaldos | `BACKUP_PATH=/var/backups/erp` |
+| `MYSQLDUMP_PATH` | Ruta absoluta de mysqldump | `MYSQLDUMP_PATH=/usr/bin/mysqldump` |
+
+Si no se definen, se busca `mysqldump` en el `PATH` y la carpeta de respaldos queda un nivel
+arriba del proyecto. **Admin → Backups** chequea el entorno antes de dejar generar uno y avisa
+con un mensaje claro si algo falta. Tres problemas típicos en hosting:
+
+1. **`exec()` deshabilitada** — muy común en hosting compartido. Sin ella no se puede invocar
+   a mysqldump; hay que pedir que la habiliten o correr los respaldos por consola.
+2. **`mysqldump` no disponible** — resolver con `MYSQLDUMP_PATH`.
+3. **Destino sin permisos de escritura** — resolver con `BACKUP_PATH` apuntando a una carpeta
+   escribible **y fuera del webroot**.
+
+### Dónde quedan los archivos
+
+Por defecto en `C:\xampp\_erp_backups\` — **fuera del webroot**. Es a propósito: si los `.sql`
+vivieran bajo `C:\xampp\htdocs`, Apache los serviría como archivos estáticos y quedarían expuestos
+los hashes de password y los datos de las empresas.
+
+### Importante
+
+- Los `.sql` reconstruyen todo, incluido el `schema_version` de cada tenant.
+- `storage/` (PDFs) y `public/uploads/` (imágenes) **no están en MySQL**: respaldarlos aparte.
+- Ojo con el shell: en **PowerShell 5.1** el `>` escribe **UTF-16** y deja el dump ilegible.
+  Por eso se usa `--result-file` de mysqldump. Si generás dumps a mano, usá siempre
+  `mysqldump --result-file=dump.sql` y no `> dump.sql`.
 
 ### Restaurar
 
 ```bash
 mysql -u root -e "CREATE DATABASE app_master CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root app_master < app_master.sql
+mysql -u root tenant_xxx  < tenant_xxx.sql
 ```
-
-> Ojo: `storage/` (PDFs) y `public/uploads/` (imágenes) **no están en MySQL**. Son carpetas del
-> repo y hay que respaldarlas aparte (o versionarlas, si no son pesadas).
-
 
 > Instalación nueva: `create_master.sql` ya incluye las tablas de la master (incluida `tareas`),
 > y la migración master 001 queda como no-op (`CREATE TABLE IF NOT EXISTS`).
@@ -688,6 +761,14 @@ SMTP_HOST=mail.dmtech.com.ar
 SMTP_PORT=465
 SMTP_USERNAME=...
 SMTP_PASSWORD=...
+
+# Opcional. Carpeta donde se guardan los respaldos (Admin -> Backups y el cron).
+# Si no esta, se usa C:\xampp\_erp_backups. Debe quedar FUERA del webroot.
+# BACKUP_PATH=D:/respaldos_erp
+
+# Opcional. Ruta absoluta de mysqldump si no esta en el PATH (necesario en
+# hosting de Linux). En Windows con XAMPP se detecta solo.
+# MYSQLDUMP_PATH=/usr/bin/mysqldump
 ```
 
 ### Archivo `app/config/config.php`

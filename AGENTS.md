@@ -16,9 +16,11 @@
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
   ```
-- `storage/` y `public/uploads/` están gitignored y se crean solos (`Tenant::crearDirectorios()`, `empresaStoragePath()` con `mkdir`).
+- `storage/` y `public/uploads/` están gitignored y se crean solos (`Tenant::crearDirectorios()`, `empresaStoragePath()` con `mkdir`). **`storage/.htaccess` SÍ va al repo** (excepción en el `.gitignore` con `!/storage/.htaccess`): bloquea el acceso directo por HTTP. Los PDF se sirven desde PHP (`readfile()` en `RemitossalidaController::pdf()`, `CobrosController`, etc.), nunca con links directos a `storage/` — si alguien agregara un link directo a esa carpeta dejaría de funcionar, y eso es correcto.
 - No hay cliente `mysql` en el PATH: para tocar la BD usar PHP/PDO o el panel web (Admin → Migraciones).
-- **Backup**: `php app/helpers/backup.php [destino]` vuelca la master + todos los tenants en `<destino>/erp_YYYYMMDD_HHMM/`. Es el único respaldo de las BD: `storage/` y `public/uploads/` están aparte. En PowerShell 5.1 el `>` escribe UTF-16 y arruina los dumps → usar siempre `--result-file`.
+- **Backup**: `app/services/BackupService.php` es el volcado único (mysqldump con `--result-file`); lo usan el panel (**Admin → Backups**, rutas `admin/backups*`) y el CLI `php app/helpers/backup.php [--master|--tenants|--full|--daily] [--keep=N]`. Destino por defecto `C:\xampp\_erp_backups\` — **fuera del webroot, no moverlo a `storage/`** (Apache serviría los `.sql` con los hashes de password). Claves opcionales del `.env`: `BACKUP_PATH` (destino) y `MYSQLDUMP_PATH` (binario si no está en el PATH, típico en hosting Linux). `BackupService::comprobarEntorno()` chequea `exec()`, mysqldump y permisos del destino; el panel muestra los fallos antes de dejar generar. Es el único respaldo de las BD: `storage/` y `public/uploads/` están aparte. En PowerShell 5.1 el `>` escribe UTF-16 y arruina los dumps → usar siempre `--result-file`.
+- **`--keep` cuenta carpetas, no días**: con 2 corridas de cron por día (p. ej. 06:00 y 21:00) hacen falta `--keep=14` para cubrir una semana, no 7.
+- El CLI **debe** `require_once app/config/config.php`: ahí está el `date_default_timezone_set`. Sin eso el `php.ini` manda (p. ej. `Europe/Berlin`) y los respaldos del cron se nombrarían con hora distinta a los del panel.
 - Bases: `app/helpers/squemadb/create_master.sql` (master `app_master`) y `app/helpers/squemadb/tenant_schema.sql` (BD de cada tenant).
 
 ## Verificación (no hay tests)

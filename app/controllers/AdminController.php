@@ -718,11 +718,171 @@ class AdminController extends Controller{
         exit;
     }
 
+    // =====================================================
+    // BACKUPS (copias de seguridad de las bases del ERP)
+    // =====================================================
+
+    /**
+     * Listado de respaldos + botones para generar uno nuevo.
+     */
+    public function backups(): void{
+        $this->requireAdmin();
+
+        $servicio = $this->backupService();
+
+        $respaldos = [];
+        $bases     = [];
+        $destino   = '';
+        $error     = null;
+
+        try {
+            $respaldos = $servicio->listarRespaldos();
+            $bases     = $servicio->bases();
+            $destino   = $servicio->destinoBase();
+        } catch (Throwable $e) {
+            error_log('[Admin] No se pudo leer el directorio de respaldos: ' . $e->getMessage());
+            $error = 'No se pudo acceder al directorio de respaldos: ' . $e->getMessage();
+        }
+
+        // Comprobacion del entorno (exec habilitado, mysqldump, destino escribible).
+        $problemas = [];
+        try {
+            $problemas = $servicio->comprobarEntorno();
+        } catch (Throwable $e) {
+            $problemas = [$e->getMessage()];
+        }
+
+        $this->adminView('admin/backups', [
+            'title'     => 'Backups',
+            'respaldos' => $respaldos,
+            'bases'     => $bases,
+            'destino'   => $destino,
+            'problemas' => $problemas,
+            'error'     => $error,
+        ]);
+    }
+
+    /**
+     * Genera un respaldo: master, tenants (uno por BD) o full.
+     */
+    public function backupsEjecutar(): void{
+        $this->requireAdmin();
+
+        if($_SERVER['REQUEST_METHOD'] !== 'POST'){
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        $modos = [
+            'master'  => 'Master',
+            'tenants' => 'Tenants',
+            'full'    => 'Full (master + tenants)',
+        ];
+        $modo = $_POST['modo'] ?? '';
+        if(!isset($modos[$modo])){
+            $_SESSION['error'] = 'Modo de respaldo invalido.';
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        try {
+            // Respaldo manual: sin rotacion, cada generacion crea su carpeta.
+            $res = $this->backupService()->respaldar($modo);
+
+            $_SESSION['success'] = sprintf(
+                'Backup %s generado: %d base(s), %s MB en %s.',
+                $modos[$modo],
+                $res['bases'],
+                number_format($res['total'] / 1048576, 2),
+                $res['nombre']
+            );
+        } catch (Throwable $e) {
+            error_log('[Admin] Fallo el respaldo: ' . $e->getMessage());
+            $_SESSION['error'] = 'El respaldo fallo: ' . $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/backups');
+        exit;
+    }
+
+    /**
+     * Descarga un .sql del respaldo indicado.
+     * El nombre del archivo viene por URL, asi que el servicio lo valida
+     * (regex + realpath dentro del directorio base) antes de servirlo.
+     */
+    public function backupsDownload(string $dir, string $archivo): void{
+        $this->requireAdmin();
+
+        $ruta = $this->backupService()->rutaArchivo($dir, $archivo);
+        if($ruta === null){
+            $_SESSION['error'] = 'El archivo solicitado no existe.';
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        header('Content-Type: application/sql');
+        header('Content-Disposition: attachment; filename="' . basename($ruta) . '"');
+        header('Content-Length: ' . filesize($ruta));
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        header('X-Content-Type-Options: nosniff');
+
+        // En bloques: un dump grande no debe cargar entero en memoria.
+        $fh = fopen($ruta, 'rb');
+        while(!feof($fh)){
+            echo fread($fh, 1024 * 1024);
+            flush();
+        }
+        fclose($fh);
+        exit;
+    }
+
+    /**
+     * Elimina un respaldo.
+     */
+    public function backupsDelete(string $dir): void{
+        $this->requireAdmin();
+
+        if($_SERVER['REQUEST_METHOD'] !== 'POST'){
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/backups');
+            exit;
+        }
+
+        if($this->backupService()->borrarRespaldo($dir)){
+            $_SESSION['success'] = 'Respaldo eliminado.';
+        } else {
+            $_SESSION['error'] = 'No se pudo eliminar el respaldo (nombre invalido o inexistente).';
+        }
+
+        header('Location: ' . BASE_URL . '/admin/backups');
+        exit;
+    }
+
     /**
      * Modelo de tareas (BD master), instanciado por demanda.
      */
     private function tareaModel(): Tarea{
         require_once BASE_PATH . '/app/models/Tarea.php';
         return new Tarea();
+    }
+
+    /**
+     * Servicio de respaldos, instanciado por demanda.
+     */
+    private function backupService(): BackupService{
+        require_once BASE_PATH . '/app/services/BackupService.php';
+        return new BackupService();
     }
 }

@@ -1,0 +1,18 @@
+# storage/ contiene PDFs de remitos y cobros, logs y datos de las empresas.
+# NUNCA debe servirse por HTTP: los PDF se entregan desde PHP (readfile()
+# en los controllers), no como archivos estaticos.
+#
+# OJO: /storage/* esta en .gitignore, asi que este archivo lleva una negacion
+# (!/storage/.htaccess) para que entre al repo. Sin eso, cada deploy nuevo
+# volveria a dejar la carpeta expuesta.
+
+<IfModule mod_authz_core.c>
+    # Apache 2.4+
+    Require all denied
+</IfModule>
+
+<IfModule !mod_authz_core.c>
+    # Apache 2.2
+    Order allow,deny
+    Deny from all
+</IfModule>

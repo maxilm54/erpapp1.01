@@ -1,4 +1,7 @@
 /storage/*
+# El deny de storage SI va al repo: sin el, cada deploy nuevo deja los PDFs
+# de remitos y cobros expuestos por HTTP.
+!/storage/.htaccess
 /storage/pdf/*
 .env
 public/error_log
