@@ -735,18 +735,30 @@ class AdminController extends Controller{
         $destino   = '';
         $problemas = [];
 
+        // 1) Directorio de destino y listado de respaldos existentes.
         try {
             $destino   = $servicio->destinoBase();
             $respaldos = $servicio->listarRespaldos();
-            $bases     = $servicio->bases();
         } catch (Throwable $e) {
             error_log('[Admin] No se pudo leer el directorio de respaldos: ' . $e->getMessage());
             $problemas[] = $e->getMessage();
         }
 
-        // Comprobacion del entorno (exec habilitado, mysqldump, destino
-        // escribible). Se deduplica contra lo anterior: suelen ser el mismo
-        // problema visto dos veces, y en pantalla no aporta duplicarlo.
+        // 2) Lista de bases a respaldar (consulta la BD master). En hosting
+        //    compartido el usuario de BD a veces no tiene acceso a app_master;
+        //    si falla, la pantalla sigue funcionando pero sin listar bases.
+        try {
+            $bases = $servicio->bases();
+        } catch (Throwable $e) {
+            error_log('[Admin] No se pudo listar las bases para respaldar: ' . $e->getMessage());
+            $problemas[] = 'No se pudo leer la lista de bases desde la BD master (' . $e->getMessage() . '). '
+                         . 'Verificá DB_HOST, DB_USER y DB_PASS en el .env; en hosting compartido '
+                         . 'puede que ese usuario no tenga acceso a app_master.';
+            $bases = [];
+        }
+
+        // 3) Comprobacion del entorno (exec habilitado, mysqldump, destino
+        //    escribible). No depende de la BD, así que corre independiente.
         try {
             foreach ($servicio->comprobarEntorno() as $p) {
                 $problemas[] = $p;

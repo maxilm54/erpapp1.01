@@ -222,11 +222,24 @@ class BackupService
         // 2) Sin DOCUMENT_ROOT (CLI / cron) se infiere por el patron de la
         //    app: BASE_URL es {host}/{nombre_proyecto}/public, asi que si el
         //    padre del proyecto contiene <nombre>/public, ese padre es el
-        //    webroot. Es lo que pasa en XAMPP y en hosting con public_html.
+        //    webroot. Es lo que pasa en XAMPP (padre = htdocs) y en hosting
+        //    principal (padre = public_html).
+        //
+        //    OJO: en un subdominio cPanel el proyecto vive en
+        //    /home/usuario/subdominio/ y el webroot es ese subdominio (o su
+        //    public/), NO el home /home/usuario. Por eso solo se marca al
+        //    padre como webroot si su nombre es tipico de un directorio que
+        //    se sirve directamente por HTTP.
         $raiz  = $raiz ?? dirname(__DIR__, 2);
         $padre = dirname($raiz);
 
-        if (!is_dir($padre . DIRECTORY_SEPARATOR . basename($raiz) . DIRECTORY_SEPARATOR . 'public')) {
+        $nombrePadre = strtolower(basename($padre));
+        $nombresWebroot = ['htdocs', 'public_html', 'www', 'html', 'httpdocs'];
+
+        $padreEsWebroot = in_array($nombrePadre, $nombresWebroot, true)
+            && is_dir($padre . DIRECTORY_SEPARATOR . basename($raiz) . DIRECTORY_SEPARATOR . 'public');
+
+        if (!$padreEsWebroot) {
             return false;
         }
 
