@@ -788,6 +788,15 @@ SMTP_PASSWORD=...
 # hosting de Linux). En Windows con XAMPP se detecta solo. Si la clave esta mal
 # escrita, Admin -> Backups la marca en vez de ignorarla en silencio.
 # MYSQLDUMP_PATH=/usr/bin/mysqldump
+
+# Credenciales de la BD master (usuarios, tenants, tareas). En cPanel el
+# nombre de la base lleva el prefijo de la cuenta (p. ej.
+# dmtechsy_app_master), no app_master como en XAMPP. Si no se definen, se
+# usan DB_HOST/DB_USER/DB_PASS y el nombre por defecto app_master.
+# DB_MASTER_HOST=localhost
+# DB_MASTER_NAME=dmtechsy_app_master
+# DB_MASTER_USER=dmtechsy_tribasys
+# DB_MASTER_PASS=...
 ```
 
 ### Archivo `app/config/config.php`

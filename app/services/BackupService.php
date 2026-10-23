@@ -25,14 +25,31 @@ class BackupService
     private string $dbHost;
     private string $dbUser;
     private string $dbPass;
+    /** @var string host de la BD master. */
+    private string $masterHost;
+    /** @var string usuario de la BD master. */
+    private string $masterUser;
+    /** @var string password de la BD master. */
+    private string $masterPass;
+    /** @var string nombre de la BD master (p. ej. app_master en XAMPP, dmtechsy_app_master en cPanel). */
+    private string $masterName;
 
     public function __construct()
     {
         $env = $this->leerEnv();
 
+        // Credenciales del tenant (para listar tenants, ctacte, etc.)
         $this->dbHost = $env['DB_HOST'] ?? 'localhost';
         $this->dbUser = $env['DB_USER'] ?? 'root';
         $this->dbPass = $env['DB_PASS'] ?? '';
+
+        // Credenciales de la BD master (usuarios, tenants, tareas).
+        // En cPanel el nombre de la base lleva el prefijo de la cuenta
+        // (p. ej. dmtechsy_app_master), no app_master como en XAMPP.
+        $this->masterHost = $env['DB_MASTER_HOST'] ?? $this->dbHost;
+        $this->masterUser = $env['DB_MASTER_USER'] ?? $this->dbUser;
+        $this->masterPass = $env['DB_MASTER_PASS'] ?? $this->dbPass;
+        $this->masterName = $env['DB_MASTER_NAME'] ?? 'app_master';
 
         // La variable de entorno manda sobre el .env (igual que con
         // BACKUP_PATH): asi el cron puede sobreescribirla sin editar nada.
@@ -388,9 +405,9 @@ class BackupService
     {
         try {
             return new PDO(
-                "mysql:host={$this->dbHost};dbname=app_master;charset=utf8mb4",
-                $this->dbUser,
-                $this->dbPass,
+                "mysql:host={$this->masterHost};dbname={$this->masterName};charset=utf8mb4",
+                $this->masterUser,
+                $this->masterPass,
                 [
                     PDO::ATTR_ERRMODE               => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE    => PDO::FETCH_ASSOC,
