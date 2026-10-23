@@ -375,7 +375,7 @@ class BackupService
         $pdo = $this->conexionMaster();
 
         $bases = [
-            'app_master' => [
+            $this->masterName => [
                 'tipo'        => 'MASTER',
                 'descripcion' => 'Empresas, usuarios y tareas',
             ],
@@ -446,7 +446,7 @@ class BackupService
         if ($modo === 'master') {
             $bases = array_intersect_key($bases, array_flip([$this->masterName]));
         } elseif ($modo === 'tenants') {
-            unset($bases['app_master']);
+            unset($bases[$this->masterName]);
         }
 
         if (empty($bases)) {
