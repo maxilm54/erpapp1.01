@@ -444,7 +444,7 @@ class BackupService
 
         $bases = $this->bases();
         if ($modo === 'master') {
-            $bases = array_intersect_key($bases, array_flip(['app_master']));
+            $bases = array_intersect_key($bases, array_flip([$this->masterName]));
         } elseif ($modo === 'tenants') {
             unset($bases['app_master']);
         }
@@ -463,7 +463,18 @@ class BackupService
 
         foreach ($bases as $nombre => $meta) {
             $archivo = $destino . DIRECTORY_SEPARATOR . $nombre . '.sql';
-            [$rc, $salida] = $this->volcar($nombre, $archivo);
+
+            // La BD master usa sus propias credenciales (DB_MASTER_*),
+            // no las del tenant. En cPanel ademas el nombre lleva el
+            // prefijo de la cuenta (p. ej. dmtechsy_app_master).
+            if ($nombre === $this->masterName) {
+                [$rc, $salida] = $this->volcar(
+                    $nombre, $archivo,
+                    $this->masterHost, $this->masterUser, $this->masterPass
+                );
+            } else {
+                [$rc, $salida] = $this->volcar($nombre, $archivo);
+            }
 
             $bytes = file_exists($archivo) ? (int) filesize($archivo) : 0;
             $ok    = ($rc === 0 && $bytes > 0);
@@ -521,16 +532,16 @@ class BackupService
      *
      * @return array [codigo de salida, salida de error]
      */
-    private function volcar(string $dbname, string $archivo): array
+    private function volcar(string $dbname, string $archivo, ?string $host = null, ?string $user = null, ?string $pass = null): array
     {
         $anterior = getenv('MYSQL_PWD');
-        putenv('MYSQL_PWD=' . $this->dbPass);
+        putenv('MYSQL_PWD=' . ($pass ?? $this->dbPass));
 
         $cmd = sprintf(
             '"%s" -h %s -u %s --skip-lock-tables --default-character-set=utf8mb4 --result-file="%s" %s 2>&1',
             $this->mysqldump,
-            escapeshellarg($this->dbHost),
-            escapeshellarg($this->dbUser),
+            escapeshellarg($host ?? $this->dbHost),
+            escapeshellarg($user ?? $this->dbUser),
             $archivo,
             escapeshellarg($dbname)
         );
