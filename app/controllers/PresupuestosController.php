@@ -54,6 +54,14 @@ class PresupuestosController extends Controller
                 'items'        => $items,
                 'observaciones'=> $_POST['observaciones'] ?? ''
             ]);
+            
+            // Generar PDF inmediatamente
+            try {
+                $pdfPath = $this->pr->generarYGuardarPdf($id);
+                error_log("[PDF Presupuesto] Generado: {$pdfPath}");
+            } catch (Exception $e) {
+                error_log("[PDF Presupuesto] Error al generar PDF: " . $e->getMessage());
+            }
         }
 
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);

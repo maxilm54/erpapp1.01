@@ -48,6 +48,15 @@ class NotasPedidoController extends Controller
                 'items'        => $_POST['items'],
                 'observaciones' => $_POST['observaciones']
             ]);
+            
+            // Generar PDF inmediatamente
+            try {
+                $pdfPath = $this->np->generarYGuardarPdf($id);
+                error_log("[PDF NotaPedido] Generado: {$pdfPath}");
+            } catch (Exception $e) {
+                error_log("[PDF NotaPedido] Error al generar PDF: " . $e->getMessage());
+            }
+            
             header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
             exit;
         }
