@@ -250,6 +250,10 @@ class Presupuesto extends Model
         try {
             $masterDb = Database::getMaster();
             $tenantId = Auth::getTenantId();
+            // Aseguramos que el tenant_id sea el correcto
+            if (!$tenantId) {
+                error_log('[PDF Presupuesto] tenantId invalido: ' . var_export($tenantId, true));
+            }
             $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)$tenantId)->fetch(PDO::FETCH_ASSOC);
             if ($empRow) {
                 $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
@@ -264,6 +268,8 @@ class Presupuesto extends Model
                         $empresa['logo'] = $logo;
                     }
                 }
+            } else {
+                error_log('[PDF Presupuesto] No se encontro tenant id=' . $tenantId);
             }
         } catch (Exception $e) {
             error_log("[PDF Presupuesto] Error cargando empresa: " . $e->getMessage());
