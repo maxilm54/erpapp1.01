@@ -5,13 +5,13 @@
 -- (boton "Agregar a Productos" en la vista del documento).
 
 ALTER TABLE `presupuestos_detalle`
-  ADD COLUMN IF NOT EXISTS `descripcion` VARCHAR(255) DEFAULT NULL AFTER `producto_id`;
+  ADD COLUMN `descripcion` VARCHAR(255) DEFAULT NULL AFTER `producto_id`;
 
 ALTER TABLE `presupuestos_detalle`
   MODIFY COLUMN `producto_id` INT(11) DEFAULT NULL;
 
 ALTER TABLE `notas_pedido_detalle`
-  ADD COLUMN IF NOT EXISTS `descripcion` VARCHAR(255) DEFAULT NULL AFTER `producto_id`;
+  ADD COLUMN `descripcion` VARCHAR(255) DEFAULT NULL AFTER `producto_id`;
 
 ALTER TABLE `notas_pedido_detalle`
   MODIFY COLUMN `producto_id` INT(11) DEFAULT NULL;
