@@ -110,14 +110,20 @@ class RemitosSalidaController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') { //cuando desde el form envio el post inicio el proceso de generacion del remito
             error_log('POST recibido para crear Remito de Salida: ' . print_r($_POST, true) . ' - ' . __FILE__ . ':' . __LINE__);
             try {
-                if (empty($_POST['items'])) { //si items esta vacio no puedo generar el remito y genero la excepcion, esto no deberia pasar pero por control se deja el bloqueo
+                $hayProductos = !empty($_POST['items']);
+                $hayLibres = false;
+                foreach (($_POST['items_manual'] ?? []) as $v) {
+                    $cant = is_array($v) ? (float)($v['cantidad'] ?? 0) : (float)$v;
+                    if ($cant > 0) { $hayLibres = true; break; }
+                }
+                if (!$hayProductos && !$hayLibres) { //si no hay items no puedo generar el remito
                     throw new Exception('No hay productos para remitar');
                 }
-                error_log('Creando Remito de Salida '.print_r($_POST['items'], true).'-'.__FILE__.'-'.__LINE__); //se ascienta un log de los items a remitir
+                error_log('Creando Remito de Salida '.print_r($_POST['items'] ?? [], true).'-'.__FILE__.'-'.__LINE__); //se ascienta un log de los items a remitir
 
                 // Normalizar items: pasar de [producto_id => cantidad] a [producto_id => ['cantidad' => ..., 'deposito_id' => ..., 'series' => [...]]]
                 $itemsNormalizados = [];
-                foreach ($_POST['items'] as $productoId => $cantidad) {
+                foreach (($_POST['items'] ?? []) as $productoId => $cantidad) {
                     if (is_array($cantidad)) {
                         $itemNorm = [
                             'cantidad' => (float)($cantidad['cantidad'] ?? 0),
@@ -140,11 +146,21 @@ class RemitosSalidaController extends Controller
                     }
                 }
 
+                // Lineas libres de la NP (sin producto, no descuentan stock)
+                $itemsManuales = [];
+                foreach (($_POST['items_manual'] ?? []) as $detalleId => $datos) {
+                    $cantidad = is_array($datos) ? (float)($datos['cantidad'] ?? 0) : (float)$datos;
+                    if ($cantidad > 0) {
+                        $itemsManuales[(int)$detalleId] = $cantidad;
+                    }
+                }
+
                 $id = $this->model->create(
                     (int)$notaPedidoId,
                     (int)$_SESSION['user_id'],
                     $itemsNormalizados,
-                    $_POST['observaciones'] ?? null
+                    $_POST['observaciones'] ?? null,
+                    $itemsManuales
                 );
                 error_log('Remito de Salida creado con ID: ' . $id . ' - ' . __FILE__ . ':' . __LINE__);
                 // GENERAR Y GUARDA PDF AUTOMÁTICO (antes descargaba auto ahora no por seguridad)

@@ -159,6 +159,52 @@ class Producto extends Model
         }
     }
 
+    /**
+     * Crea un producto a partir de una linea libre de Presupuesto / Nota de Pedido.
+     * Genera un SKU unico y lo marca como PRESENTACION con la unidad "Unidad" por defecto.
+     */
+    public function crearDesdeLinea(string $nombre, float $precio, int $unidadMedida = 1): int
+    {
+        $nombre = trim($nombre);
+        if ($nombre === '') {
+            throw new Exception('El nombre del producto libre es obligatorio.');
+        }
+        $nombre = mb_substr($nombre, 0, 150);
+
+        // Si la unidad indicada no existe, usar la primera disponible
+        $stmtUm = $this->db->prepare("SELECT id_medida FROM unidad_medida WHERE id_medida = ?");
+        $stmtUm->execute([$unidadMedida]);
+        if (!$stmtUm->fetchColumn()) {
+            $primeraUm = $this->db->query("SELECT id_medida FROM unidad_medida ORDER BY id_medida LIMIT 1")->fetchColumn();
+            $unidadMedida = $primeraUm !== false ? (int)$primeraUm : 1;
+        }
+
+        // SKU unico generado (los productos libres no tienen SKU propio)
+        do {
+            $sku = 'LIBRE-' . strtoupper(bin2hex(random_bytes(4)));
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM productos WHERE sku = ?");
+            $stmt->execute([$sku]);
+        } while ((int)$stmt->fetchColumn() > 0);
+
+        $stmt = $this->db->prepare(
+            "INSERT INTO productos
+             (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated, unidad_medida, usa_serie, tipo)
+             VALUES (:nombre, :sku, :descripcion, :precio, NULL, :user_create, :last_user_updated, :unidad_medida, 0, 'PRESENTACION')"
+        );
+
+        $stmt->execute([
+            'nombre'            => $nombre,
+            'sku'               => $sku,
+            'descripcion'       => 'Creado desde un documento (producto libre)',
+            'precio'            => $precio,
+            'user_create'       => $_SESSION['user_id'] ?? 0,
+            'last_user_updated' => $_SESSION['user_id'] ?? 0,
+            'unidad_medida'     => $unidadMedida,
+        ]);
+
+        return (int)$this->db->lastInsertId();
+    }
+
     public function update(int $id, array $data, ?string $imagen = null): bool
     {
         try {

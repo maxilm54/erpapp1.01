@@ -48,12 +48,18 @@ class PresupuestosController extends Controller
                 exit;
             }
 
-            $id = $this->pr->create([
-                'cliente_id'   => (int) $_POST['cliente_id'],
-                'usuario_id'   => $_SESSION['user_id'],
-                'items'        => $items,
-                'observaciones'=> $_POST['observaciones'] ?? ''
-            ]);
+            try {
+                $id = $this->pr->create([
+                    'cliente_id'   => (int) $_POST['cliente_id'],
+                    'usuario_id'   => $_SESSION['user_id'],
+                    'items'        => $items,
+                    'observaciones'=> $_POST['observaciones'] ?? ''
+                ]);
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/presupuestos/create');
+                exit;
+            }
             
             // Generar PDF inmediatamente
             try {
@@ -103,11 +109,17 @@ class PresupuestosController extends Controller
                 exit;
             }
 
-            $this->pr->update($id, [
-                'cliente_id'   => $_POST['cliente_id'],
-                'items'        => $items,
-                'observaciones'=> $_POST['observaciones'] ?? ''
-            ]);
+            try {
+                $this->pr->update($id, [
+                    'cliente_id'   => $_POST['cliente_id'],
+                    'items'        => $items,
+                    'observaciones'=> $_POST['observaciones'] ?? ''
+                ]);
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/presupuestos/update/' . $id);
+                exit;
+            }
         }
 
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
@@ -130,6 +142,40 @@ class PresupuestosController extends Controller
         validarId($id, BASE_URL . '/presupuestos');
         $this->pr->aprobar($id);
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
+        exit;
+    }
+
+    /**
+     * Convierte una linea libre del presupuesto en un producto real de la base.
+     */
+    public function agregarProducto($id, $detalleId)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+        validarId($detalleId, BASE_URL . '/presupuestos/show/' . $id);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        try {
+            $productoId = $this->pr->agregarProductoADetalle((int)$id, (int)$detalleId);
+            try {
+                $this->pr->generarYGuardarPdf((int)$id);
+            } catch (Exception $e) {
+                error_log('[Presupuesto] Error regenerando PDF tras agregar producto: ' . $e->getMessage());
+            }
+            $_SESSION['success'] = 'Producto #' . $productoId . ' agregado a la base. Ya puede editarlo.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
         exit;
     }
 

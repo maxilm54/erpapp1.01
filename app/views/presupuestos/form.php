@@ -49,6 +49,41 @@ $action = $isEdit
                 </button>
             </div>
         </div>
+
+        <!-- Producto libre (no existe en la base) -->
+        <div class="card border-info mt-3">
+            <div class="card-header bg-info-subtle py-2">
+                <strong>Producto libre</strong>
+                <small class="text-muted">— para productos que todavía no están en la base</small>
+            </div>
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label">Nombre / descripción</label>
+                        <input type="text" id="libre_nombre" class="form-control" placeholder="Ej: Producto especial a pedido" autocomplete="off" maxlength="255">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Cantidad</label>
+                        <input type="number" id="libre_cantidad" class="form-control" step="0.01" min="0.01" value="1">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Precio</label>
+                        <input type="number" id="libre_precio" class="form-control" step="0.01" min="0" value="0">
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="libre_crear">
+                            <label class="form-check-label" for="libre_crear">
+                                Agregar a Productos
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="button" id="btn_agregar_libre" class="btn btn-outline-success w-100">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="table-scroll table-responsive mt-3">
             <table class="table table-bordered align-middle" id="tabla_detalle">
                 <thead class="table-dark">
@@ -74,7 +109,12 @@ $action = $isEdit
                         <tr>
                             <td>
                                 <?= htmlspecialchars($item['nombre']) ?>
-                                <input type="hidden" name="items[<?= $idx ?>][producto_id]" value="<?= $item['producto_id'] ?>">
+                                <?php if (!empty($item['producto_id'])): ?>
+                                    <input type="hidden" name="items[<?= $idx ?>][producto_id]" value="<?= $item['producto_id'] ?>">
+                                <?php else: ?>
+                                    <span class="badge bg-info">Libre</span>
+                                    <input type="hidden" name="items[<?= $idx ?>][descripcion]" value="<?= htmlspecialchars($item['descripcion'] ?? $item['nombre']) ?>">
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <input type="number" step="<?= $stepCantidad ?>" min="<?= $stepCantidad ?>" name="items[<?= $idx ?>][cantidad]" value="<?= $item['cantidad'] ?>" class="form-control" required>
@@ -188,5 +228,57 @@ btnAgregar.addEventListener('click', function () {
     inputBuscar.value = '';
     productoSeleccionado = null;
     btnAgregar.disabled = true;
+});
+
+// 🆓 Agregar producto libre (no existe en la base)
+function escapeHtml(texto) {
+    return String(texto)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+document.getElementById('btn_agregar_libre').addEventListener('click', function () {
+    const nombre   = document.getElementById('libre_nombre').value.trim();
+    const cantidad = parseFloat(document.getElementById('libre_cantidad').value) || 0;
+    const precio   = parseFloat(document.getElementById('libre_precio').value) || 0;
+    const crear    = document.getElementById('libre_crear').checked;
+
+    if (nombre === '') {
+        Swal.fire('Falta el nombre', 'Escriba el nombre o descripción del producto libre.', 'warning');
+        return;
+    }
+    if (cantidad <= 0) {
+        Swal.fire('Cantidad inválida', 'La cantidad debe ser mayor a cero.', 'warning');
+        return;
+    }
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>
+            ${escapeHtml(nombre)} <span class="badge bg-info">Libre</span>
+            ${crear ? '<span class="badge bg-success">se agregará a Productos</span>' : ''}
+            <input type="hidden" name="items[${index}][descripcion]" value="${escapeHtml(nombre)}">
+            <input type="hidden" name="items[${index}][crear_producto]" value="${crear ? 1 : 0}">
+        </td>
+        <td>
+            <input type="number" step="0.01" min="0.01" name="items[${index}][cantidad]" value="${cantidad}" class="form-control" required>
+        </td>
+        <td>
+            <input type="number" step="0.01" min="0" name="items[${index}][precio]" value="${precio}" class="form-control" required>
+        </td>
+        <td class="text-center">
+            <button type="button" class="btn btn-danger btn-sm">&times;</button>
+        </td>
+    `;
+    row.querySelector('button').onclick = () => row.remove();
+    tablaDetalle.appendChild(row);
+    index++;
+
+    document.getElementById('libre_nombre').value = '';
+    document.getElementById('libre_cantidad').value = 1;
+    document.getElementById('libre_precio').value = 0;
+    document.getElementById('libre_crear').checked = false;
 });
 </script>

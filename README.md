@@ -263,8 +263,8 @@ Presupuesto → Nota de Pedido → Remito de Salida → PDF → Email
                                    Asiento Contable
 ```
 
-- **Presupuestos**: Cotizaciones con validez, productos, cantidades, precios. Estados: BORRADOR → APROBADO.
-- **Notas de Pedido**: Pedidos de venta vinculados a presupuesto. Estados: BORRADOR → APROBADA → SinRemitir/Parcial/Completo → ANULADA.
+- **Presupuestos**: Cotizaciones con validez, productos, cantidades, precios. Estados: BORRADOR → APROBADO. Aceptan **productos libres** (no registrados): se cargan como línea con `producto_id = NULL` y `descripcion`; se pueden agregar al catálogo con el botón "Agregar a Productos" o tildando "Agregar a Productos" al crearlas.
+- **Notas de Pedido**: Pedidos de venta vinculados a presupuesto. Estados: BORRADOR → APROBADA → SinRemitir/Parcial/Completo → ANULADA. También aceptan productos libres; al remitirlos no descuentan stock pero sí generan débito en cuenta corriente y asiento.
 - **Remitos de Salida**: Dos vías:
   - *Desde NP*: Se generan automáticamente desde una nota de pedido aprobada.
   - *Manual*: Se crean directamente con búsqueda de productos por AJAX.

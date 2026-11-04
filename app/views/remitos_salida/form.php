@@ -34,6 +34,29 @@
         <tbody>
             <?php $indice=0; foreach ($np['detalle'] as $item): ?>
                 <?php if ($item['pendiente'] <= 0) continue; ?>
+                <?php if (empty($item['producto_id'])): ?>
+                    <!-- Línea libre: no tiene producto ni descuenta stock -->
+                    <tr data-libre="1">
+                        <td><?= htmlspecialchars($item['nombre']) ?> <span class="badge bg-info">Libre</span></td>
+                        <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
+                        <td>$ <?= number_format($item['precio'], 2, ',', '.') ?></td>
+                        <td>$ <?= number_format($item['total_linea'], 2, ',', '.') ?></td>
+                        <td><?= number_format($item['remitida'], 3, ',', '.') ?></td>
+                        <td><?= number_format($item['pendiente'], 3, ',', '.') ?></td>
+                        <td class="text-muted">—</td>
+                        <td class="text-muted">No descuenta stock</td>
+                        <td>
+                            <input type="number"
+                                   step="0.01"
+                                   min="0"
+                                   max="<?= $item['pendiente'] ?>"
+                                   name="items_manual[<?= $item['detalle_id'] ?>]"
+                                   class="form-control"
+                                   value="<?= $item['pendiente'] ?>">
+                        </td>
+                    </tr>
+                    <?php continue; ?>
+                <?php endif; ?>
 <?php
                     $u = strtoupper($item['unidad_nombre'] ?? '');
                     $esUnidadEntera = in_array($u, ['U','UN','UNIDAD','UNIDADES']);
@@ -94,6 +117,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemDepInputs = document.querySelectorAll('.deposito-item');
     const alertaDeposito = document.getElementById('alertaDeposito');
     const rows = document.querySelectorAll('#tablaRemito tbody tr[data-producto]');
+
+    // Si la NP solo tiene lineas libres, no hace falta elegir deposito
+    if (rows.length === 0) {
+        depSelect.required = false;
+    }
 
     function obtenerStockDeposito(productoId, depositoId) {
         return fetch('<?= BASE_URL ?>/remitossalida/stock-deposito?producto_id=' + productoId + '&deposito_id=' + (depositoId || 0))

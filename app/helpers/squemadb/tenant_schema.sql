@@ -248,7 +248,8 @@ DROP TABLE IF EXISTS `notas_pedido_detalle`;
 CREATE TABLE IF NOT EXISTS `notas_pedido_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nota_pedido_id` int(11) NOT NULL,
-  `producto_id` int(11) NOT NULL,
+  `producto_id` int(11) DEFAULT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
   `cantidad` decimal(10,3) NOT NULL,
   `precio` decimal(12,2) NOT NULL,
   PRIMARY KEY (`id`),
@@ -373,7 +374,8 @@ DROP TABLE IF EXISTS `presupuestos_detalle`;
 CREATE TABLE IF NOT EXISTS `presupuestos_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `presupuesto_id` int(11) NOT NULL,
-  `producto_id` int(11) NOT NULL,
+  `producto_id` int(11) DEFAULT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
   `cantidad` decimal(10,3) NOT NULL,
   `precio` decimal(12,2) NOT NULL,
   PRIMARY KEY (`id`),

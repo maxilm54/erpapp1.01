@@ -37,6 +37,7 @@
                 <th>Cantidad</th>
                 <th>Precio</th>
                 <th>Subtotal</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -47,16 +48,39 @@
                 $total += $sub;
             ?>
             <tr>
-                <td><?= $d['nombre'] ?></td>
+                <td>
+                    <?= htmlspecialchars($d['nombre']) ?>
+                    <?php if (empty($d['producto_id'])): ?>
+                        <span class="badge bg-info">Libre</span>
+                    <?php endif; ?>
+                </td>
                 <td><?= number_format($d['cantidad'], 3) ?></td>
                 <td><?= number_format($d['precio'], 2) ?></td>
                 <td><?= number_format($sub, 2) ?></td>
+                <td>
+                    <?php if (empty($d['producto_id'])): ?>
+                        <form method="POST"
+                              action="<?= BASE_URL ?>/notaspedido/agregar-producto/<?= $np['id'] ?>/<?= $d['id'] ?>"
+                              class="d-inline"
+                              onsubmit="return confirm('¿Agregar este producto a la base de productos? Después podrá editarlo en Productos.');">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-plus-circle"></i> Agregar a Productos
+                            </button>
+                        </form>
+                    <?php else: ?>
+                        <a href="<?= BASE_URL ?>/productos/update/<?= $d['producto_id'] ?>"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i> Editar producto
+                        </a>
+                    <?php endif; ?>
+                </td>
             </tr>
             <?php endforeach ?>
         </tbody>
         <tfoot>
             <tr>
-                <th colspan="3" class="text-end">Total</th>
+                <th colspan="4" class="text-end">Total</th>
                 <th>$<?= number_format($total, 2) ?></th>
             </tr>
         </tfoot>

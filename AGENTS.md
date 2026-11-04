@@ -94,7 +94,7 @@
 ## Migraciones
 
 - **La carpeta correcta es `app/helpers/migrations/`, NO `app/helpers/squemadb/`**. En `squemadb/` vive el schema base (`create_master.sql`, `tenant_schema.sql`); `app/helpers/migdiscontnuadas/` (typo incluido) es el archivo de migraciones retiradas.
-- `MigrationManager` tiene el path hardcodeado y solo toma archivos que matchean `^\d+_.+\.sql$`. Próximo número libre: **022**.
+- `MigrationManager` tiene el path hardcodeado y solo toma archivos que matchean `^\d+_.+\.sql$`. Próximo número libre: **023**. La 022 agregó productos libres (`producto_id` NULL + `descripcion`) en `presupuestos_detalle` y `notas_pedido_detalle`.
 - Los `.sql` se ejecutan con `PDO::exec` partido por `;` (respeta comillas). **No usar `DELIMITER`** ni rutinas. Si un statement falla, el loop corta y `schema_version` queda en la última migración aplicada.
 - Se aplican **por tenant** desde Admin → Migraciones (`/admin/migrations`, `/admin/migrations-run/{tenantId}`, `/admin/migrations-run-all`); el estado vive en `tenants.schema_version` (master). **Al agregar una migración hay que correrla en todos los tenants**: el archivo no basta.
 - Un tenant nuevo arranca con `schema_version = 0` y corre 003..N. Si el schema base de `tenant_schema.sql` ya incluye una tabla, no volver a crearla sin `IF NOT EXISTS`.

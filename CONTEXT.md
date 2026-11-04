@@ -383,6 +383,12 @@ La anulación revierte según el estado: si está en tránsito devuelve al orige
 
 18. **Registro de tareas**: vive en la tabla `tareas` de la **BD master** (no en los tenants) y se administra desde el panel admin (`/admin/tareas`, solo superadmin). Reemplaza al viejo `tareas.json` de la raíz, que se eliminó. Acciones: crear, confirmar (HECHA), reabrir y eliminar. `MasterMigrationManager` mantiene el schema master al día (archivos en `app/helpers/squemadb/master_migrations/`), que es independiente del `MigrationManager` de tenants.
 
+19. **Productos libres (migración 022)**: Presupuestos y Notas de Pedido aceptan líneas que no existen en la base. En el detalle, `producto_id` queda `NULL` y el nombre se guarda en `descripcion`. Reglas:
+   - En toda consulta al detalle usar `LEFT JOIN productos` + `COALESCE(p.nombre, d.descripcion)` (nunca `JOIN` interno).
+   - Al guardar, el checkbox "Agregar a Productos" manda `crear_producto=1` y el modelo crea el producto real con `Producto::crearDesdeLinea()` (SKU autogenerado `LIBRE-XXXXXXXX`, tipo `PRESENTACION`).
+   - En la vista del documento, la línea libre muestra el botón "Agregar a Productos" (`/presupuestos/agregar-producto/{id}/{detalleId}` o `/notaspedido/agregar-producto/{id}/{detalleId}`); luego se edita desde Productos.
+   - En el remito desde NP las líneas libres viajan en `items_manual[detalle_id]`, **no descuentan stock** y sí generan débito en cuenta corriente + asiento.
+
 ## Cómo Agregar un Módulo Nuevo
 
 ### 1. Modelo (`app/models/NuevoModelo.php`)

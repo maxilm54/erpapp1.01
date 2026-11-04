@@ -107,7 +107,12 @@ if (!$remito) {
         $logo = '';
         try {
             $masterDb = Database::getMaster();
-            $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)(Auth::getTenantId() ?? 0))->fetch(PDO::FETCH_ASSOC);
+            $tenantId = Auth::getTenantId();
+            error_log("[PDF Remito] tenantId detectado: " . var_export($tenantId, true));
+            
+            $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)$tenantId)->fetch(PDO::FETCH_ASSOC);
+            error_log("[PDF Remito] Datos de tenant: " . var_export($empRow, true));
+            
             if ($empRow) {
                 $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
                 $empresa['cuit']      = $empRow['cuit'] ?? '';
@@ -122,9 +127,12 @@ if (!$remito) {
                         $logo = $empresa['logo'];
                     }
                 }
+            } else {
+                error_log("[PDF Remito] No se encontró datos para tenantId: " . var_export($tenantId, true));
             }
+            
         } catch (Exception $e) {
-            error_log("[PDF] Error cargando empresa: " . $e->getMessage());
+            error_log("[PDF] Error cargando empresa: " . $e->getMessage() . " en " . __FILE__ . ":" . __LINE__);
         }
 
         // Variables disponibles en la vista
@@ -314,7 +322,8 @@ if (!$remito) {
         int $notaPedidoId,
         int $usuarioId,
         array $items,
-        ?string $observaciones = null
+        ?string $observaciones = null,
+        array $itemsManuales = []
         ): int{
         try {
             $this->db->beginTransaction();
@@ -447,6 +456,64 @@ if (!$remito) {
                     }
                 }
 
+            }
+
+            // 2b️⃣ Lineas libres de la NP (sin producto): no descuentan stock
+            if (!empty($itemsManuales)) {
+                $stmtCliNp = $this->db->prepare("
+                    SELECT np.cliente_id, c.razon_social
+                    FROM notas_pedido np
+                    LEFT JOIN clientes c ON c.id = np.cliente_id
+                    WHERE np.id = ?
+                ");
+                $stmtCliNp->execute([$notaPedidoId]);
+                $npCli = $stmtCliNp->fetch(PDO::FETCH_ASSOC) ?: [];
+                $cliLibreId = (int)($npCli['cliente_id'] ?? 0);
+                $cliLibreNombre = $npCli['razon_social'] ?? null;
+
+                $stmtDetLibre = $this->db->prepare("
+                    SELECT id, descripcion, precio
+                    FROM notas_pedido_detalle
+                    WHERE id = ? AND nota_pedido_id = ? AND producto_id IS NULL
+                ");
+
+                foreach ($itemsManuales as $detalleId => $itemValue) {
+                    $cantidad = is_array($itemValue) ? (float)($itemValue['cantidad'] ?? 0) : (float)$itemValue;
+                    if ($cantidad <= 0) continue;
+
+                    $stmtDetLibre->execute([(int)$detalleId, $notaPedidoId]);
+                    $lineaLibre = $stmtDetLibre->fetch(PDO::FETCH_ASSOC);
+                    if (!$lineaLibre) continue;
+
+                    $descripcionLibre = trim((string)$lineaLibre['descripcion']);
+                    $precioLibre = (float)$lineaLibre['precio'];
+                    if ($descripcionLibre === '') continue;
+                    $subtotalLibre = $precioLibre * $cantidad;
+
+                    $this->db->prepare("
+                        INSERT INTO remitos_salida_detalle
+                        (remito_id, producto_id, descripcion, cantidad, precio_unitario)
+                        VALUES (?, NULL, ?, ?, ?)
+                    ")->execute([$remitoId, $descripcionLibre, $cantidad, $precioLibre]);
+
+                    if ($cliLibreId > 0) {
+                        $cc->registrarDebito(
+                            $cliLibreId,
+                            $subtotalLibre,
+                            'REMITO',
+                            $remitoId,
+                            $usuarioId,
+                            'Remito generado desde NP #' . $notaPedidoId,
+                            $cliLibreNombre
+                        );
+                        try {
+                            $asientoAutoLibre = new AsientoAutomatico();
+                            $asientoAutoLibre->ventaDebito($cliLibreId, $subtotalLibre, 'REMITO', $remitoId, $usuarioId);
+                        } catch (Exception $e) {
+                            error_log("Error generando asiento (linea libre) para remito #{$remitoId}: " . $e->getMessage());
+                        }
+                    }
+                }
             }
 
             /// 🔄 Actualizar estado de la NP

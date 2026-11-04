@@ -41,13 +41,19 @@ class NotasPedidoController extends Controller
                 header('Location: ' . BASE_URL . '/notaspedido/create');
                 exit;
             }
-            $id = $this->np->create([
-                'cliente_id'   => $_POST['cliente_id'],
-                'presupuesto_id' => $_POST['presupuesto_id'] ?: null,
-                'usuario_id'   => $_SESSION['user_id'],
-                'items'        => $_POST['items'],
-                'observaciones' => $_POST['observaciones']
-            ]);
+            try {
+                $id = $this->np->create([
+                    'cliente_id'   => $_POST['cliente_id'],
+                    'presupuesto_id' => $_POST['presupuesto_id'] ?: null,
+                    'usuario_id'   => $_SESSION['user_id'],
+                    'items'        => $_POST['items'] ?? [],
+                    'observaciones' => $_POST['observaciones'] ?? ''
+                ]);
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/notaspedido/create');
+                exit;
+            }
             
             // Generar PDF inmediatamente
             try {
@@ -83,6 +89,40 @@ class NotasPedidoController extends Controller
         validarId($id, BASE_URL . '/notaspedido');
         $this->np->aprobar($id);
         header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
+        exit;
+    }
+
+    /**
+     * Convierte una linea libre de la NP en un producto real de la base.
+     */
+    public function agregarProducto($id, $detalleId)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+        validarId($detalleId, BASE_URL . '/notaspedido/show/' . $id);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        try {
+            $productoId = $this->np->agregarProductoADetalle((int)$id, (int)$detalleId);
+            try {
+                $this->np->generarYGuardarPdf((int)$id);
+            } catch (Exception $e) {
+                error_log('[NotaPedido] Error regenerando PDF tras agregar producto: ' . $e->getMessage());
+            }
+            $_SESSION['success'] = 'Producto #' . $productoId . ' agregado a la base. Ya puede editarlo.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
         exit;
     }
 

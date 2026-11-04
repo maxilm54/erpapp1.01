@@ -3,6 +3,8 @@
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
+require_once BASE_PATH . '/app/models/Producto.php';
+
 class Presupuesto extends Model
 {
     protected string $table = 'presupuestos';
@@ -37,11 +39,13 @@ class Presupuesto extends Model
     public function detalle(int $id): array
     {
         $stmt = $this->db->prepare(
-            "SELECT d.*, p.nombre, p.unidad_medida, um.nombre AS nombre_medida
+            "SELECT d.*, COALESCE(p.nombre, d.descripcion) AS nombre,
+                    p.unidad_medida, um.nombre AS nombre_medida
              FROM presupuestos_detalle d
-             JOIN productos p ON p.id = d.producto_id
+             LEFT JOIN productos p ON p.id = d.producto_id
              LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
-             WHERE d.presupuesto_id = ?"
+             WHERE d.presupuesto_id = ?
+             ORDER BY d.id"
         );
         $stmt->execute([$id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -68,26 +72,39 @@ class Presupuesto extends Model
             // Detalle
             $stmtDetalle = $this->db->prepare(
                 "INSERT INTO presupuestos_detalle
-                (presupuesto_id, producto_id, cantidad, precio)
-                VALUES (:p, :prod, :cant, :precio)"
+                (presupuesto_id, producto_id, descripcion, cantidad, precio)
+                VALUES (:p, :prod, :desc, :cant, :precio)"
             );
 
             foreach ($data['items'] as $item) {
 
                 // 🛡️ Validaciones duras
-                if (
-                    empty($item['producto_id']) ||
-                    empty($item['cantidad']) ||
-                    empty($item['precio'])
-                ) {
+                $cantidad = (float)($item['cantidad'] ?? 0);
+                $precio   = (float)($item['precio'] ?? 0);
+                if ($cantidad <= 0) {
+                    continue;
+                }
+
+                $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
+                $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
+
+                // Producto libre marcado para agregarse a la base
+                if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
+                    $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
+                    $descripcion = null;
+                }
+
+                // Sin producto y sin descripcion no hay linea
+                if ($productoId === null && $descripcion === '') {
                     continue;
                 }
 
                 $stmtDetalle->execute([
                     'p'     => $presupuestoId,
-                    'prod'  => $item['producto_id'],
-                    'cant'  => $item['cantidad'],
-                    'precio'=> $item['precio']
+                    'prod'  => $productoId,
+                    'desc'  => $productoId === null ? $descripcion : null,
+                    'cant'  => $cantidad,
+                    'precio'=> $precio
                 ]);
             }
 
@@ -121,17 +138,31 @@ class Presupuesto extends Model
             )->execute([$id]);
 
             foreach ($data['items'] as $item) {
-                if ($item['cantidad'] <= 0) continue;
+                $cantidad = (float)($item['cantidad'] ?? 0);
+                $precio   = (float)($item['precio'] ?? 0);
+                if ($cantidad <= 0) continue;
+
+                $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
+                $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
+
+                // Producto libre marcado para agregarse a la base
+                if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
+                    $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
+                    $descripcion = null;
+                }
+
+                if ($productoId === null && $descripcion === '') continue;
 
                 $this->db->prepare(
                     "INSERT INTO presupuestos_detalle
-                     (presupuesto_id, producto_id, cantidad, precio)
-                     VALUES (?, ?, ?, ?)"
+                     (presupuesto_id, producto_id, descripcion, cantidad, precio)
+                     VALUES (?, ?, ?, ?, ?)"
                 )->execute([
                     $id,
-                    $item['producto_id'],
-                    $item['cantidad'],
-                    $item['precio']
+                    $productoId,
+                    $productoId === null ? $descripcion : null,
+                    $cantidad,
+                    $precio
                 ]);
             }
 
@@ -183,16 +214,19 @@ class Presupuesto extends Model
         // Detalle
         $stmt = $this->db->prepare("
             SELECT 
+                d.id,
                 d.producto_id,
-                pr.nombre,
+                d.descripcion,
+                COALESCE(pr.nombre, d.descripcion) AS nombre,
                 pr.unidad_medida,
                 um.nombre AS nombre_medida,
                 d.cantidad,
                 d.precio
             FROM presupuestos_detalle d
-            JOIN productos pr ON pr.id = d.producto_id
+            LEFT JOIN productos pr ON pr.id = d.producto_id
             LEFT JOIN unidad_medida um ON um.id_medida = pr.unidad_medida
             WHERE d.presupuesto_id = ?
+            ORDER BY d.id
         ");
         $stmt->execute([$id]);
         $presupuesto['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -220,6 +254,50 @@ class Presupuesto extends Model
         return $stmt->fetchColumn();
     }
 
+    /**
+     * Convierte una linea libre de un presupuesto en un producto real y la vincula.
+     * Retorna el ID del producto creado.
+     */
+    public function agregarProductoADetalle(int $presupuestoId, int $detalleId): int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, producto_id, descripcion, precio
+             FROM presupuestos_detalle
+             WHERE id = ? AND presupuesto_id = ?"
+        );
+        $stmt->execute([$detalleId, $presupuestoId]);
+        $linea = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$linea) {
+            throw new Exception('La linea no pertenece a este presupuesto.');
+        }
+        if (!empty($linea['producto_id'])) {
+            throw new Exception('La linea ya tiene un producto asociado.');
+        }
+
+        $descripcion = trim((string)$linea['descripcion']);
+        if ($descripcion === '') {
+            throw new Exception('La linea libre no tiene descripcion.');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $productoId = (new Producto())->crearDesdeLinea($descripcion, (float)$linea['precio']);
+
+            $this->db->prepare(
+                "UPDATE presupuestos_detalle
+                 SET producto_id = ?, descripcion = NULL
+                 WHERE id = ?"
+            )->execute([$productoId, $detalleId]);
+
+            $this->db->commit();
+            return $productoId;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     private function renderPdfHtml(int $id): string
     {
         $stmt = $this->db->prepare("
@@ -237,10 +315,11 @@ class Presupuesto extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT d.cantidad, d.precio, pr.nombre
+            SELECT d.cantidad, d.precio, COALESCE(pr.nombre, d.descripcion) AS nombre
             FROM presupuestos_detalle d
-            JOIN productos pr ON pr.id = d.producto_id
+            LEFT JOIN productos pr ON pr.id = d.producto_id
             WHERE d.presupuesto_id = ?
+            ORDER BY d.id
         ");
         $stmt->execute([$id]);
         $presupuesto['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);

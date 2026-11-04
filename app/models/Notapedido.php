@@ -3,6 +3,8 @@
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
+require_once BASE_PATH . '/app/models/Producto.php';
+
 class NotaPedido extends Model
 {
     protected string $table = 'notas_pedido';
@@ -31,6 +33,7 @@ class NotaPedido extends Model
         }
         $this->db->beginTransaction();
 
+        try {
         $stmt = $this->db->prepare("
             INSERT INTO notas_pedido
             (cliente_id, presupuesto_id, usuario_id, observaciones)
@@ -47,26 +50,41 @@ class NotaPedido extends Model
         $id = (int)$this->db->lastInsertId();
 
         foreach ($data['items'] as $item) {
-            if (
-                empty($item['producto_id']) ||
-                empty($item['cantidad']) ||
-                empty($item['precio'])
-            ) continue;
+
+            $cantidad = (float)($item['cantidad'] ?? 0);
+            $precio   = (float)($item['precio'] ?? 0);
+            if ($cantidad <= 0) continue;
+
+            $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
+            $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
+
+            // Producto libre marcado para agregarse a la base
+            if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
+                $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
+                $descripcion = null;
+            }
+
+            if ($productoId === null && $descripcion === '') continue;
 
             $this->db->prepare("
                 INSERT INTO notas_pedido_detalle
-                (nota_pedido_id, producto_id, cantidad, precio)
-                VALUES (?, ?, ?, ?)
+                (nota_pedido_id, producto_id, descripcion, cantidad, precio)
+                VALUES (?, ?, ?, ?, ?)
             ")->execute([
                 $id,
-                $item['producto_id'],
-                $item['cantidad'],
-                $item['precio']
+                $productoId,
+                $productoId === null ? $descripcion : null,
+                $cantidad,
+                $precio
             ]);
         }
 
         $this->db->commit();
         return $id;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     // 👁 NP con detalle
@@ -87,10 +105,11 @@ class NotaPedido extends Model
         if (!$np) return null;
 
         $stmt = $this->db->prepare("
-            SELECT d.*, p.nombre
+            SELECT d.*, COALESCE(p.nombre, d.descripcion) AS nombre
             FROM notas_pedido_detalle d
-            JOIN productos p ON p.id = d.producto_id
+            LEFT JOIN productos p ON p.id = d.producto_id
             WHERE d.nota_pedido_id = ?
+            ORDER BY d.id
         ");
         $stmt->execute([$id]);
         $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -178,46 +197,97 @@ class NotaPedido extends Model
             return null;
         }
 
-        // Detalle con pendientes y stock disponible
+        // Detalle con pendientes y stock disponible (soporta lineas libres sin producto)
         $stmt = $this->db->prepare("
-            SELECT
-                d.producto_id,
-                p.nombre,
-                p.unidad_medida,
-                p.usa_serie,
-                um.nombre AS unidad_nombre,
-                d.cantidad AS pedida,
-                COALESCE(SUM(rsd.cantidad), 0) AS remitida,
-                (d.cantidad - COALESCE(SUM(rsd.cantidad), 0)) AS pendiente,
-                d.precio AS precio,
-                SUM(d.cantidad * d.precio) AS total_linea,
-                COALESCE((
-                    SELECT SUM(
-                        CASE
-                            WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
-                            WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
-                            ELSE 0
-                        END
-                    )
-                    FROM movimientos_stock ms
-                    WHERE ms.producto_id = d.producto_id
-                ), 0) AS stock_disponible
-            FROM notas_pedido_detalle d
-            JOIN productos p ON p.id = d.producto_id
-            LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
-            LEFT JOIN remitos_salida rs
-                ON rs.nota_pedido_id = d.nota_pedido_id
-            LEFT JOIN remitos_salida_detalle rsd
-                ON rsd.remito_id = rs.id
-                AND rsd.producto_id = d.producto_id
-            WHERE d.nota_pedido_id = ?
-            GROUP BY d.producto_id
+            SELECT x.*, (x.pedida - x.remitida) AS pendiente
+            FROM (
+                SELECT
+                    d.id AS detalle_id,
+                    d.producto_id,
+                    COALESCE(p.nombre, d.descripcion) AS nombre,
+                    p.unidad_medida,
+                    p.usa_serie,
+                    um.nombre AS unidad_nombre,
+                    d.cantidad AS pedida,
+                    d.precio AS precio,
+                    (d.cantidad * d.precio) AS total_linea,
+                    COALESCE((
+                        SELECT SUM(rsd.cantidad)
+                        FROM remitos_salida rs
+                        JOIN remitos_salida_detalle rsd ON rsd.remito_id = rs.id
+                        WHERE rs.nota_pedido_id = d.nota_pedido_id
+                          AND (
+                               (d.producto_id IS NOT NULL AND rsd.producto_id = d.producto_id)
+                               OR (d.producto_id IS NULL AND rsd.producto_id IS NULL AND rsd.descripcion = d.descripcion)
+                          )
+                    ), 0) AS remitida,
+                    CASE WHEN d.producto_id IS NULL THEN 0 ELSE COALESCE((
+                        SELECT SUM(
+                            CASE
+                                WHEN ms.tipo IN ('ENTRADA','AJUSTE') THEN ms.cantidad
+                                WHEN ms.tipo = 'SALIDA' THEN -ms.cantidad
+                                ELSE 0
+                            END
+                        )
+                        FROM movimientos_stock ms
+                        WHERE ms.producto_id = d.producto_id
+                    ), 0) END AS stock_disponible
+                FROM notas_pedido_detalle d
+                LEFT JOIN productos p ON p.id = d.producto_id
+                LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
+                WHERE d.nota_pedido_id = ?
+            ) x
+            ORDER BY x.detalle_id
         ");
         $stmt->execute([$id]);
         $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         //aca deberia hacer el control de stock para determinar si la np la puedo remitar o no  
 
         return $np;
+    }
+
+    /**
+     * Convierte una linea libre de una NP en un producto real y la vincula.
+     * Retorna el ID del producto creado.
+     */
+    public function agregarProductoADetalle(int $notaPedidoId, int $detalleId): int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, producto_id, descripcion, precio
+             FROM notas_pedido_detalle
+             WHERE id = ? AND nota_pedido_id = ?"
+        );
+        $stmt->execute([$detalleId, $notaPedidoId]);
+        $linea = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$linea) {
+            throw new Exception('La linea no pertenece a esta nota de pedido.');
+        }
+        if (!empty($linea['producto_id'])) {
+            throw new Exception('La linea ya tiene un producto asociado.');
+        }
+
+        $descripcion = trim((string)$linea['descripcion']);
+        if ($descripcion === '') {
+            throw new Exception('La linea libre no tiene descripcion.');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $productoId = (new Producto())->crearDesdeLinea($descripcion, (float)$linea['precio']);
+
+            $this->db->prepare(
+                "UPDATE notas_pedido_detalle
+                 SET producto_id = ?, descripcion = NULL
+                 WHERE id = ?"
+            )->execute([$productoId, $detalleId]);
+
+            $this->db->commit();
+            return $productoId;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     private function renderPdfHtml(int $id): string
@@ -237,10 +307,11 @@ class NotaPedido extends Model
         }
 
         $stmt = $this->db->prepare("
-            SELECT d.cantidad, d.precio, pr.nombre
+            SELECT d.cantidad, d.precio, COALESCE(pr.nombre, d.descripcion) AS nombre
             FROM notas_pedido_detalle d
-            JOIN productos pr ON pr.id = d.producto_id
+            LEFT JOIN productos pr ON pr.id = d.producto_id
             WHERE d.nota_pedido_id = ?
+            ORDER BY d.id
         ");
         $stmt->execute([$id]);
         $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -250,7 +321,11 @@ class NotaPedido extends Model
         try {
             $masterDb = Database::getMaster();
             $tenantId = Auth::getTenantId();
+            error_log("[PDF NotaPedido] tenantId detectado: " . var_export($tenantId, true));
+            
             $empRow = $masterDb->query("SELECT id, nombre, cuit, email, telefono, direccion, logo FROM tenants WHERE id = " . (int)$tenantId)->fetch(PDO::FETCH_ASSOC);
+            error_log("[PDF NotaPedido] Datos de tenant: " . var_export($empRow, true));
+            
             if ($empRow) {
                 $empresa['nombre']    = $empRow['nombre'] ?? 'Empresa';
                 $empresa['cuit']      = $empRow['cuit'] ?? '';
@@ -264,9 +339,11 @@ class NotaPedido extends Model
                         $empresa['logo'] = $logo;
                     }
                 }
+            } else {
+                error_log("[PDF NotaPedido] No se encontró datos para tenantId: " . var_export($tenantId, true));
             }
         } catch (Exception $e) {
-            error_log("[PDF NP] Error cargando empresa: " . $e->getMessage());
+            error_log("[PDF NotaPedido] Error cargando empresa: " . $e->getMessage() . " en " . __FILE__ . ":" . __LINE__);
         }
 
         ob_start();
