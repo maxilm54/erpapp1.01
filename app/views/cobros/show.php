@@ -72,6 +72,79 @@ unset($_SESSION['cobro_exito']);
     </div>
 </div>
 
+<?php
+$cheque = $cheque ?? null;
+$estadosCheque = [
+    'EN_CARTERA' => 'bg-primary',
+    'DEPOSITADO' => 'bg-info text-dark',
+    'COBRADO'    => 'bg-success',
+    'RECHAZADO'  => 'bg-danger',
+    'ANULADO'    => 'bg-secondary',
+];
+?>
+
+<!-- Datos del cheque (si el cobro fue con cheque) -->
+<?php if (!empty($cheque)): ?>
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-wallet2"></i> Datos del Cheque</h5>
+        <a href="<?= BASE_URL ?>/cheques/show/<?= (int)$cheque['id'] ?>" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-box-arrow-up-right"></i> Ver en cartera
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Banco / Nº:</strong><br>
+                <?= htmlspecialchars($cheque['banco'] ?? '-') ?> — <?= htmlspecialchars($cheque['numero'] ?? '-') ?>
+            </div>
+            <div class="col-md-3">
+                <strong>Tipo:</strong><br>
+                <?= ($cheque['tipo'] ?? 'FISICO') === 'ECHEQ' ? 'E-cheq' : 'Cheque físico' ?>
+            </div>
+            <div class="col-md-3">
+                <strong>Vencimiento:</strong><br>
+                <?= date('d/m/Y', strtotime($cheque['fecha_vencimiento'])) ?>
+                <?php $diasCh = (int)($cheque['dias_restantes'] ?? 0); ?>
+                <?php if (($cheque['estado'] ?? '') === 'EN_CARTERA'): ?>
+                    <?php if ($diasCh < 0): ?>
+                        <span class="badge bg-danger"><?= abs($diasCh) ?> días vencido</span>
+                    <?php elseif ($diasCh === 0): ?>
+                        <span class="badge bg-danger">Vence hoy</span>
+                    <?php else: ?>
+                        <span class="badge bg-light text-dark border">En <?= $diasCh ?> días</span>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+            <div class="col-md-3">
+                <strong>Estado:</strong><br>
+                <span class="badge <?= $estadosCheque[$cheque['estado'] ?? ''] ?? 'bg-secondary' ?>">
+                    <?= htmlspecialchars(Cheque::ESTADOS[$cheque['estado'] ?? ''] ?? $cheque['estado'] ?? '') ?>
+                </span>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-3">
+                <strong>Titular:</strong><br>
+                <?= htmlspecialchars($cheque['titular'] ?? '-') ?>
+            </div>
+            <div class="col-md-3">
+                <strong>CUIT:</strong><br>
+                <?= htmlspecialchars($cheque['cuit'] ?? '-') ?>
+            </div>
+            <div class="col-md-3">
+                <strong>Emisión:</strong><br>
+                <?= !empty($cheque['fecha_emision']) ? date('d/m/Y', strtotime($cheque['fecha_emision'])) : '-' ?>
+            </div>
+            <div class="col-md-3">
+                <strong>Observaciones:</strong><br>
+                <?= nl2br(htmlspecialchars($cheque['observaciones'] ?? '-')) ?>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Comprobante PDF -->
 <div class="card mb-4">
     <div class="card-header">

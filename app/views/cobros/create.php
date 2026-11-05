@@ -124,6 +124,57 @@ $cajas = $cajas ?? [];
         </div>
     </div>
 
+    <!-- Sección: Datos del cheque (solo si el medio de pago es Cheque) -->
+    <div class="card mb-4" id="chequeFields" style="display:none;">
+        <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-wallet2"></i> Datos del Cheque</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_tipo" class="form-label fw-bold">Tipo</label>
+                    <select id="cheque_tipo" name="cheque_tipo" class="form-select">
+                        <option value="FISICO">Cheque físico</option>
+                        <option value="ECHEQ">E-cheq</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_numero" class="form-label fw-bold">Número *</label>
+                    <input type="text" id="cheque_numero" name="cheque_numero" class="form-control" maxlength="50">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_banco" class="form-label fw-bold">Banco *</label>
+                    <input type="text" id="cheque_banco" name="cheque_banco" class="form-control" maxlength="100">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_sucursal" class="form-label fw-bold">Sucursal</label>
+                    <input type="text" id="cheque_sucursal" name="cheque_sucursal" class="form-control" maxlength="100">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_titular" class="form-label fw-bold">Titular</label>
+                    <input type="text" id="cheque_titular" name="cheque_titular" class="form-control" maxlength="150">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_cuit" class="form-label fw-bold">CUIT</label>
+                    <input type="text" id="cheque_cuit" name="cheque_cuit" class="form-control" maxlength="20">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_fecha_emision" class="form-label fw-bold">Fecha de emisión</label>
+                    <input type="date" id="cheque_fecha_emision" name="cheque_fecha_emision" class="form-control">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_fecha_vencimiento" class="form-label fw-bold">Fecha de vencimiento *</label>
+                    <input type="date" id="cheque_fecha_vencimiento" name="cheque_fecha_vencimiento" class="form-control">
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="cheque_observaciones" class="form-label fw-bold">Observaciones</label>
+                    <input type="text" id="cheque_observaciones" name="cheque_observaciones" class="form-control" maxlength="255">
+                </div>
+            </div>
+            <div class="form-text">El monto del cheque es el monto del cobro. Los avisos de vencimiento se envían por email.</div>
+        </div>
+    </div>
+
     <!-- Botones -->
     <div class="d-flex gap-2">
         <button type="submit" class="btn btn-success" id="btnSubmit">
@@ -144,6 +195,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const deudasSaldo = document.getElementById('deudasSaldo');
     const montoInput = document.getElementById('monto');
     const form = document.getElementById('formCobro');
+    const medioPagoSelect = document.getElementById('medio_pago');
+    const chequeFields = document.getElementById('chequeFields');
+    const chequeRequeridos = ['cheque_numero', 'cheque_banco', 'cheque_fecha_vencimiento'];
+
+    function toggleChequeFields() {
+        const esCheque = (medioPagoSelect.value || '').toUpperCase() === 'CHEQUE';
+        chequeFields.style.display = esCheque ? 'block' : 'none';
+        chequeRequeridos.forEach(function(id) {
+            document.getElementById(id).required = esCheque;
+        });
+    }
+
+    medioPagoSelect.addEventListener('change', toggleChequeFields);
+    toggleChequeFields();
 
     function formatMoney(val) {
         return '$ ' + val.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});

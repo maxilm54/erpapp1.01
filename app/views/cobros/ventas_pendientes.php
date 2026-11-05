@@ -8,6 +8,8 @@
 
 <h3><i class="bi bi-exclamation-triangle"></i> <?= htmlspecialchars($title) ?></h3>
 
+<?php require BASE_PATH . '/app/views/cheques/_widget.php'; ?>
+
 <?php
 $totalPendiente = array_sum(array_column($ventas, 'saldo_pendiente'));
 $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
@@ -195,6 +197,53 @@ $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
                                    placeholder="Nota del cobro...">
                         </div>
                     </div>
+
+                    <!-- Datos del cheque (se muestran solo si el medio de pago es Cheque) -->
+                    <div id="chequeFields" class="border rounded p-3 mb-3 bg-light" style="display:none;">
+                        <h6 class="mb-3"><i class="bi bi-wallet2"></i> Datos del cheque</h6>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_tipo" class="form-label small fw-bold">Tipo</label>
+                                <select id="cheque_tipo" name="cheque_tipo" class="form-select form-select-sm">
+                                    <option value="FISICO">Cheque físico</option>
+                                    <option value="ECHEQ">E-cheq</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_numero" class="form-label small fw-bold">Número *</label>
+                                <input type="text" id="cheque_numero" name="cheque_numero" class="form-control form-control-sm" maxlength="50">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_banco" class="form-label small fw-bold">Banco *</label>
+                                <input type="text" id="cheque_banco" name="cheque_banco" class="form-control form-control-sm" maxlength="100">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_sucursal" class="form-label small fw-bold">Sucursal</label>
+                                <input type="text" id="cheque_sucursal" name="cheque_sucursal" class="form-control form-control-sm" maxlength="100">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_titular" class="form-label small fw-bold">Titular</label>
+                                <input type="text" id="cheque_titular" name="cheque_titular" class="form-control form-control-sm" maxlength="150">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_cuit" class="form-label small fw-bold">CUIT</label>
+                                <input type="text" id="cheque_cuit" name="cheque_cuit" class="form-control form-control-sm" maxlength="20">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_fecha_emision" class="form-label small fw-bold">Fecha de emisión</label>
+                                <input type="date" id="cheque_fecha_emision" name="cheque_fecha_emision" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_fecha_vencimiento" class="form-label small fw-bold">Fecha de vencimiento *</label>
+                                <input type="date" id="cheque_fecha_vencimiento" name="cheque_fecha_vencimiento" class="form-control form-control-sm">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="cheque_observaciones" class="form-label small fw-bold">Observaciones</label>
+                                <input type="text" id="cheque_observaciones" name="cheque_observaciones" class="form-control form-control-sm" maxlength="255">
+                            </div>
+                        </div>
+                        <div class="form-text">El monto del cheque es el monto del cobro.</div>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
@@ -212,6 +261,19 @@ $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
 document.addEventListener('DOMContentLoaded', function() {
     const modal = new bootstrap.Modal(document.getElementById('modalCobro'));
     const form = document.getElementById('formCobroModal');
+    const medioPagoSelect = document.getElementById('modalMedioPago');
+    const chequeFields = document.getElementById('chequeFields');
+    const chequeRequeridos = ['cheque_numero', 'cheque_banco', 'cheque_fecha_vencimiento'];
+
+    function toggleChequeFields() {
+        const esCheque = (medioPagoSelect.value || '').toUpperCase() === 'CHEQUE';
+        chequeFields.style.display = esCheque ? 'block' : 'none';
+        chequeRequeridos.forEach(function(id) {
+            document.getElementById(id).required = esCheque;
+        });
+    }
+
+    medioPagoSelect.addEventListener('change', toggleChequeFields);
 
     function formatMoney(val) {
         return '$ ' + val.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -253,6 +315,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('modalMedioPago').value = '';
             document.getElementById('modalCajaBanco').value = '';
             document.getElementById('modalObservaciones').value = '';
+            ['cheque_numero', 'cheque_banco', 'cheque_sucursal', 'cheque_titular',
+             'cheque_cuit', 'cheque_fecha_emision', 'cheque_fecha_vencimiento', 'cheque_observaciones']
+                .forEach(function(id) { document.getElementById(id).value = ''; });
+            document.getElementById('cheque_tipo').value = 'FISICO';
+            toggleChequeFields();
 
             modal.show();
         });

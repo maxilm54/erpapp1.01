@@ -5,6 +5,7 @@ require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Pago.php';
 require_once BASE_PATH.'/app/models/CajaBanco.php';
+require_once BASE_PATH.'/app/models/Cheque.php';
 require_once BASE_PATH.'/app/helpers/AsientoAutomatico.php';
 
 class CtaCteController extends Controller
@@ -203,6 +204,9 @@ class CtaCteController extends Controller
             $monto = (float)$_POST['monto'];
             $cajaBancoId = !empty($_POST['caja_banco_id']) ? (int)$_POST['caja_banco_id'] : null;
 
+            // Validar los datos del cheque ANTES de tocar la cuenta corriente
+            $chequeData = Cheque::datosDesdePost($_POST);
+
             // Registrar crédito en ctacte
             $this->model->registrarCredito(
                 $clienteId,
@@ -219,7 +223,9 @@ class CtaCteController extends Controller
                 'usuario_id' => $_SESSION['user_id'],
                 'monto'      => $monto,
                 'medio_pago' => $_POST['medio_pago'] ?? null,
-                'observaciones' => $_POST['observaciones'] ?? null
+                'observaciones' => $_POST['observaciones'] ?? null,
+                'caja_banco_id' => $cajaBancoId,
+                'cheque' => $chequeData,
             ]);
 
             // Generar asiento contable automático

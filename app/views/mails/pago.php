@@ -30,6 +30,19 @@
     Medio de pago:
     <?= htmlspecialchars($pago['medio_pago'] ?? 'No especificado') ?>
 </p>
+<?php if (!empty($pago['cheque_id'])): ?>
+<p>
+    <strong>Datos del cheque:</strong><br>
+    <?= ($pago['cheque_tipo'] ?? 'FISICO') === 'ECHEQ' ? 'E-cheq' : 'Cheque físico' ?><br>
+    Banco: <?= htmlspecialchars($pago['cheque_banco'] ?? '') ?>
+    <?php if (!empty($pago['cheque_sucursal'])): ?> (<?= htmlspecialchars($pago['cheque_sucursal']) ?>)<?php endif; ?><br>
+    Número: <?= htmlspecialchars($pago['cheque_numero'] ?? '') ?><br>
+    <?php if (!empty($pago['cheque_titular'])): ?>Titular: <?= htmlspecialchars($pago['cheque_titular']) ?><br><?php endif; ?>
+    <?php if (!empty($pago['cheque_cuit'])): ?>CUIT: <?= htmlspecialchars($pago['cheque_cuit']) ?><br><?php endif; ?>
+    <?php if (!empty($pago['cheque_fecha_emision'])): ?>Emisión: <?= date('d/m/Y', strtotime($pago['cheque_fecha_emision'])) ?><br><?php endif; ?>
+    <?php if (!empty($pago['cheque_fecha_vencimiento'])): ?>Vencimiento: <?= date('d/m/Y', strtotime($pago['cheque_fecha_vencimiento'])) ?><?php endif; ?>
+</p>
+<?php endif; ?>
 <?php if (!empty($pago['observaciones'])): ?>
 <p>
     <strong>Observaciones:</strong><br>

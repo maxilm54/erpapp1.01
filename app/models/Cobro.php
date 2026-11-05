@@ -2,6 +2,7 @@
 require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/models/CajaBanco.php';
 require_once BASE_PATH . '/app/models/Cuentacorrientecliente.php';
+require_once BASE_PATH . '/app/models/Cheque.php';
 require_once BASE_PATH . '/app/helpers/AsientoAutomatico.php';
 require_once BASE_PATH . '/app/services/PdfService.php';
 require_once BASE_PATH . '/app/services/MailService.php';
@@ -16,10 +17,15 @@ class Cobro extends Model
         return $this->db->query("
             SELECT p.*, 
                    COALESCE(p.cliente_nombre, c.razon_social) AS nombre_cliente,
-                   cb.nombre AS caja_nombre
+                   cb.nombre AS caja_nombre,
+                   ch.id AS cheque_id,
+                   ch.numero AS cheque_numero,
+                   ch.estado AS cheque_estado,
+                   ch.fecha_vencimiento AS cheque_vencimiento
             FROM pagos p
             LEFT JOIN clientes c ON c.id = p.cliente_id
             LEFT JOIN cajas_bancos cb ON cb.id = p.caja_banco_id
+            LEFT JOIN cheques ch ON ch.pago_id = p.id
             ORDER BY p.id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -83,6 +89,18 @@ class Cobro extends Model
             ");
             $stmt->execute([$clienteId, $clienteNombre, $usuarioId, $monto, $medioPago, $observaciones, $cajaBancoId, $remitoId]);
             $pagoId = (int)$this->db->lastInsertId();
+
+            // 1.b️⃣ Si el cobro es con cheque, guardar todos sus datos
+            $chequeData = $data['cheque'] ?? null;
+            if (!empty($chequeData)) {
+                $chequeData['cliente_id'] = $clienteId;
+                $chequeData['cliente_nombre'] = $clienteNombre !== '' ? $clienteNombre : null;
+                $chequeData['monto'] = $monto;
+                $chequeData['usuario_id'] = $usuarioId;
+                $chequeData['caja_banco_id'] = $cajaBancoId;
+                $chequeModel = new Cheque();
+                $chequeModel->crearParaPago($pagoId, $chequeData);
+            }
 
             // 2️⃣ Registrar crédito en cuenta corriente
             $ccModel->registrarCredito(
@@ -164,8 +182,10 @@ class Cobro extends Model
                 ]);
             }
 
-            // 3️⃣ Marcar pago como anulado
+            // 3️⃣ Marcar pago como anulado y anular el cheque asociado
             $this->db->prepare("UPDATE pagos SET anulado = 1 WHERE id = ?")->execute([$pagoId]);
+            $chequeModel = new Cheque();
+            $chequeModel->anularPorPago($pagoId);
 
             $this->db->commit();
 

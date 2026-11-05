@@ -1,11 +1,18 @@
 <?php $cobros = $cobros ?? []; ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <h3><i class="bi bi-cash-stack"></i> Cobros</h3>
-    <a href="<?= BASE_URL ?>/cobros/create" class="btn btn-success">
-        <i class="bi bi-plus-lg"></i> Nuevo Cobro
-    </a>
+    <div class="d-flex gap-2">
+        <a href="<?= BASE_URL ?>/cheques" class="btn btn-outline-primary">
+            <i class="bi bi-wallet2"></i> Cartera de Cheques
+        </a>
+        <a href="<?= BASE_URL ?>/cobros/create" class="btn btn-success">
+            <i class="bi bi-plus-lg"></i> Nuevo Cobro
+        </a>
+    </div>
 </div>
+
+<?php require BASE_PATH . '/app/views/cheques/_widget.php'; ?>
 
 <?php if (empty($cobros)): ?>
     <div class="alert alert-info">No hay cobros registrados.</div>
@@ -45,7 +52,20 @@
                 <td class="text-end fw-bold <?= $anulado ? 'text-decoration-line-through' : '' ?>">
                     $ <?= number_format((float)$c['monto'], 2, ',', '.') ?>
                 </td>
-                <td><?= htmlspecialchars($c['medio_pago'] ?? '-') ?></td>
+                <td>
+                    <?= htmlspecialchars($c['medio_pago'] ?? '-') ?>
+                    <?php if (!empty($c['cheque_id'])): ?>
+                        <div class="small">
+                            <a href="<?= BASE_URL ?>/cheques/show/<?= (int)$c['cheque_id'] ?>" class="text-decoration-none">
+                                <i class="bi bi-wallet2"></i>
+                                <?= htmlspecialchars($c['cheque_numero'] ?? '') ?>
+                            </a>
+                            <?php if (!empty($c['cheque_vencimiento'])): ?>
+                                <span class="text-muted">· vence <?= date('d/m/Y', strtotime($c['cheque_vencimiento'])) ?></span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($c['caja_nombre'] ?? '-') ?></td>
                 <td>
                     <?php if ($anulado): ?>

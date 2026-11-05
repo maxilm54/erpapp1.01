@@ -275,6 +275,13 @@ class MailService
             'monto'          => number_format($pago['monto'], 2, ',', '.'),
             'medio_pago'     => $pago['medio_pago'] ?? 'No especificado',
             'observaciones'  => $pago['observaciones'] ?? '',
+            'cheque_banco'   => $pago['cheque_banco'] ?? '',
+            'cheque_numero'  => $pago['cheque_numero'] ?? '',
+            'cheque_tipo'    => ($pago['cheque_tipo'] ?? '') === 'ECHEQ' ? 'E-cheq' : 'Cheque físico',
+            'cheque_titular' => $pago['cheque_titular'] ?? '',
+            'cheque_cuit'    => $pago['cheque_cuit'] ?? '',
+            'cheque_emision' => !empty($pago['cheque_fecha_emision']) ? date('d/m/Y', strtotime($pago['cheque_fecha_emision'])) : '',
+            'cheque_vencimiento' => !empty($pago['cheque_fecha_vencimiento']) ? date('d/m/Y', strtotime($pago['cheque_fecha_vencimiento'])) : '',
         ], [
             'attachments' => $pago['pdf_path'] ?? null,
         ]);

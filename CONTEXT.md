@@ -59,6 +59,7 @@ URL: `?url=controller/method/param1/param2`
 | Productos | ProductosController | Producto | productos/ |
 | Clientes | ClientesController | Cliente | clientes/ |
 | Cobros | CobrosController | Cobro | cobros/ |
+| Cheques | ChequesController | Cheque | cheques/ |
 | Ordenes de Compra | OrdenescompraController | Ordencompra | ordenes_compras/ |
 | Remitos Salida | RemitossalidaController | Remitosalida | remitos_salida/ |
 
@@ -388,6 +389,11 @@ La anulación revierte según el estado: si está en tránsito devuelve al orige
    - Al guardar, el checkbox "Agregar a Productos" manda `crear_producto=1` y el modelo crea el producto real con `Producto::crearDesdeLinea()` (SKU autogenerado `LIBRE-XXXXXXXX`, tipo `PRESENTACION`).
    - En la vista del documento, la línea libre muestra el botón "Agregar a Productos" (`/presupuestos/agregar-producto/{id}/{detalleId}` o `/notaspedido/agregar-producto/{id}/{detalleId}`); luego se edita desde Productos.
    - En el remito desde NP las líneas libres viajan en `items_manual[detalle_id]`, **no descuentan stock** y sí generan débito en cuenta corriente + asiento.
+
+20. **Cheques de terceros (migración 023)**: cuando un cobro se registra con medio de pago Cheque, además del `pagos` se guarda una fila en `cheques` (un cheque por pago). Datos: tipo (`FISICO`/`ECHEQ`), número, banco, sucursal, titular, CUIT, fechas de emisión/vencimiento, monto, caja/banco destino, observaciones y estado (`EN_CARTERA`, `DEPOSITADO`, `COBRADO`, `RECHAZADO`, `ANULADO`).
+   - Los campos se validan con `Cheque::datosDesdePost()`; `Cobro::registrar()` y `Pago::registrar()` insertan el cheque dentro de su transacción. Anular el cobro pasa el cheque a `ANULADO`.
+   - La cartera se ve en `/cheques` (índice, detalle, edición y cambio de estado). Los avisos de vencimiento se envían con el CLI `php app/helpers/notificar_cheques.php [--dias=7]`; el script recorre tenants, usa el SMTP del tenant (`EmailConfig`) y marca `cheques.ultimo_aviso_at` para no repetir el mail el mismo día.
+   - El estado es de seguimiento: **no** genera movimientos de caja adicionales. El cobro ya debitó/creditó ctacte y, si se eligió caja/banco, impactó en caja.
 
 ## Cómo Agregar un Módulo Nuevo
 

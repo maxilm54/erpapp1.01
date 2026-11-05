@@ -1,6 +1,7 @@
 <?php
 
 require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
+require_once BASE_PATH.'/app/models/Cheque.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 require_once BASE_PATH.'/app/services/PdfService.php';
 
@@ -28,6 +29,18 @@ class Pago extends Model
 
             $pagoId = (int)$this->db->lastInsertId();
 
+            // 2️⃣ Si el pago es con cheque, guardar todos sus datos
+            $chequeData = $data['cheque'] ?? null;
+            if (!empty($chequeData)) {
+                $chequeData['cliente_id'] = $data['cliente_id'];
+                $chequeData['cliente_nombre'] = $data['cliente_nombre'] ?? null;
+                $chequeData['monto'] = $data['monto'];
+                $chequeData['usuario_id'] = $data['usuario_id'];
+                $chequeData['caja_banco_id'] = $data['caja_banco_id'] ?? null;
+                $chequeModel = new Cheque();
+                $chequeModel->crearParaPago($pagoId, $chequeData);
+            }
+
             // 3️⃣ Generar PDF
             $pdfService = new PdfService();
             $pdfPath = $pdfService->generarReciboPago($pagoId);// modelo pago con el id del pago levanto un comprobante. devulevo la ruta del pdf
@@ -54,8 +67,20 @@ class Pago extends Model
     public function obtenerPagoCompleto(int $id_pago) {
         try{
             $stmt=$this->db->prepare("
-            SELECT p.*,cli.*,p.created_at as fecha FROM pagos p
+            SELECT p.*,cli.*,p.created_at as fecha,
+                   ch.id AS cheque_id,
+                   ch.tipo AS cheque_tipo,
+                   ch.numero AS cheque_numero,
+                   ch.banco AS cheque_banco,
+                   ch.sucursal AS cheque_sucursal,
+                   ch.titular AS cheque_titular,
+                   ch.cuit AS cheque_cuit,
+                   ch.fecha_emision AS cheque_fecha_emision,
+                   ch.fecha_vencimiento AS cheque_fecha_vencimiento,
+                   ch.estado AS cheque_estado
+            FROM pagos p
             LEFT JOIN clientes cli ON cli.id=p.cliente_id
+            LEFT JOIN cheques ch ON ch.pago_id=p.id
             WHERE p.id=?");
             $stmt->execute([$id_pago]);
             return $stmt->fetch(PDO::FETCH_ASSOC);

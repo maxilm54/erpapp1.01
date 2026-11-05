@@ -151,6 +151,7 @@ app/
     ├── cta_cte/               # Cuenta Corriente de clientes
     ├── cuenta_corriente_emp/  # Cuenta Corriente de la empresa
     ├── cobros/                # Cobros a clientes
+    ├── cheques/               # Cartera de cheques de terceros y vencimientos
     ├── perfil/                # "Mi Perfil" (datos del usuario logueado)
     ├── contabilidad/          # Contabilidad (asientos, plan de cuentas, etc.)
     ├── impuestos/             # Impuestos (IVA)
@@ -357,6 +358,11 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   - Genera recibo PDF y envía por email.
   - Registra crédito en ctacte.
   - Genera asiento contable automático.
+- **Cheques de terceros** (`/cheques`, migración 023):
+  - Al elegir medio de pago Cheque se piden número, banco, sucursal, titular, CUIT, fechas de emisión/vencimiento y observaciones; el cheque queda en cartera con estado `EN_CARTERA`.
+  - La cartera muestra totales, vencidos y próximos a vencer; permite editar los datos y pasar el cheque a `DEPOSITADO`, `COBRADO`, `RECHAZADO` o `ANULADO`.
+  - Avisos por email: `php app/helpers/notificar_cheques.php --dias=7` (cron diario). Usa el SMTP del tenant y avisa una vez por día por cheque.
+  - Anular el cobro anula el cheque. El estado es de seguimiento: no genera movimientos de caja adicionales.
 - **Pagos a Proveedores**: Similar a cobros pero para egresos.
 - **Cta. Corriente de la Empresa** (`/cuentacorrienteempresa`): libro de movimientos de la empresa.
   - `INGRESO` = entra dinero a la empresa; `GASTO` = sale dinero. Saldo = ingresos - gastos.

@@ -144,6 +144,7 @@ Movimientos
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/cobros/create"><i class="bi bi-plus-lg"></i> Nuevo Cobro</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/cobros/ventas-no-cobradas"><i class="bi bi-exclamation-triangle"></i> Ventas No Cobradas</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/cheques"><i class="bi bi-wallet2"></i> Cheques / Cartera</a></li>
 </ul>
 </li>
 <!-- CONTABILIDAD -->

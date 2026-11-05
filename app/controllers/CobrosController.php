@@ -4,6 +4,7 @@ require_once BASE_PATH . '/app/models/Cobro.php';
 require_once BASE_PATH . '/app/models/Cliente.php';
 require_once BASE_PATH . '/app/models/CajaBanco.php';
 require_once BASE_PATH . '/app/models/Cuentacorrientecliente.php';
+require_once BASE_PATH . '/app/models/Cheque.php';
 
 class CobrosController extends Controller
 {
@@ -26,8 +27,11 @@ class CobrosController extends Controller
     public function index(): void
     {
         $cobros = $this->cobroModel->all();
+        $chequeModel = new Cheque();
         $this->view('cobros/index', [
             'cobros' => $cobros,
+            'cheques_resumen' => $chequeModel->resumen(),
+            'cheques_por_vencer' => $chequeModel->porVencer(30),
         ]);
     }
 
@@ -44,6 +48,7 @@ class CobrosController extends Controller
         }
         $this->view('cobros/show', [
             'cobro' => $cobro,
+            'cheque' => (new Cheque())->porPago($id),
         ]);
     }
 
@@ -110,6 +115,9 @@ class CobrosController extends Controller
             if ($monto <= 0) throw new Exception('El monto debe ser mayor a cero.');
             if (empty($medioPago)) throw new Exception('Debe seleccionar un medio de pago.');
 
+            // Si el medio es cheque, exigir y guardar todos sus datos
+            $chequeData = Cheque::datosDesdePost($_POST);
+
             // Si es ocasional (9999), el nombre viene del POST
             if ($clienteId == 9999 && !empty($clienteNombre)) {
                 $observaciones = ($observaciones ? $observaciones . ' | ' : '') . 'Cliente: ' . $clienteNombre;
@@ -124,6 +132,7 @@ class CobrosController extends Controller
                 'observaciones' => $observaciones,
                 'usuario_id' => $_SESSION['user_id'],
                 'remito_id' => $remitoId,
+                'cheque' => $chequeData,
             ]);
 
             // Datos para el modal de éxito
@@ -173,10 +182,13 @@ class CobrosController extends Controller
     {
         $ventas = $this->ccModel->ventasNoCobradas();
         $cajas = $this->cajaModel->getActivas();
+        $chequeModel = new Cheque();
         $this->view('cobros/ventas_pendientes', [
             'title'  => 'Ventas No Cobradas',
             'ventas' => $ventas,
             'cajas'  => $cajas,
+            'cheques_resumen' => $chequeModel->resumen(),
+            'cheques_por_vencer' => $chequeModel->porVencer(30),
         ]);
     }
 
