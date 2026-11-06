@@ -64,13 +64,41 @@ class OrdenCompra extends Model
         return $stmt->fetchAll();
     }
 
-    public function aprobar(int $id): void
+    public function aprobar(int $id, int $usuarioId): void
     {
-        $this->db->prepare(
-            "UPDATE ordenes_compra
-             SET estado = 'APROBADA'
-             WHERE id = :id"
-        )->execute(['id'=>$id]);
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT estado FROM ordenes_compra WHERE id = ? FOR UPDATE"
+            );
+            $stmt->execute([$id]);
+            $estado = $stmt->fetchColumn();
+
+            if ($estado === false) {
+                throw new Exception('La orden de compra no existe.');
+            }
+            if ($estado !== 'PENDIENTE') {
+                throw new Exception('Solo se pueden aprobar órdenes pendientes (estado actual: ' . $estado . ').');
+            }
+
+            $this->db->prepare(
+                "UPDATE ordenes_compra
+                 SET estado = 'APROBADA', aprobada_at = ?, aprobado_por = ?
+                 WHERE id = ?"
+            )->execute([date('Y-m-d H:i:s'), $usuarioId, $id]);
+
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
+        } catch (Exception $e) {
+            if (!$inTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
     //Busca orden de compra con su detalle, pidiendo el id_oc
     public function findWithDetalle(int $id): ?array
@@ -79,9 +107,11 @@ class OrdenCompra extends Model
         $stmt = $this->db->prepare(
             "SELECT
                 oc.*,
-                p.razon_social
+                p.razon_social,
+                up.nombre AS aprobado_por_nombre
             FROM ordenes_compra oc
             JOIN proveedores p ON p.id = oc.proveedor_id
+            LEFT JOIN users up ON up.id = oc.aprobado_por
             WHERE oc.id = ?"
         );
         $stmt->execute([$id]);

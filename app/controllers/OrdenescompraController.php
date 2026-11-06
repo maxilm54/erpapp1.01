@@ -52,8 +52,27 @@ class OrdenesCompraController extends Controller
     public function anular($id)
     {
         validarId($id, BASE_URL . '/ordenescompra');
-        $this->oc->anular($id);
-        header('Location: '.BASE_URL.'/ordenescompra');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenescompra');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido.';
+            header('Location: ' . BASE_URL . '/ordenescompra');
+            exit;
+        }
+
+        try {
+            $this->oc->anular((int)$id);
+            $_SESSION['success'] = "Orden de compra #{$id} anulada.";
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/ordenescompra/show/' . $id);
+        exit;
     }
     public function create()
     {
@@ -114,8 +133,27 @@ class OrdenesCompraController extends Controller
     public function aprobar($id)
     {
         validarId($id, BASE_URL . '/ordenescompra');
-        $this->oc->aprobar($id);
-        header('Location: '.BASE_URL.'/ordenescompra');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenescompra');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido.';
+            header('Location: ' . BASE_URL . '/ordenescompra');
+            exit;
+        }
+
+        try {
+            $this->oc->aprobar((int)$id, (int)$_SESSION['user_id']);
+            $_SESSION['success'] = "Orden de compra #{$id} aprobada.";
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/ordenescompra/show/' . $id);
+        exit;
     }
 
     public function show($id)
@@ -123,9 +161,13 @@ class OrdenesCompraController extends Controller
         validarId($id, BASE_URL . '/ordenescompra');
         $orden = $this->oc->findWithDetalle($id);
 
+        require_once BASE_PATH . '/app/models/Facturacompra.php';
+        $facturaModel = new FacturaCompra();
+
         $this->view('ordenes_compras/show', [
-            'title'=>'Orden de Compra',
-            'orden'=>$orden
+            'title'    => 'Orden de Compra',
+            'orden'    => $orden,
+            'facturas' => $facturaModel->porOC((int)$id),
         ]);
     }
 

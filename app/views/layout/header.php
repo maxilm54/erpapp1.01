@@ -93,6 +93,9 @@ Compras
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenescompra">Ordenes</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia">Ingresos</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia/showhist">Historial Ingresos</a></li>
+<li><hr class="dropdown-divider"></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/facturascompra">Facturas de compra</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenespago">Órdenes de pago</a></li>
 </ul>
 </li>
 <!-- STOCK -->

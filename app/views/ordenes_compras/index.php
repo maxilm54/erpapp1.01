@@ -53,16 +53,20 @@
             Editar
             </a>
 
-            <a href="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $oc['id'] ?>"
-            class="btn btn-sm btn-success"
-            onclick="return confirm('¿Aprobar esta orden?');">
-            Aprobar
-            </a>
-            <a href="<?= BASE_URL ?>/ordenescompra/anular/<?= $oc['id'] ?>"
-            class="btn btn-sm btn-danger"
-            onclick="return confirm('¿Anular esta orden?');">
-            Anular
-            </a>
+            <form method="POST" action="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $oc['id'] ?>" class="d-inline">
+                <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
+                <button type="submit" class="btn btn-sm btn-success"
+                        onclick="return confirm('¿Aprobar esta orden?');">
+                Aprobar
+                </button>
+            </form>
+            <form method="POST" action="<?= BASE_URL ?>/ordenescompra/anular/<?= $oc['id'] ?>" class="d-inline">
+                <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
+                <button type="submit" class="btn btn-sm btn-danger"
+                        onclick="return confirm('¿Anular esta orden?');">
+                Anular
+                </button>
+            </form>
         <?php endif; ?>
     </td>
     </tr>

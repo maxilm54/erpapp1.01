@@ -337,4 +337,275 @@ class AsientoAutomatico{
 
         return $asientoId;
     }
+
+    // =====================================================
+    // CHEQUES DE TERCEROS
+    // =====================================================
+
+    /**
+     * Asiento al recibir un cheque: queda como activo en cartera, no como
+     * disponibilidad bancaria.
+     *
+     * DEBE:  1350 Cheques en cartera
+     * HABER: 1400 Cuentas Corrientes Clientes
+     */
+    public function chequeEnCartera(int $clienteId, float $monto, int $chequeId, int $usuarioId, ?string $clienteNombre = null): int{
+        $cuentaCartera = $this->getCuentaChequesEnCartera();
+        $cuentaCtacte = $this->cuentaModel->findByCodigo('1400');
+        if (!$cuentaCtacte) {
+            throw new Exception('No existe la cuenta contable 1400 (Cuentas Corrientes Clientes).');
+        }
+
+        $descCliente = $clienteNombre ?: "Cliente #{$clienteId}";
+
+        return $this->asientoModel->create([
+            'fecha'          => date('Y-m-d'),
+            'descripcion'    => "Cheque en cartera #{$chequeId} - {$descCliente}",
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'CHEQUES',
+            'origen_tipo'    => 'EN_CARTERA',
+            'origen_id'      => $chequeId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => 'Cobro con cheque: el importe queda como activo en cartera, no como disponibilidad bancaria.',
+        ], [
+            [
+                'cuenta_contable_id' => $cuentaCartera['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCtacte['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ]);
+    }
+
+    /**
+     * Asiento al acreditar el cheque en una caja/banco.
+     * Recien aca el cheque sale de cartera y suma a la disponibilidad real.
+     *
+     * DEBE:  Caja/Banco
+     * HABER: 1350 Cheques en cartera
+     *
+     * @return array{asiento_id:int,movimiento_id:int}
+     */
+    public function chequeCobrado(array $cheque, int $cajaBancoId, int $usuarioId, ?string $fecha = null): array{
+        $cuentaCartera = $this->getCuentaChequesEnCartera();
+        $cuentaCaja = $this->getCuentaCajaBanco($cajaBancoId);
+        $monto = (float)$cheque['monto'];
+        $chequeId = (int)$cheque['id'];
+        $fecha = $fecha ?: date('Y-m-d');
+        $descripcion = "Cobro cheque {$cheque['banco']} Nº {$cheque['numero']}";
+
+        $asientoId = $this->asientoModel->create([
+            'fecha'          => $fecha,
+            'descripcion'    => $descripcion,
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'CHEQUES',
+            'origen_tipo'    => 'COBRADO',
+            'origen_id'      => $chequeId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => 'Acreditacion del cheque en caja/banco.',
+        ], [
+            [
+                'cuenta_contable_id' => $cuentaCaja['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCartera['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ]);
+
+        $movimientoId = $this->cajaModel->registrarMovimiento([
+            'caja_banco_id'       => $cajaBancoId,
+            'fecha'               => $fecha,
+            'tipo'                => 'INGRESO',
+            'monto'               => $monto,
+            'descripcion'         => $descripcion,
+            'asiento_contable_id' => $asientoId,
+            'referencia_modulo'   => 'CHEQUES',
+            'referencia_tipo'     => 'COBRADO',
+            'referencia_id'       => $chequeId,
+            'usuario_id'          => $usuarioId,
+        ]);
+
+        return ['asiento_id' => $asientoId, 'movimiento_id' => $movimientoId];
+    }
+
+    /**
+     * Asiento al endosar un cheque a un proveedor: cancela deuda sin pasar
+     * por caja/banco.
+     *
+     * DEBE:  2100 Cuentas Corrientes Proveedores
+     * HABER: 1350 Cheques en cartera
+     */
+    public function chequeEndosado(array $cheque, int $proveedorId, int $usuarioId, ?string $fecha = null): int{
+        $cuentaCartera = $this->getCuentaChequesEnCartera();
+        $cuentaProveedores = $this->cuentaModel->findByCodigo('2100');
+        if (!$cuentaProveedores) {
+            throw new Exception('No existe la cuenta contable 2100 (Cuentas Corrientes Proveedores).');
+        }
+
+        $monto = (float)$cheque['monto'];
+        $chequeId = (int)$cheque['id'];
+        $fecha = $fecha ?: date('Y-m-d');
+
+        return $this->asientoModel->create([
+            'fecha'          => $fecha,
+            'descripcion'    => "Endoso cheque {$cheque['banco']} Nº {$cheque['numero']} a proveedor #{$proveedorId}",
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'CHEQUES',
+            'origen_tipo'    => 'ENDOSADO',
+            'origen_id'      => $chequeId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => 'Endoso de cheque para cancelar deuda con proveedor.',
+        ], [
+            [
+                'cuenta_contable_id' => $cuentaProveedores['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCartera['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ]);
+    }
+
+    private function getCuentaChequesEnCartera(): array{
+        $cuenta = $this->cuentaModel->findByCodigo('1350');
+        if (!$cuenta) {
+            throw new Exception('No existe la cuenta contable 1350 (Cheques en cartera). Ejecute la migracion 024.');
+        }
+        return $cuenta;
+    }
+
+    // =====================================================
+    // FACTURAS DE COMPRA Y ORDENES DE PAGO
+    // =====================================================
+
+    /**
+     * Asiento al registrar una factura de compra: la compra queda devengada
+     * en la deuda con el proveedor, sin tocar caja.
+     *
+     * DEBE:  5100 Proveedores (gasto de compra) + 2200 IVA
+     * HABER: 2100 Cuentas Corrientes Proveedores
+     */
+    public function facturaCompraRegistrada(array $factura, int $usuarioId): int{
+        $cuentaGasto = $this->cuentaModel->findByCodigo('5100');
+        if (!$cuentaGasto) {
+            throw new Exception('No existe la cuenta contable 5100 (Proveedores).');
+        }
+        $cuentaProveedores = $this->cuentaModel->findByCodigo('2100');
+        if (!$cuentaProveedores) {
+            throw new Exception('No existe la cuenta contable 2100 (Cuentas Corrientes Proveedores).');
+        }
+
+        $montoBase  = (float)$factura['monto_base'];
+        $montoIva   = (float)$factura['monto_iva'];
+        $montoTotal = (float)$factura['monto_total'];
+        $tipoFiscal = trim((string)($factura['tipo_fiscal'] ?? '')) !== ''
+            ? trim((string)$factura['tipo_fiscal']) . ' '
+            : '';
+
+        $lineas = [
+            [
+                'cuenta_contable_id' => $cuentaGasto['id'],
+                'debe'               => $montoBase,
+                'haber'              => 0,
+            ],
+        ];
+
+        if ($montoIva > 0) {
+            $cuentaIva = $this->cuentaModel->findByCodigo('2200');
+            if ($cuentaIva) {
+                $lineas[] = [
+                    'cuenta_contable_id' => $cuentaIva['id'],
+                    'debe'               => $montoIva,
+                    'haber'              => 0,
+                ];
+            }
+        }
+
+        $lineas[] = [
+            'cuenta_contable_id' => $cuentaProveedores['id'],
+            'debe'               => 0,
+            'haber'              => $montoTotal,
+        ];
+
+        return $this->asientoModel->create([
+            'fecha'          => (string)$factura['fecha_factura'],
+            'descripcion'    => "Factura de compra {$tipoFiscal}Nº {$factura['numero']} - Proveedor #{$factura['proveedor_id']}",
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'FACTURAS_COMPRA',
+            'origen_tipo'    => 'REGISTRO',
+            'origen_id'      => (int)$factura['id'],
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => 'Registro de factura de compra. El pago se hace por orden de pago.',
+        ], $lineas);
+    }
+
+    /**
+     * Asiento al pagar una orden de pago: cancela la deuda del proveedor
+     * con el egreso real de caja o banco.
+     *
+     * DEBE:  2100 Cuentas Corrientes Proveedores
+     * HABER: Caja/Banco
+     *
+     * @return array{asiento_id:int,movimiento_id:int}
+     */
+    public function ordenPagoPagada(array $orden, int $cajaBancoId, int $usuarioId, ?string $fecha = null): array{
+        $cuentaProveedores = $this->cuentaModel->findByCodigo('2100');
+        if (!$cuentaProveedores) {
+            throw new Exception('No existe la cuenta contable 2100 (Cuentas Corrientes Proveedores).');
+        }
+        $cuentaCaja = $this->getCuentaCajaBanco($cajaBancoId);
+
+        $monto = (float)$orden['monto'];
+        $ordenId = (int)$orden['id'];
+        $fecha = $fecha ?: date('Y-m-d');
+        $descripcion = "Pago orden de pago #{$orden['numero']} - Proveedor #{$orden['proveedor_id']}";
+
+        $asientoId = $this->asientoModel->create([
+            'fecha'          => $fecha,
+            'descripcion'    => $descripcion,
+            'tipo'           => 'OPERACION',
+            'origen_modulo'  => 'ORDENES_PAGO',
+            'origen_tipo'    => 'PAGO',
+            'origen_id'      => $ordenId,
+            'usuario_id'     => $usuarioId,
+            'observaciones'  => 'Pago de factura de compra por orden de pago.',
+        ], [
+            [
+                'cuenta_contable_id' => $cuentaProveedores['id'],
+                'debe'               => $monto,
+                'haber'              => 0,
+            ],
+            [
+                'cuenta_contable_id' => $cuentaCaja['id'],
+                'debe'               => 0,
+                'haber'              => $monto,
+            ],
+        ]);
+
+        $movimientoId = $this->cajaModel->registrarMovimiento([
+            'caja_banco_id'       => $cajaBancoId,
+            'fecha'               => $fecha,
+            'tipo'                => 'EGRESO',
+            'monto'               => $monto,
+            'descripcion'         => $descripcion,
+            'asiento_contable_id' => $asientoId,
+            'referencia_modulo'   => 'ORDENES_PAGO',
+            'referencia_tipo'     => 'PAGO',
+            'referencia_id'       => $ordenId,
+            'usuario_id'          => $usuarioId,
+        ]);
+
+        return ['asiento_id' => $asientoId, 'movimiento_id' => $movimientoId];
+    }
 }

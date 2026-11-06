@@ -272,7 +272,11 @@ class Gasto extends Model{
                 WHERE estado != 'ANULADO' AND orden_compra_id IS NOT NULL
                 GROUP BY orden_compra_id
             ) gpagado ON gpagado.orden_compra_id = oc.id
-            WHERE oc.estado IN ('PENDIENTE','APROBADA','RECIBIDA','PARCIAL')
+            WHERE oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
+              AND NOT EXISTS (
+                    SELECT 1 FROM facturas_compra fc
+                    WHERE fc.orden_compra_id = oc.id AND fc.estado = 'REGISTRADA'
+              )
               AND (COALESCE(ocd.total_oc, 0) - COALESCE(gpagado.total_pagado, 0)) > 0
             ORDER BY oc.id DESC
         ");

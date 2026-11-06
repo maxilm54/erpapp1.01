@@ -13,6 +13,10 @@
     <div class="card-body">
         <p><strong>Proveedor:</strong> <?= htmlspecialchars($orden['razon_social']) ?></p>
         <p><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($orden['created_at'])) ?></p>
+        <?php if (!empty($orden['aprobada_at'])): ?>
+            <p class="mb-1"><strong>Aprobada:</strong> <?= date('d/m/Y H:i', strtotime($orden['aprobada_at'])) ?>
+                por <?= htmlspecialchars($orden['aprobado_por_nombre'] ?? 'N/D') ?></p>
+        <?php endif; ?>
         <?php if (!empty($orden['observaciones'])): ?>
             <p><strong>Observaciones:</strong></p>
             <p class="mb-0"><?= nl2br(htmlspecialchars($orden['observaciones'])) ?></p>
@@ -78,15 +82,70 @@
            Editar
         </a>
 
-        <a href="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $orden['id'] ?>"
-           class="btn btn-success"
-           onclick="return confirm('¿Aprobar esta orden?');">
-           Aprobar
-        </a>
-        <a href="<?= BASE_URL ?>/ordenescompra/anular/<?= $orden['id'] ?>"
-           class="btn btn-danger"
-           onclick="return confirm('¿Anular esta orden?');">
-           Anular
+        <form method="POST" action="<?= BASE_URL ?>/ordenescompra/aprobar/<?= $orden['id'] ?>" class="d-inline">
+            <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
+            <button type="submit" class="btn btn-success"
+                    onclick="return confirm('¿Aprobar esta orden?');">
+                Aprobar
+            </button>
+        </form>
+        <form method="POST" action="<?= BASE_URL ?>/ordenescompra/anular/<?= $orden['id'] ?>" class="d-inline">
+            <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
+            <button type="submit" class="btn btn-danger"
+                    onclick="return confirm('¿Anular esta orden?');">
+                Anular
+            </button>
+        </form>
+    <?php endif; ?>
+
+    <?php if (in_array($orden['estado'], ['APROBADA', 'PARCIAL', 'RECIBIDA'], true)): ?>
+        <a href="<?= BASE_URL ?>/facturascompra/create?oc=<?= $orden['id'] ?>"
+           class="btn btn-outline-primary">
+           <i class="bi bi-receipt"></i> Registrar factura
         </a>
     <?php endif; ?>
 </div>
+
+<!-- Facturas de compra de esta OC -->
+<?php if (!empty($facturas)): ?>
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-receipt"></i> Facturas de compra</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Factura</th>
+                        <th>Fecha</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Saldo</th>
+                        <th>Estado</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($facturas as $fc): ?>
+                    <?php
+                        $badgeFc = ($fc['estado'] ?? '') === 'ANULADA' ? 'bg-secondary' : 'bg-success';
+                    ?>
+                    <tr>
+                        <td><?= htmlspecialchars(($fc['tipo_fiscal'] ?? '') !== '' ? $fc['tipo_fiscal'] . ' ' : '') ?><?= htmlspecialchars($fc['numero']) ?></td>
+                        <td><?= date('d/m/Y', strtotime($fc['fecha_factura'])) ?></td>
+                        <td class="text-end">$ <?= number_format((float)$fc['monto_total'], 2, ',', '.') ?></td>
+                        <td class="text-end">$ <?= number_format((float)$fc['saldo'], 2, ',', '.') ?></td>
+                        <td><span class="badge <?= $badgeFc ?>"><?= htmlspecialchars(FacturaCompra::ESTADOS[$fc['estado']] ?? $fc['estado']) ?></span></td>
+                        <td class="text-center">
+                            <a href="<?= BASE_URL ?>/facturascompra/show/<?= (int)$fc['id'] ?>" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

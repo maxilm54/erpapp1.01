@@ -12,6 +12,7 @@ $cajas = $cajas ?? [];
 <h3><i class="bi bi-cash-coin"></i> Nuevo Cobro</h3>
 
 <form method="POST" action="<?= BASE_URL ?>/cobros/store" id="formCobro" class="mt-3">
+    <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
 
     <!-- Sección: Cliente -->
     <div class="card mb-4">
@@ -105,7 +106,7 @@ $cajas = $cajas ?? [];
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label for="caja_banco_id" class="form-label fw-bold">Caja / Banco</label>
+                    <label for="caja_banco_id" class="form-label fw-bold">Caja / Banco (destino)</label>
                     <select id="caja_banco_id" name="caja_banco_id" class="form-select">
                         <option value="">Sin asignar</option>
                         <?php foreach ($cajas as $cb): ?>
@@ -171,7 +172,11 @@ $cajas = $cajas ?? [];
                     <input type="text" id="cheque_observaciones" name="cheque_observaciones" class="form-control" maxlength="255">
                 </div>
             </div>
-            <div class="form-text">El monto del cheque es el monto del cobro. Los avisos de vencimiento se envían por email.</div>
+            <div class="form-text">
+                El monto del cheque es el monto del cobro. El cheque queda en <strong>cartera</strong>:
+                no suma a caja/banco hasta que se marque como Cobrado / Acreditado.
+                Los avisos de vencimiento se envían por email.
+            </div>
         </div>
     </div>
 

@@ -1,6 +1,7 @@
 <?php
 
 require_once BASE_PATH.'/app/core/Controller.php';
+require_once BASE_PATH.'/app/core/Csrf.php';
 require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Pago.php';
@@ -199,6 +200,12 @@ class CtaCteController extends Controller
             exit;
         }
 
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido.';
+            header('Location: '.BASE_URL.'/ctacte');
+            exit;
+        }
+
         try {
             $clienteId = (int)$_POST['cliente_id'];
             $monto = (float)$_POST['monto'];
@@ -207,17 +214,8 @@ class CtaCteController extends Controller
             // Validar los datos del cheque ANTES de tocar la cuenta corriente
             $chequeData = Cheque::datosDesdePost($_POST);
 
-            // Registrar crédito en ctacte
-            $this->model->registrarCredito(
-                $clienteId,
-                $monto,
-                'PAGO',
-                0,
-                $_SESSION['user_id'],
-                $_POST['observaciones'] ?? null
-            );
-
-            // Registrar pago en tabla pagos
+            // Registrar pago en tabla pagos. El modelo también registra el
+            // crédito en la cuenta corriente dentro de la misma transacción.
             $id = $this->pago->registrar([
                 'cliente_id' => $clienteId,
                 'usuario_id' => $_SESSION['user_id'],
@@ -228,20 +226,25 @@ class CtaCteController extends Controller
                 'cheque' => $chequeData,
             ]);
 
-            // Generar asiento contable automático
-            try {
-                $this->asientoAuto->ventaCredito(
-                    $clienteId,
-                    $monto,
-                    'PAGO',
-                    $id ?? 0,
-                    $_SESSION['user_id'],
-                    $cajaBancoId
-                );
-                $_SESSION['success'] = 'Pago registrado y asiento contable generado.';
-            } catch (Exception $e) {
-                error_log("Error generando asiento para pago ctacte: " . $e->getMessage());
-                $_SESSION['success'] = 'Pago registrado (error al generar asiento: ' . $e->getMessage() . ')';
+            // Impacto financiero. Con cheque no se toca caja/banco: el cheque
+            // queda en cartera y se acredita recién al marcarlo como COBRADO.
+            if (empty($chequeData)) {
+                try {
+                    $this->asientoAuto->ventaCredito(
+                        $clienteId,
+                        $monto,
+                        'PAGO',
+                        $id ?? 0,
+                        $_SESSION['user_id'],
+                        $cajaBancoId
+                    );
+                    $_SESSION['success'] = 'Pago registrado y asiento contable generado.';
+                } catch (Exception $e) {
+                    error_log("Error generando asiento para pago ctacte: " . $e->getMessage());
+                    $_SESSION['success'] = 'Pago registrado (error al generar asiento: ' . $e->getMessage() . ')';
+                }
+            } else {
+                $_SESSION['success'] = 'Pago registrado. El cheque quedó en cartera y se acreditará cuando lo marques como cobrado.';
             }
 
             header('Location: '.BASE_URL.'/ctacte');

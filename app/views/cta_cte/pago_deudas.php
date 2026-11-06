@@ -44,6 +44,7 @@
 <hr>
 
 <form method="POST"> <!-- /ctacte/registrarpago -->
+    <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
     <input type="hidden" name="cliente_id" value="<?= $cliente['id'] ?>">
 
     <div class="row">
@@ -61,7 +62,7 @@
             </select>
         </div>
         <div class="col-md-4 mb-3">
-            <label class="form-label fw-bold">Caja/Banco</label>
+            <label class="form-label fw-bold">Caja/Banco (destino)</label>
             <select name="caja_banco_id" class="form-select">
                 <option value="">Sin especificar</option>
                 <?php foreach (($cajasBancos ?? []) as $cb): ?>
@@ -71,7 +72,7 @@
                     </option>
                 <?php endforeach; ?>
             </select>
-            <div class="form-text">Para registrar el ingreso en caja/banco</div>
+            <div class="form-text">Con cheque, es el destino al acreditarlo. El cheque no impacta en caja hasta entonces.</div>
         </div>
     </div>
 
@@ -124,7 +125,10 @@
                 <input type="text" name="cheque_observaciones" class="form-control form-control-sm" maxlength="255">
             </div>
         </div>
-        <div class="form-text">El monto del cheque es el monto del pago.</div>
+        <div class="form-text">
+            El monto del cheque es el monto del pago. Queda en cartera:
+            no suma a caja/banco hasta que se acredite.
+        </div>
     </div>
 
     <button class="btn btn-success" onclick="return confirm('¿Confirmar pago? Se generará el asiento contable.')">

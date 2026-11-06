@@ -20,8 +20,52 @@
     <div class="col-md-3">
         <div class="card bg-dark text-white">
             <div class="card-body text-center">
-                <h6>TOTAL</h6>
+                <h6>DISPONIBILIDAD REAL</h6>
                 <h4>$ <?= number_format(array_sum($resumen), 2, ',', '.') ?></h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php $chequesResumen = $chequesResumen ?? []; ?>
+<div class="alert alert-info d-flex align-items-start gap-2">
+    <i class="bi bi-wallet2 fs-5 mt-1"></i>
+    <div>
+        Los <strong>cheques en cartera no suman a la disponibilidad real</strong>.
+        Se acreditan recién cuando se marcan como <em>Cobrado / Acreditado</em>.
+        Si se endosan a un proveedor, cancelan deuda sin pasar por banco.
+        <a href="<?= BASE_URL ?>/cheques" class="alert-link">Ver cartera de cheques</a>.
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100 border-primary">
+            <div class="card-body">
+                <small class="text-muted d-block">Cheques en cartera (activo)</small>
+                <h5 class="mb-0"><?= (int)($chequesResumen['en_cartera_cant'] ?? 0) ?> cheques</h5>
+                <span class="text-primary fw-bold">$ <?= number_format((float)($chequesResumen['en_cartera_monto'] ?? 0), 2, ',', '.') ?></span>
+                <small class="text-muted d-block">No disponibles todavía</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-info">
+            <div class="card-body">
+                <small class="text-muted d-block">Depositados en tránsito</small>
+                <h5 class="mb-0"><?= (int)($chequesResumen['depositados_cant'] ?? 0) ?> cheques</h5>
+                <span class="text-info fw-bold">$ <?= number_format((float)($chequesResumen['depositados_monto'] ?? 0), 2, ',', '.') ?></span>
+                <small class="text-muted d-block">Pendientes de acreditación</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100 border-dark">
+            <div class="card-body">
+                <small class="text-muted d-block">Endosados a proveedores</small>
+                <h5 class="mb-0"><?= (int)($chequesResumen['endosados_cant'] ?? 0) ?> cheques</h5>
+                <span class="text-dark fw-bold">$ <?= number_format((float)($chequesResumen['endosados_monto'] ?? 0), 2, ',', '.') ?></span>
+                <small class="text-muted d-block">Cancelaron deuda, sin banco</small>
             </div>
         </div>
     </div>

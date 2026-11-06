@@ -121,6 +121,7 @@ $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST" action="<?= BASE_URL ?>/cobros/store" id="formCobroModal">
+                <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
                 <input type="hidden" name="cliente_id" id="modalClienteId">
                 <input type="hidden" name="cliente_nombre" id="modalClienteNombre">
                 <input type="hidden" name="remito_id" id="modalRemitoId">
@@ -183,7 +184,7 @@ $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="modalCajaBanco" class="form-label fw-bold">Caja / Banco</label>
+                            <label for="modalCajaBanco" class="form-label fw-bold">Caja / Banco (destino)</label>
                             <select id="modalCajaBanco" name="caja_banco_id" class="form-select">
                                 <option value="">Sin asignar</option>
                                 <?php foreach ($cajas as $cb): ?>
@@ -242,7 +243,10 @@ $totalDevoluciones = array_sum(array_column($ventas, 'devoluciones'));
                                 <input type="text" id="cheque_observaciones" name="cheque_observaciones" class="form-control form-control-sm" maxlength="255">
                             </div>
                         </div>
-                        <div class="form-text">El monto del cheque es el monto del cobro.</div>
+                        <div class="form-text">
+                            El monto del cheque es el monto del cobro. Queda en cartera:
+                            no suma a caja/banco hasta que se acredite.
+                        </div>
                     </div>
                 </div>
 

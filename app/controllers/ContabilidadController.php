@@ -5,6 +5,7 @@ require_once BASE_PATH.'/app/models/AsientoContable.php';
 require_once BASE_PATH.'/app/models/CajaBanco.php';
 require_once BASE_PATH.'/app/models/ConciliacionBancaria.php';
 require_once BASE_PATH.'/app/models/Impuesto.php';
+require_once BASE_PATH.'/app/models/Cheque.php';
 require_once BASE_PATH.'/app/core/Csrf.php';
 
 class ContabilidadController extends Controller{
@@ -223,10 +224,11 @@ class ContabilidadController extends Controller{
         $resumen = $this->cajaModel->getResumenSaldos();
 
         $this->view('contabilidad/cajas', [
-            'title'  => 'Cajas, Bancos y Fondos',
-            'cajas'  => $cajas,
-            'resumen'=> $resumen,
-            'csrf'   => Csrf::generate(),
+            'title'          => 'Cajas, Bancos y Fondos',
+            'cajas'          => $cajas,
+            'resumen'        => $resumen,
+            'chequesResumen' => (new Cheque())->resumen(),
+            'csrf'           => Csrf::generate(),
         ]);
     }
 

@@ -9,16 +9,21 @@ $chequesPorVencer = $cheques_por_vencer ?? [];
 if (is_array($chequesResumen)):
     $enCarteraCant = (int)($chequesResumen['en_cartera_cant'] ?? 0);
     $enCarteraMonto = (float)($chequesResumen['en_cartera_monto'] ?? 0);
+    $depositadosCant = (int)($chequesResumen['depositados_cant'] ?? 0);
+    $depositadosMonto = (float)($chequesResumen['depositados_monto'] ?? 0);
+    $pendientesCant = $enCarteraCant + $depositadosCant;
+    $pendientesMonto = $enCarteraMonto + $depositadosMonto;
     $vencidosCant = (int)($chequesResumen['vencidos_cant'] ?? 0);
     $vencidosMonto = (float)($chequesResumen['vencidos_monto'] ?? 0);
     $porVencerCant = (int)($chequesResumen['por_vencer_cant'] ?? 0);
     $porVencerMonto = (float)($chequesResumen['por_vencer_monto'] ?? 0);
 ?>
-<?php if ($enCarteraCant > 0 || $vencidosCant > 0 || $porVencerCant > 0): ?>
+<?php if ($pendientesCant > 0 || $vencidosCant > 0 || $porVencerCant > 0): ?>
 <div class="alert <?= $vencidosCant > 0 ? 'alert-danger' : ($porVencerCant > 0 ? 'alert-warning' : 'alert-info') ?> d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
-        <strong><i class="bi bi-calendar-check"></i> Cheques en cartera:</strong>
-        <?= $enCarteraCant ?> por $ <?= number_format($enCarteraMonto, 2, ',', '.') ?>
+        <strong><i class="bi bi-calendar-check"></i> Cheques pendientes de acreditación:</strong>
+        <?= $pendientesCant ?> por $ <?= number_format($pendientesMonto, 2, ',', '.') ?>
+        <span class="text-muted small">(en cartera <?= $enCarteraCant ?> / depositados <?= $depositadosCant ?>)</span>
 
         <?php if ($vencidosCant > 0): ?>
             <span class="badge bg-danger ms-2">

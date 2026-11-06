@@ -1,5 +1,6 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
+require_once BASE_PATH . '/app/core/Csrf.php';
 require_once BASE_PATH . '/app/models/Cobro.php';
 require_once BASE_PATH . '/app/models/Cliente.php';
 require_once BASE_PATH . '/app/models/CajaBanco.php';
@@ -102,6 +103,12 @@ class CobrosController extends Controller
             exit;
         }
 
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido.';
+            header("Location: " . BASE_URL . "/cobros/create");
+            exit;
+        }
+
         try {
             $clienteId = (int)($_POST['cliente_id'] ?? 0);
             $clienteNombre = trim($_POST['cliente_nombre'] ?? '');
@@ -161,6 +168,12 @@ class CobrosController extends Controller
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             header("Location: " . BASE_URL . "/cobros");
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token de seguridad inválido.';
+            header("Location: " . BASE_URL . "/cobros/show/{$id}");
             exit;
         }
 

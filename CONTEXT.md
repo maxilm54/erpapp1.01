@@ -196,8 +196,10 @@ public function delete(int $id): bool {
 | CtacteController | Finanzas | Cuenta corriente de clientes |
 | CuentacorrienteempresaController | Finanzas | Cuenta corriente de la empresa (ingresos/gastos + deuda por proveedor) |
 | PerfilController | Perfil | "Mi Perfil": ver/editar nombre, email y contraseña del usuario logueado |
-| OrdenescompraController | Compras | Órdenes de compra |
+| OrdenescompraController | Compras | Órdenes de compra (aprobación con registro: `aprobada_at` + `aprobado_por`) |
 | IngresosmercaderiaController | Compras | Ingresos de mercadería |
+| FacturascompraController | Compras | Facturas de compra de proveedores (migración 026) |
+| OrdenespagoController | Compras | Órdenes de pago de facturas (migración 027, numerador ORDEN_PAGO) |
 | GastosController | Finanzas | Gestión de gastos |
 | CreditosController | Finanzas | Créditos bancarios |
 | StockController | Stock | Consulta de stock |
@@ -390,10 +392,17 @@ La anulación revierte según el estado: si está en tránsito devuelve al orige
    - En la vista del documento, la línea libre muestra el botón "Agregar a Productos" (`/presupuestos/agregar-producto/{id}/{detalleId}` o `/notaspedido/agregar-producto/{id}/{detalleId}`); luego se edita desde Productos.
    - En el remito desde NP las líneas libres viajan en `items_manual[detalle_id]`, **no descuentan stock** y sí generan débito en cuenta corriente + asiento.
 
-20. **Cheques de terceros (migración 023)**: cuando un cobro se registra con medio de pago Cheque, además del `pagos` se guarda una fila en `cheques` (un cheque por pago). Datos: tipo (`FISICO`/`ECHEQ`), número, banco, sucursal, titular, CUIT, fechas de emisión/vencimiento, monto, caja/banco destino, observaciones y estado (`EN_CARTERA`, `DEPOSITADO`, `COBRADO`, `RECHAZADO`, `ANULADO`).
+20. **Cheques de terceros (migraciones 023 y 024)**: cuando un cobro se registra con medio de pago Cheque, además del `pagos` se guarda una fila en `cheques` (un cheque por pago). Datos: tipo (`FISICO`/`ECHEQ`), número, banco, sucursal, titular, CUIT, fechas de emisión/vencimiento, monto, caja/banco destino, observaciones y estado (`EN_CARTERA`, `DEPOSITADO`, `COBRADO`, `ENDOSADO`, `RECHAZADO`, `ANULADO`).
    - Los campos se validan con `Cheque::datosDesdePost()`; `Cobro::registrar()` y `Pago::registrar()` insertan el cheque dentro de su transacción. Anular el cobro pasa el cheque a `ANULADO`.
    - La cartera se ve en `/cheques` (índice, detalle, edición y cambio de estado). Los avisos de vencimiento se envían con el CLI `php app/helpers/notificar_cheques.php [--dias=7]`; el script recorre tenants, usa el SMTP del tenant (`EmailConfig`) y marca `cheques.ultimo_aviso_at` para no repetir el mail el mismo día.
-   - El estado es de seguimiento: **no** genera movimientos de caja adicionales. El cobro ya debitó/creditó ctacte y, si se eligió caja/banco, impactó en caja.
+   - **Flujo financiero:** al recibir el cheque solo se acredita la ctacte del cliente y se debita `1350 Cheques en cartera` (activo). No toca caja/banco. `COBRADO` genera recién ahí el ingreso en la caja/banco elegida (`movimientos_caja` + asiento). `ENDOSADO` saca el cheque de cartera y cancela deuda con el proveedor vía `cuentas_corrientes_empresa` (`tipo = ENDOSO`), sin pasar por banco. `RECHAZADO` revierte la acreditación (si existía) y vuelve a debitar al cliente. Para anular el cheque hay que anular el cobro.
+
+21. **Circuito de compras (migraciones 025, 026 y 027)**: OC → aprobación → ingreso de mercadería → factura → orden de pago.
+    - **Aprobación de OC (025):** `ordenes_compra` tiene `aprobada_at` + `aprobado_por`. `OrdenCompra::aprobar($id, $usuarioId)` es transaction-aware, valida con `FOR UPDATE` que la OC esté `PENDIENTE` y registra quién y cuándo aprobó. El botón de aprobar es POST con CSRF (ya no un GET).
+    - **Facturas de compra (026, `/facturascompra`):** `FacturaCompra::registrar()` valida proveedor activo, OC en `APROBADA/PARCIAL/RECIBIDA` del mismo proveedor, unicidad de número por proveedor (entre `REGISTRADA`) y que neto + IVA = total. Genera el asiento `Debe 5100 + 2200 (IVA) / Haber 2100` y no toca caja. La deuda de la factura = total − órdenes de pago en `APROBADA/PAGADA`. `anular()` bloquea si hay órdenes de pago activas y revierte el asiento (idempotente).
+    - **Órdenes de pago (027, `/ordenespago`):** `OrdenPago::crear()` exige factura con saldo, usa el numerador `ORDEN_PAGO` (prefijo `OP-`) dentro de transacción y queda `BORRADOR`. Transiciones: `BORRADOR → APROBADA → PAGADA` o `ANULADA`; `PAGADA → ANULADA` revierte asiento y caja. Al pagar se revalida el saldo **excluyendo la orden propia** (`saldoFacturaExcluyendo()`), porque su monto ya está comprometido. El egreso de caja es `referencia_modulo = 'ORDENES_PAGO'`.
+    - **Integración con Gastos:** `Gasto::getOCPendientes()` excluye OCs con factura `REGISTRADA` (esas se pagan por orden de pago) y solo trae `APROBADA/PARCIAL/RECIBIDA` (ya no `PENDIENTE`).
+    - Los ids de la tabla `monedas` varían por tenant (en `tenant_pistachos` el peso es id 4, no 1): `FacturaCompra::monedaPorDefecto()` resuelve por `simbolo = '$'`, nunca hardcodear el id.
 
 ## Cómo Agregar un Módulo Nuevo
 

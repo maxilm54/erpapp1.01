@@ -48,9 +48,11 @@ class ChequesController extends Controller
         }
 
         $this->view('cheques/show', [
-            'cheque'  => $cheque,
-            'estados' => Cheque::ESTADOS,
-            'tipos'   => Cheque::TIPOS,
+            'cheque'      => $cheque,
+            'estados'     => Cheque::ESTADOS,
+            'tipos'       => Cheque::TIPOS,
+            'cajas'       => (new CajaBanco())->getActivas(),
+            'proveedores' => $this->chequeModel->proveedoresActivos(),
         ]);
     }
 
@@ -60,6 +62,11 @@ class ChequesController extends Controller
         if (!$cheque) {
             $_SESSION['error'] = 'Cheque no encontrado.';
             header('Location: ' . BASE_URL . '/cheques');
+            exit;
+        }
+        if (($cheque['estado'] ?? '') === 'ANULADO' || !empty($cheque['pago_anulado'])) {
+            $_SESSION['error'] = 'No se puede editar un cheque anulado.';
+            header('Location: ' . BASE_URL . '/cheques/show/' . $id);
             exit;
         }
 
@@ -124,16 +131,36 @@ class ChequesController extends Controller
         $estado = strtoupper(trim($_POST['estado'] ?? ''));
 
         try {
+            if (!isset(Cheque::ESTADOS[$estado])) {
+                throw new Exception('Estado de cheque inválido.');
+            }
+
             $cheque = $this->chequeModel->find($id);
             if (!$cheque) {
                 throw new Exception('Cheque no encontrado.');
             }
-            if (!empty($cheque['pago_anulado']) && $estado !== 'ANULADO') {
-                throw new Exception('No se puede cambiar el estado: el cobro asociado está anulado.');
-            }
 
-            $this->chequeModel->cambiarEstado($id, $estado);
-            $_SESSION['success'] = 'Estado del cheque actualizado a "' . (Cheque::ESTADOS[$estado] ?? $estado) . '".';
+            $contexto = [
+                'usuario_id'         => (int)$_SESSION['user_id'],
+                'caja_banco_id'      => !empty($_POST['caja_banco_id']) ? (int)$_POST['caja_banco_id'] : null,
+                'fecha_acreditacion' => trim($_POST['fecha_acreditacion'] ?? ''),
+                'proveedor_id'       => !empty($_POST['proveedor_id']) ? (int)$_POST['proveedor_id'] : null,
+                'fecha_endoso'       => trim($_POST['fecha_endoso'] ?? ''),
+            ];
+
+            $this->chequeModel->cambiarEstado($id, $estado, $contexto);
+
+            if ($estado === 'COBRADO') {
+                $_SESSION['success'] = 'Cheque acreditado en la caja/banco seleccionada.';
+            } elseif ($estado === 'ENDOSADO') {
+                $_SESSION['success'] = 'Cheque endosado al proveedor y deuda cancelada.';
+            } elseif ($estado === 'RECHAZADO') {
+                $_SESSION['success'] = 'Cheque rechazado. El importe volvió a la cuenta corriente del cliente.';
+            } elseif ($estado === 'EN_CARTERA') {
+                $_SESSION['success'] = 'Cheque devuelto a cartera y efectos financieros revertidos.';
+            } else {
+                $_SESSION['success'] = 'Estado del cheque actualizado a "' . (Cheque::ESTADOS[$estado] ?? $estado) . '".';
+            }
         } catch (Exception $e) {
             $_SESSION['error'] = $e->getMessage();
         }

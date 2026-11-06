@@ -113,9 +113,11 @@ class Cobro extends Model
                 $clienteNombre
             );
 
-            // 3️⃣ Registrar movimiento en caja/banco
+            // 3️⃣ Impacto financiero. Con cheque NO se toca caja/banco: el
+            // cheque queda como activo en cartera y se acredita recién cuando
+            // el usuario lo marca como COBRADO.
             $asientoId = null;
-            if ($cajaBancoId) {
+            if (empty($chequeData) && $cajaBancoId) {
                 $asientoAuto = new AsientoAutomatico();
                 $asientoId = $asientoAuto->ventaCredito($clienteId, $monto, 'PAGO', $pagoId, $usuarioId, $cajaBancoId, $clienteNombre);
             }
@@ -155,19 +157,40 @@ class Cobro extends Model
             if (!$pago) throw new Exception('Cobro no encontrado');
             if (!empty($pago['anulado'])) throw new Exception('El cobro ya está anulado');
 
-            // 1️⃣ Revertir crédito en ctacte (registrar un DEBITO por el mismo monto)
-            $ccModel = new CuentaCorrienteCliente();
-            $ccModel->registrarDebito(
-                $pago['cliente_id'],
-                (float)$pago['monto'],
-                'ANULACION_PAGO',
-                $pagoId,
-                $usuarioId,
-                'Anulación de cobro #' . $pagoId
-            );
+            // 1️⃣ Revertir crédito en ctacte (registrar un DEBITO por el mismo monto).
+            // Si el cheque ya fue rechazado, el rechazo ya volvió a debitar al
+            // cliente, así que no hay que debitar dos veces.
+            $chequeModel = new Cheque();
+            $cheque = $chequeModel->porPago($pagoId);
+            $creditoYaRevertido = false;
+            if ($cheque && strtoupper((string)$cheque['estado']) === 'RECHAZADO') {
+                // El rechazo nuevo ya debitó al cliente. Verificamos el
+                // movimiento para no duplicar el débito con datos viejos.
+                $stmtRev = $this->db->prepare("
+                    SELECT COUNT(*) FROM cuentas_corriente_clientes
+                    WHERE origen = 'CHEQUE_RECHAZADO' AND referencia_id = ? AND tipo = 'DEBITO'
+                ");
+                $stmtRev->execute([(int)$cheque['id']]);
+                $creditoYaRevertido = (int)$stmtRev->fetchColumn() > 0;
+            }
 
-            // 2️⃣ Revertir movimiento en caja/banco si tiene
-            if (!empty($pago['caja_banco_id'])) {
+            if (!$creditoYaRevertido) {
+                $ccModel = new CuentaCorrienteCliente();
+                $ccModel->registrarDebito(
+                    $pago['cliente_id'],
+                    (float)$pago['monto'],
+                    'ANULACION_PAGO',
+                    $pagoId,
+                    $usuarioId,
+                    'Anulación de cobro #' . $pagoId
+                );
+            }
+
+            // 2️⃣ Revertir el impacto financiero. Si el cobro fue con cheque,
+            // el cheque maneja su propia reversión (banco, cartera o endoso).
+            if ($cheque) {
+                $chequeModel->anularCobro($pagoId, $usuarioId);
+            } elseif (!empty($pago['caja_banco_id'])) {
                 $cajaModel = new CajaBanco();
                 $cajaModel->registrarMovimiento([
                     'caja_banco_id' => $pago['caja_banco_id'],
@@ -182,10 +205,8 @@ class Cobro extends Model
                 ]);
             }
 
-            // 3️⃣ Marcar pago como anulado y anular el cheque asociado
+            // 3️⃣ Marcar pago como anulado
             $this->db->prepare("UPDATE pagos SET anulado = 1 WHERE id = ?")->execute([$pagoId]);
-            $chequeModel = new Cheque();
-            $chequeModel->anularPorPago($pagoId);
 
             $this->db->commit();
 

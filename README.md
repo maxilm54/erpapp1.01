@@ -308,8 +308,11 @@ Orden de Compra → Ingreso de Mercadería → Stock
   Cta. Cte. Empresa  Verificación        Asiento
 ```
 
-- **Órdenes de Compra**: Solicitudes a proveedores. Soportan MP o productos, moneda (ARS/USD/EUR). Estados: PENDIENTE → APROBADA → RECIBIDA/PARCIAL → ANULADA.
+- **Órdenes de Compra**: Solicitudes a proveedores. Soportan MP o productos, moneda (ARS/USD/EUR). Estados: PENDIENTE → APROBADA → RECIBIDA/PARCIAL → ANULADA. La aprobación registra `aprobada_at` y `aprobado_por` (migración 025); solo se aprueban OCs PENDIENTE.
 - **Ingresos de Mercadería**: Recepción física contra OC. Verificación de cantidades. Impacto automático de stock.
+- **Facturas de Compra** (`/facturascompra`, migración 026): registro de la factura del proveedor, contra una OC (o sin OC). Montos neto + IVA + total, tipo (A/B/C/...) y número del proveedor (único por proveedor). Al registrar genera el asiento Debe 5100 + IVA / Haber 2100 Proveedores; no toca caja.
+- **Órdenes de Pago** (`/ordenespago`, migración 027): documento formal de pago de una factura de compra. Numerador `ORDEN_PAGO` (prefijo OP-). Estados: BORRADOR → APROBADA (reserva saldo de la factura) → PAGADA (egreso de caja/banco + asiento Debe 2100 / Haber caja) o ANULADA (revierte si estaba pagada). Una factura puede pagarse en varias órdenes; el saldo facturado = total − órdenes APROBADA/PAGADA.
+- Las OCs con factura registrada dejan de aparecer en Gastos → "OC pendientes" (`Gasto::getOCPendientes`), que además ahora solo trae OCs APROBADA/PARCIAL/RECIBIDA: esas se pagan por el circuito factura → orden de pago.
 
 ### 4. Producción
 
@@ -358,11 +361,14 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   - Genera recibo PDF y envía por email.
   - Registra crédito en ctacte.
   - Genera asiento contable automático.
-- **Cheques de terceros** (`/cheques`, migración 023):
+- **Cheques de terceros** (`/cheques`, migraciones 023 y 024):
   - Al elegir medio de pago Cheque se piden número, banco, sucursal, titular, CUIT, fechas de emisión/vencimiento y observaciones; el cheque queda en cartera con estado `EN_CARTERA`.
-  - La cartera muestra totales, vencidos y próximos a vencer; permite editar los datos y pasar el cheque a `DEPOSITADO`, `COBRADO`, `RECHAZADO` o `ANULADO`.
+  - La cartera muestra totales, vencidos y próximos a vencer; permite editar los datos y pasar el cheque a `DEPOSITADO`, `COBRADO`, `ENDOSADO` o `RECHAZADO`.
+  - **Cartera = activo, no disponibilidad.** Al recibir el cheque se acredita la ctacte del cliente y se debita `1350 Cheques en cartera`, pero no suma a caja/banco.
+  - **Cobrado / Acreditado** genera el ingreso real en la caja/banco elegida (`movimientos_caja` + asiento) y recién ahí suma a la disponibilidad.
+  - **Endosado** saca el cheque de cartera y cancela deuda con un proveedor vía Cta. Cte. Empresa (`tipo = ENDOSO`), sin pasar por banco.
+  - **Rechazado** revierte la acreditación y vuelve a debitar al cliente. Para anular el cheque hay que anular el cobro.
   - Avisos por email: `php app/helpers/notificar_cheques.php --dias=7` (cron diario). Usa el SMTP del tenant y avisa una vez por día por cheque.
-  - Anular el cobro anula el cheque. El estado es de seguimiento: no genera movimientos de caja adicionales.
 - **Pagos a Proveedores**: Similar a cobros pero para egresos.
 - **Cta. Corriente de la Empresa** (`/cuentacorrienteempresa`): libro de movimientos de la empresa.
   - `INGRESO` = entra dinero a la empresa; `GASTO` = sale dinero. Saldo = ingresos - gastos.

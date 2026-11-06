@@ -3,8 +3,8 @@
  * Avisos por email de cheques de terceros en cartera.
  *
  * Recorre todos los tenants activos y envía un mail con los cheques
- * EN_CARTERA que vencen dentro de los próximos N días o que ya están
- * vencidos. Cada cheque se avisa una vez por día (columna ultimo_aviso_at).
+ * EN_CARTERA o DEPOSITADO que vencen dentro de los próximos N días o que ya
+ * están vencidos. Cada cheque se avisa una vez por día (columna ultimo_aviso_at).
  *
  * Uso:
  *   php app/helpers/notificar_cheques.php

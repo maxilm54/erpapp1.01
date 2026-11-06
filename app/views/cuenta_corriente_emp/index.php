@@ -9,7 +9,7 @@
 
 <!-- Resumen del conjunto filtrado -->
 <div class="row mb-3">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card border-success">
             <div class="card-body py-2 text-center">
                 <div class="small text-muted">Ingresos (entra dinero)</div>
@@ -17,7 +17,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card border-danger">
             <div class="card-body py-2 text-center">
                 <div class="small text-muted">Gastos (sale dinero)</div>
@@ -25,16 +25,28 @@
             </div>
         </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
+        <div class="card border-dark">
+            <div class="card-body py-2 text-center">
+                <div class="small text-muted">Endosos (cancelan deuda)</div>
+                <div class="fs-5 fw-bold text-dark">$ <?= number_format((float)($balance['endosos'] ?? 0), 2, ',', '.') ?></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
         <div class="card border-primary">
             <div class="card-body py-2 text-center">
-                <div class="small text-muted">Saldo</div>
+                <div class="small text-muted">Saldo (ingresos - gastos)</div>
                 <div class="fs-5 fw-bold <?= (float)$balance['balance'] < 0 ? 'text-danger' : 'text-primary' ?>">
                     $ <?= number_format((float)$balance['balance'], 2, ',', '.') ?>
                 </div>
             </div>
         </div>
     </div>
+</div>
+<div class="alert alert-info py-2 small">
+    Los <strong>endosos</strong> no son movimientos de caja: descuentan la deuda con el proveedor.
+    El saldo solo considera ingresos y gastos.
 </div>
 
 <!-- Filtros -->
@@ -47,6 +59,7 @@
                     <option value="">Todos</option>
                     <option value="INGRESO" <?= ($filtros['tipo'] ?? '') === 'INGRESO' ? 'selected' : '' ?>>Ingreso</option>
                     <option value="GASTO" <?= ($filtros['tipo'] ?? '') === 'GASTO' ? 'selected' : '' ?>>Gasto</option>
+                    <option value="ENDOSO" <?= ($filtros['tipo'] ?? '') === 'ENDOSO' ? 'selected' : '' ?>>Endoso</option>
                 </select>
             </div>
             <div class="col-auto">
@@ -148,9 +161,13 @@
             <tr>
                 <td><?= htmlspecialchars(substr((string)$m['fecha'], 0, 10)) ?></td>
                 <td>
-                    <span class="badge <?= $m['tipo'] === 'INGRESO' ? 'bg-success' : 'bg-danger' ?>">
-                        <?= $m['tipo'] === 'INGRESO' ? 'Ingreso' : 'Gasto' ?>
-                    </span>
+                    <?php if ($m['tipo'] === 'ENDOSO'): ?>
+                        <span class="badge bg-dark">Endoso</span>
+                    <?php else: ?>
+                        <span class="badge <?= $m['tipo'] === 'INGRESO' ? 'bg-success' : 'bg-danger' ?>">
+                            <?= $m['tipo'] === 'INGRESO' ? 'Ingreso' : 'Gasto' ?>
+                        </span>
+                    <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($m['descripcion']) ?></td>
                 <td><?= htmlspecialchars($m['categoria_nombre'] ?? '-') ?></td>
@@ -158,13 +175,23 @@
                 <td class="text-end fw-bold">$ <?= number_format((float)$m['monto'], 2, ',', '.') ?></td>
                 <td><?= htmlspecialchars($m['usuario_nombre'] ?? '-') ?></td>
                 <td class="text-end">
-                    <a href="<?= BASE_URL ?>/cuentacorrienteempresa/edit/<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-pencil"></i>
-                    </a>
-                    <a href="<?= BASE_URL ?>/cuentacorrienteempresa/delete/<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-danger"
-                       onclick="return confirm('¿Anular este movimiento?')">
-                        <i class="bi bi-trash"></i>
-                    </a>
+                    <?php if ($m['tipo'] === 'ENDOSO'): ?>
+                        <?php if (($m['referencia_tipo'] ?? '') === 'ENDOSO_CHEQUE' && !empty($m['referencia_id'])): ?>
+                            <a href="<?= BASE_URL ?>/cheques/show/<?= (int)$m['referencia_id'] ?>" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-wallet2"></i> Ver cheque
+                            </a>
+                        <?php else: ?>
+                            <span class="text-muted small">Generado por endoso</span>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <a href="<?= BASE_URL ?>/cuentacorrienteempresa/edit/<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <a href="<?= BASE_URL ?>/cuentacorrienteempresa/delete/<?= (int)$m['id'] ?>" class="btn btn-sm btn-outline-danger"
+                           onclick="return confirm('¿Anular este movimiento?')">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    <?php endif; ?>
                 </td>
             </tr>
         <?php endforeach; endif; ?>

@@ -47,7 +47,7 @@ unset($_SESSION['cobro_exito']);
         </div>
         <div class="row mt-3">
             <div class="col-md-3">
-                <strong>Caja / Banco:</strong><br>
+                <strong>Caja / Banco (destino):</strong><br>
                 <?= htmlspecialchars($cobro['caja_nombre'] ?? 'Sin asignar') ?>
             </div>
             <div class="col-md-3">
@@ -78,6 +78,7 @@ $estadosCheque = [
     'EN_CARTERA' => 'bg-primary',
     'DEPOSITADO' => 'bg-info text-dark',
     'COBRADO'    => 'bg-success',
+    'ENDOSADO'   => 'bg-dark',
     'RECHAZADO'  => 'bg-danger',
     'ANULADO'    => 'bg-secondary',
 ];
@@ -106,7 +107,7 @@ $estadosCheque = [
                 <strong>Vencimiento:</strong><br>
                 <?= date('d/m/Y', strtotime($cheque['fecha_vencimiento'])) ?>
                 <?php $diasCh = (int)($cheque['dias_restantes'] ?? 0); ?>
-                <?php if (($cheque['estado'] ?? '') === 'EN_CARTERA'): ?>
+                <?php if (in_array($cheque['estado'] ?? '', ['EN_CARTERA', 'DEPOSITADO'], true)): ?>
                     <?php if ($diasCh < 0): ?>
                         <span class="badge bg-danger"><?= abs($diasCh) ?> días vencido</span>
                     <?php elseif ($diasCh === 0): ?>
@@ -140,6 +141,24 @@ $estadosCheque = [
                 <strong>Observaciones:</strong><br>
                 <?= nl2br(htmlspecialchars($cheque['observaciones'] ?? '-')) ?>
             </div>
+        </div>
+        <div class="alert alert-info mt-3 mb-0 py-2 small">
+            <?php if (($cheque['estado'] ?? '') === 'EN_CARTERA'): ?>
+                El cheque está <strong>en cartera</strong>: el cobro ya impactó en la cuenta corriente del cliente,
+                pero el importe <strong>todavía no suma a la disponibilidad de caja/banco</strong>.
+            <?php elseif (($cheque['estado'] ?? '') === 'DEPOSITADO'): ?>
+                El cheque está <strong>depositado en tránsito</strong>: todavía no fue acreditado,
+                así que el importe <strong>no suma a la disponibilidad de caja/banco</strong>.
+            <?php elseif (($cheque['estado'] ?? '') === 'COBRADO'): ?>
+                El cheque fue <strong>acreditado</strong><?= !empty($cheque['caja_nombre']) ? ' en ' . htmlspecialchars($cheque['caja_nombre']) : '' ?>:
+                el importe ya suma a la disponibilidad real.
+            <?php elseif (($cheque['estado'] ?? '') === 'ENDOSADO'): ?>
+                El cheque fue <strong>endosado a un proveedor</strong>: salió de la cartera y canceló deuda sin pasar por banco.
+            <?php elseif (($cheque['estado'] ?? '') === 'RECHAZADO'): ?>
+                El cheque fue <strong>rechazado</strong>: el importe volvió a la cuenta corriente del cliente.
+            <?php elseif (($cheque['estado'] ?? '') === 'ANULADO'): ?>
+                El cobro fue <strong>anulado</strong>: el cheque quedó anulado y se revirtieron sus efectos financieros.
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -176,6 +195,7 @@ $estadosCheque = [
         </a>
         <form method="POST" action="<?= BASE_URL ?>/cobros/anular/<?= $cobro['id'] ?>" class="d-inline"
               onsubmit="return confirm('¿Está seguro de anular este cobro? Se revertirá el movimiento en ctacte y caja.')">
+            <input type="hidden" name="csrf_token" value="<?= Csrf::generate() ?>">
             <button type="submit" class="btn btn-outline-danger">
                 <i class="bi bi-x-circle"></i> Anular Cobro
             </button>

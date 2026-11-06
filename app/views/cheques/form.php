@@ -64,7 +64,8 @@ $cajas = $cajas ?? [];
                 <div class="col-md-4 mb-3">
                     <label class="form-label fw-bold">Monto *</label>
                     <input type="number" step="0.01" min="0.01" name="cheque_monto" class="form-control" required
-                           value="<?= htmlspecialchars(number_format((float)($cheque['monto'] ?? 0), 2, '.', '')) ?>">
+                           readonly value="<?= htmlspecialchars(number_format((float)($cheque['monto'] ?? 0), 2, '.', '')) ?>">
+                    <div class="form-text">Para cambiar el monto, anulá el cobro y registrá uno nuevo.</div>
                 </div>
 
                 <div class="col-md-4 mb-3">

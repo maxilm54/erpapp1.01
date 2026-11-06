@@ -16,20 +16,35 @@ class Pago extends Model
             // 1️⃣ Insertar pago
             $stmt = $this->db->prepare("
                 INSERT INTO pagos
-                (cliente_id, usuario_id, monto, medio_pago, observaciones)
-                VALUES (?, ?, ?, ?, ?)
+                (cliente_id, usuario_id, monto, medio_pago, observaciones, caja_banco_id)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $data['cliente_id'],
                 $data['usuario_id'],
                 $data['monto'],
                 $data['medio_pago'],
-                $data['observaciones'] // agregar en proxima vs el numero de remito
+                $data['observaciones'], // agregar en proxima vs el numero de remito
+                !empty($data['caja_banco_id']) ? (int)$data['caja_banco_id'] : null,
             ]);
 
             $pagoId = (int)$this->db->lastInsertId();
 
-            // 2️⃣ Si el pago es con cheque, guardar todos sus datos
+            // 2️⃣ Registrar el crédito en la cuenta corriente del cliente.
+            // Se hace dentro de la misma transacción para que pago, ctacte y
+            // cheque queden consistentes.
+            $ccModel = new CuentaCorrienteCliente();
+            $ccModel->registrarCredito(
+                (int)$data['cliente_id'],
+                (float)$data['monto'],
+                'PAGO',
+                $pagoId,
+                (int)$data['usuario_id'],
+                $data['observaciones'] ?? null,
+                $data['cliente_nombre'] ?? null
+            );
+
+            // 3️⃣ Si el pago es con cheque, guardar todos sus datos
             $chequeData = $data['cheque'] ?? null;
             if (!empty($chequeData)) {
                 $chequeData['cliente_id'] = $data['cliente_id'];
@@ -41,19 +56,24 @@ class Pago extends Model
                 $chequeModel->crearParaPago($pagoId, $chequeData);
             }
 
-            // 3️⃣ Generar PDF
+            // 4️⃣ Generar PDF
             $pdfService = new PdfService();
             $pdfPath = $pdfService->generarReciboPago($pagoId);// modelo pago con el id del pago levanto un comprobante. devulevo la ruta del pdf
 
-            // 4️⃣ Guardar path actualizo en el pregistro de pago la ruta del pdf
+            // 5️⃣ Guardar path actualizo en el pregistro de pago la ruta del pdf
             $this->db->prepare("
                 UPDATE pagos SET pdf_path = ?
                 WHERE id = ?
             ")->execute([$pdfPath, $pagoId]);
 
-            // 5️⃣ Enviar mail voy a enviar ese mismo pdf por mail
-            $mail = new MailService();
-            $mail->enviarPago($pagoId);
+            // 6️⃣ Enviar mail voy a enviar ese mismo pdf por mail.
+            // Un fallo de SMTP no debe revertir el pago ni el cheque.
+            try {
+                $mail = new MailService();
+                $mail->enviarPago($pagoId);
+            } catch (Exception $e) {
+                empresaLog("Error enviando mail de pago #{$pagoId}: " . $e->getMessage(), 'ERROR');
+            }
 
             $this->db->commit();
             return $pagoId;

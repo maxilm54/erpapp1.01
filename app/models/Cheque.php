@@ -1,19 +1,31 @@
 <?php
 require_once BASE_PATH . '/app/core/Model.php';
+require_once BASE_PATH . '/app/models/CajaBanco.php';
+require_once BASE_PATH . '/app/models/Cuentacorrientecliente.php';
+require_once BASE_PATH . '/app/models/Cuentacorrienteempresa.php';
+require_once BASE_PATH . '/app/models/AsientoContable.php';
+require_once BASE_PATH . '/app/helpers/AsientoAutomatico.php';
 
 /**
  * Cheques de terceros recibidos en cobranzas.
  *
  * Un cheque se crea junto con el pago (Cobro::registrar / Pago::registrar)
  * cuando el medio de pago es "Cheque". Desde acá se controla la cartera,
- * los vencimientos y los avisos por email.
+ * los vencimientos, la acreditación bancaria y los endosos a proveedores.
+ *
+ * Regla financiera:
+ * - EN_CARTERA / DEPOSITADO: es un activo, NO suma a la disponibilidad de caja/banco.
+ * - COBRADO: recién acá se acredita en la caja/banco elegida.
+ * - ENDOSADO: sale de la cartera y cancela deuda con un proveedor, sin pasar por banco.
+ * - RECHAZADO: se revierte el crédito en la cuenta corriente del cliente.
  */
 class Cheque extends Model
 {
     public const ESTADOS = [
         'EN_CARTERA' => 'En cartera',
-        'DEPOSITADO' => 'Depositado',
-        'COBRADO'    => 'Cobrado',
+        'DEPOSITADO' => 'Depositado (en tránsito)',
+        'COBRADO'    => 'Cobrado / Acreditado',
+        'ENDOSADO'   => 'Endosado a proveedor',
         'RECHAZADO'  => 'Rechazado',
         'ANULADO'    => 'Anulado',
     ];
@@ -22,6 +34,35 @@ class Cheque extends Model
         'FISICO' => 'Cheque físico',
         'ECHEQ'  => 'E-cheq',
     ];
+
+    /**
+     * Transiciones permitidas desde el detalle del cheque.
+     * ANULADO no se permite manualmente: se llega anulando el cobro.
+     */
+    public const TRANSICIONES = [
+        'EN_CARTERA' => ['DEPOSITADO', 'COBRADO', 'ENDOSADO', 'RECHAZADO'],
+        'DEPOSITADO' => ['EN_CARTERA', 'COBRADO', 'ENDOSADO', 'RECHAZADO'],
+        'COBRADO'    => ['EN_CARTERA', 'RECHAZADO'],
+        'ENDOSADO'   => ['EN_CARTERA', 'RECHAZADO'],
+        'RECHAZADO'  => ['EN_CARTERA'],
+        'ANULADO'    => [],
+    ];
+
+    private AsientoAutomatico $asientoAuto;
+    private AsientoContable $asientoModel;
+    private CajaBanco $cajaModel;
+    private CuentaCorrienteCliente $ccCliente;
+    private CuentaCorrienteEmpresa $ccEmpresa;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->asientoAuto  = new AsientoAutomatico();
+        $this->asientoModel = new AsientoContable();
+        $this->cajaModel    = new CajaBanco();
+        $this->ccCliente    = new CuentaCorrienteCliente();
+        $this->ccEmpresa    = new CuentaCorrienteEmpresa();
+    }
 
     /**
      * Indica si el medio de pago elegido es cheque.
@@ -89,8 +130,9 @@ class Cheque extends Model
     }
 
     /**
-     * Crea el cheque asociado a un pago. Se llama dentro de la transacción
-     * del cobro, así que si falla el cobro completo hace rollback.
+     * Crea el cheque asociado a un pago y su asiento de cartera.
+     * Se llama dentro de la transacción del cobro, así que si falla el cobro
+     * completo hace rollback.
      */
     public function crearParaPago(int $pagoId, array $data): int
     {
@@ -139,7 +181,21 @@ class Cheque extends Model
             (int)$data['usuario_id'],
         ]);
 
-        return (int)$this->db->lastInsertId();
+        $chequeId = (int)$this->db->lastInsertId();
+
+        // El cheque entra como activo en cartera, no como caja/banco.
+        $asientoId = $this->asientoAuto->chequeEnCartera(
+            (int)$data['cliente_id'],
+            (float)$data['monto'],
+            $chequeId,
+            (int)$data['usuario_id'],
+            !empty($data['cliente_nombre']) ? (string)$data['cliente_nombre'] : null
+        );
+
+        $this->db->prepare("UPDATE cheques SET asiento_cartera_id = ? WHERE id = ?")
+            ->execute([$asientoId, $chequeId]);
+
+        return $chequeId;
     }
 
     /**
@@ -149,9 +205,11 @@ class Cheque extends Model
     {
         $stmt = $this->db->prepare("
             SELECT ch.*, cb.nombre AS caja_nombre,
+                   pv.razon_social AS proveedor_nombre,
                    DATEDIFF(ch.fecha_vencimiento, CURDATE()) AS dias_restantes
             FROM cheques ch
             LEFT JOIN cajas_bancos cb ON cb.id = ch.caja_banco_id
+            LEFT JOIN proveedores pv ON pv.id = ch.proveedor_id
             WHERE ch.pago_id = ?
             LIMIT 1
         ");
@@ -161,7 +219,7 @@ class Cheque extends Model
     }
 
     /**
-     * Buscar un cheque por ID con datos del cliente, la caja y el pago.
+     * Buscar un cheque por ID con datos del cliente, la caja, el pago y el proveedor.
      */
     public function find(int $id): ?array
     {
@@ -171,6 +229,7 @@ class Cheque extends Model
                    c.cuit AS cliente_cuit,
                    c.email AS cliente_email,
                    cb.nombre AS caja_nombre,
+                   pv.razon_social AS proveedor_nombre,
                    p.anulado AS pago_anulado,
                    p.monto AS pago_monto,
                    p.created_at AS pago_fecha,
@@ -178,6 +237,7 @@ class Cheque extends Model
             FROM cheques ch
             LEFT JOIN clientes c ON c.id = ch.cliente_id
             LEFT JOIN cajas_bancos cb ON cb.id = ch.caja_banco_id
+            LEFT JOIN proveedores pv ON pv.id = ch.proveedor_id
             LEFT JOIN pagos p ON p.id = ch.pago_id
             WHERE ch.id = ?
         ");
@@ -187,7 +247,7 @@ class Cheque extends Model
     }
 
     /**
-     * Listado con filtros: estado, vencimiento (vencidos|proximos|mes),
+     * Listado con filtros: estado, vencimiento (vencidos|hoy|proximos|mes),
      * cliente_id, texto, desde y hasta (sobre fecha_vencimiento).
      */
     public function all(array $filtros = []): array
@@ -203,11 +263,11 @@ class Cheque extends Model
 
         $vencimiento = trim((string)($filtros['vencimiento'] ?? ''));
         if ($vencimiento === 'vencidos') {
-            $where[] = "ch.estado = 'EN_CARTERA' AND ch.fecha_vencimiento < CURDATE()";
+            $where[] = "ch.estado IN ('EN_CARTERA','DEPOSITADO') AND ch.fecha_vencimiento < CURDATE()";
         } elseif ($vencimiento === 'hoy') {
-            $where[] = "ch.estado = 'EN_CARTERA' AND ch.fecha_vencimiento = CURDATE()";
+            $where[] = "ch.estado IN ('EN_CARTERA','DEPOSITADO') AND ch.fecha_vencimiento = CURDATE()";
         } elseif ($vencimiento === 'proximos') {
-            $where[] = "ch.estado = 'EN_CARTERA' AND ch.fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
+            $where[] = "ch.estado IN ('EN_CARTERA','DEPOSITADO') AND ch.fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
         } elseif ($vencimiento === 'mes') {
             $where[] = "DATE_FORMAT(ch.fecha_vencimiento, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')";
         }
@@ -221,7 +281,8 @@ class Cheque extends Model
         $texto = trim((string)($filtros['texto'] ?? ''));
         if ($texto !== '') {
             $like = '%' . $texto . '%';
-            $where[] = "(ch.numero LIKE ? OR ch.banco LIKE ? OR COALESCE(NULLIF(ch.cliente_nombre, ''), c.razon_social) LIKE ?)";
+            $where[] = "(ch.numero LIKE ? OR ch.banco LIKE ? OR COALESCE(NULLIF(ch.cliente_nombre, ''), c.razon_social) LIKE ? OR pv.razon_social LIKE ?)";
+            $params[] = $like;
             $params[] = $like;
             $params[] = $like;
             $params[] = $like;
@@ -243,10 +304,12 @@ class Cheque extends Model
             SELECT ch.*,
                    COALESCE(NULLIF(ch.cliente_nombre, ''), c.razon_social, CONCAT('Cliente #', ch.cliente_id)) AS nombre_cliente,
                    cb.nombre AS caja_nombre,
+                   pv.razon_social AS proveedor_nombre,
                    DATEDIFF(ch.fecha_vencimiento, CURDATE()) AS dias_restantes
             FROM cheques ch
             LEFT JOIN clientes c ON c.id = ch.cliente_id
             LEFT JOIN cajas_bancos cb ON cb.id = ch.caja_banco_id
+            LEFT JOIN proveedores pv ON pv.id = ch.proveedor_id
         ";
         if ($where) {
             $sql .= ' WHERE ' . implode(' AND ', $where);
@@ -259,7 +322,7 @@ class Cheque extends Model
     }
 
     /**
-     * Cheques en cartera que vencen dentro de los próximos N días.
+     * Cheques pendientes de acreditación que vencen dentro de los próximos N días.
      * Con $incluirVencidos = true también trae los ya vencidos.
      */
     public function porVencer(int $dias = 30, bool $incluirVencidos = true): array
@@ -275,13 +338,13 @@ class Cheque extends Model
                    DATEDIFF(ch.fecha_vencimiento, CURDATE()) AS dias_restantes
             FROM cheques ch
             LEFT JOIN clientes c ON c.id = ch.cliente_id
-            WHERE ch.estado = 'EN_CARTERA' AND {$condicion}
+            WHERE ch.estado IN ('EN_CARTERA','DEPOSITADO') AND {$condicion}
             ORDER BY ch.fecha_vencimiento ASC, ch.id ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
-     * Cheques en cartera con fecha de vencimiento anterior a hoy.
+     * Cheques pendientes de acreditación con fecha de vencimiento anterior a hoy.
      */
     public function vencidos(): array
     {
@@ -291,7 +354,7 @@ class Cheque extends Model
                    DATEDIFF(ch.fecha_vencimiento, CURDATE()) AS dias_restantes
             FROM cheques ch
             LEFT JOIN clientes c ON c.id = ch.cliente_id
-            WHERE ch.estado = 'EN_CARTERA' AND ch.fecha_vencimiento < CURDATE()
+            WHERE ch.estado IN ('EN_CARTERA','DEPOSITADO') AND ch.fecha_vencimiento < CURDATE()
             ORDER BY ch.fecha_vencimiento ASC, ch.id ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -305,14 +368,18 @@ class Cheque extends Model
             SELECT
                 SUM(CASE WHEN estado = 'EN_CARTERA' THEN 1 ELSE 0 END) AS en_cartera_cant,
                 COALESCE(SUM(CASE WHEN estado = 'EN_CARTERA' THEN monto ELSE 0 END), 0) AS en_cartera_monto,
-                SUM(CASE WHEN estado = 'EN_CARTERA' AND fecha_vencimiento < CURDATE() THEN 1 ELSE 0 END) AS vencidos_cant,
-                COALESCE(SUM(CASE WHEN estado = 'EN_CARTERA' AND fecha_vencimiento < CURDATE() THEN monto ELSE 0 END), 0) AS vencidos_monto,
-                SUM(CASE WHEN estado = 'EN_CARTERA' AND fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS por_vencer_cant,
-                COALESCE(SUM(CASE WHEN estado = 'EN_CARTERA' AND fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN monto ELSE 0 END), 0) AS por_vencer_monto,
+                SUM(CASE WHEN estado IN ('EN_CARTERA','DEPOSITADO') AND fecha_vencimiento < CURDATE() THEN 1 ELSE 0 END) AS vencidos_cant,
+                COALESCE(SUM(CASE WHEN estado IN ('EN_CARTERA','DEPOSITADO') AND fecha_vencimiento < CURDATE() THEN monto ELSE 0 END), 0) AS vencidos_monto,
+                SUM(CASE WHEN estado IN ('EN_CARTERA','DEPOSITADO') AND fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS por_vencer_cant,
+                COALESCE(SUM(CASE WHEN estado IN ('EN_CARTERA','DEPOSITADO') AND fecha_vencimiento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN monto ELSE 0 END), 0) AS por_vencer_monto,
                 SUM(CASE WHEN estado = 'DEPOSITADO' THEN 1 ELSE 0 END) AS depositados_cant,
                 COALESCE(SUM(CASE WHEN estado = 'DEPOSITADO' THEN monto ELSE 0 END), 0) AS depositados_monto,
-                SUM(CASE WHEN estado = 'COBRADO' AND DATE_FORMAT(updated_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN 1 ELSE 0 END) AS cobrados_mes_cant,
-                COALESCE(SUM(CASE WHEN estado = 'COBRADO' AND DATE_FORMAT(updated_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN monto ELSE 0 END), 0) AS cobrados_mes_monto
+                SUM(CASE WHEN estado = 'ENDOSADO' THEN 1 ELSE 0 END) AS endosados_cant,
+                COALESCE(SUM(CASE WHEN estado = 'ENDOSADO' THEN monto ELSE 0 END), 0) AS endosados_monto,
+                SUM(CASE WHEN estado = 'RECHAZADO' THEN 1 ELSE 0 END) AS rechazados_cant,
+                COALESCE(SUM(CASE WHEN estado = 'RECHAZADO' THEN monto ELSE 0 END), 0) AS rechazados_monto,
+                SUM(CASE WHEN estado = 'COBRADO' AND DATE_FORMAT(COALESCE(fecha_acreditacion, DATE(updated_at)), '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN 1 ELSE 0 END) AS cobrados_mes_cant,
+                COALESCE(SUM(CASE WHEN estado = 'COBRADO' AND DATE_FORMAT(COALESCE(fecha_acreditacion, DATE(updated_at)), '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') THEN monto ELSE 0 END), 0) AS cobrados_mes_monto
             FROM cheques
         ")->fetch(PDO::FETCH_ASSOC);
 
@@ -325,23 +392,417 @@ class Cheque extends Model
             'por_vencer_monto'   => (float)($row['por_vencer_monto'] ?? 0),
             'depositados_cant'   => (int)($row['depositados_cant'] ?? 0),
             'depositados_monto'  => (float)($row['depositados_monto'] ?? 0),
+            'endosados_cant'     => (int)($row['endosados_cant'] ?? 0),
+            'endosados_monto'    => (float)($row['endosados_monto'] ?? 0),
+            'rechazados_cant'    => (int)($row['rechazados_cant'] ?? 0),
+            'rechazados_monto'   => (float)($row['rechazados_monto'] ?? 0),
             'cobrados_mes_cant'  => (int)($row['cobrados_mes_cant'] ?? 0),
             'cobrados_mes_monto' => (float)($row['cobrados_mes_monto'] ?? 0),
         ];
     }
 
     /**
-     * Cambia el estado del cheque (depositar, cobrar, rechazar, anular).
+     * Cambia el estado del cheque aplicando los efectos financieros.
+     *
+     * $context puede traer:
+     * - usuario_id
+     * - caja_banco_id y fecha_acreditacion (para COBRADO)
+     * - proveedor_id y fecha_endoso (para ENDOSADO)
      */
-    public function cambiarEstado(int $id, string $estado): void
+    public function cambiarEstado(int $id, string $estado, array $context = []): void
     {
         $estado = strtoupper(trim($estado));
         if (!isset(self::ESTADOS[$estado])) {
             throw new Exception('Estado de cheque inválido.');
         }
+        if ($estado === 'ANULADO') {
+            throw new Exception('Para anular el cheque, anule el cobro asociado.');
+        }
 
-        $stmt = $this->db->prepare("UPDATE cheques SET estado = ? WHERE id = ?");
-        $stmt->execute([$estado, $id]);
+        $cheque = $this->find($id);
+        if (!$cheque) {
+            throw new Exception('Cheque no encontrado.');
+        }
+
+        $estadoAnterior = strtoupper((string)$cheque['estado']);
+        if ($estadoAnterior === $estado) {
+            return;
+        }
+
+        if (!empty($cheque['pago_anulado'])) {
+            throw new Exception('No se puede cambiar el estado: el cobro asociado está anulado.');
+        }
+
+        $permitidos = self::TRANSICIONES[$estadoAnterior] ?? [];
+        if (!in_array($estado, $permitidos, true)) {
+            throw new Exception('No se puede pasar de "' . (self::ESTADOS[$estadoAnterior] ?? $estadoAnterior) . '" a "' . (self::ESTADOS[$estado] ?? $estado) . '".');
+        }
+
+        $usuarioId = (int)($context['usuario_id'] ?? $_SESSION['user_id'] ?? 0);
+        if ($usuarioId <= 0) {
+            throw new Exception('No se pudo identificar al usuario que cambia el cheque.');
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            if ($estado === 'COBRADO') {
+                $this->registrarCobro($cheque, $context, $usuarioId);
+            } elseif ($estado === 'ENDOSADO') {
+                $this->registrarEndoso($cheque, $context, $usuarioId);
+            } elseif ($estado === 'RECHAZADO') {
+                $this->registrarRechazo($cheque, $usuarioId);
+            } elseif ($estado === 'EN_CARTERA') {
+                if ($estadoAnterior === 'COBRADO') {
+                    $this->revertirCobro($cheque, $usuarioId);
+                    $this->setEstado($id, 'EN_CARTERA');
+                } elseif ($estadoAnterior === 'ENDOSADO') {
+                    $this->revertirEndoso($cheque, $usuarioId);
+                    $this->setEstado($id, 'EN_CARTERA');
+                } elseif ($estadoAnterior === 'RECHAZADO') {
+                    $this->revertirRechazo($cheque, $usuarioId);
+                } else {
+                    $this->setEstado($id, 'EN_CARTERA');
+                }
+            } elseif ($estado === 'DEPOSITADO') {
+                $this->setEstado($id, 'DEPOSITADO');
+            }
+
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
+        } catch (Exception $e) {
+            if (!$inTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Acredita el cheque en la caja/banco elegida.
+     */
+    private function registrarCobro(array $cheque, array $context, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+        $cajaBancoId = (int)($context['caja_banco_id'] ?? $cheque['caja_banco_id'] ?? 0);
+        if ($cajaBancoId <= 0) {
+            throw new Exception('Seleccione la caja o banco donde se acreditó el cheque.');
+        }
+
+        $caja = $this->cajaModel->findById($cajaBancoId);
+        if (!$caja || empty($caja['activa'])) {
+            throw new Exception('La caja/banco seleccionada no es válida.');
+        }
+
+        $fecha = trim((string)($context['fecha_acreditacion'] ?? '')) ?: date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            throw new Exception('La fecha de acreditación no es válida.');
+        }
+
+        $resultado = $this->asientoAuto->chequeCobrado($cheque, $cajaBancoId, $usuarioId, $fecha);
+
+        $this->db->prepare("
+            UPDATE cheques
+            SET estado = 'COBRADO',
+                caja_banco_id = ?,
+                fecha_acreditacion = ?,
+                movimiento_caja_id = ?,
+                asiento_cobro_id = ?
+            WHERE id = ?
+        ")->execute([$cajaBancoId, $fecha, $resultado['movimiento_id'], $resultado['asiento_id'], $id]);
+    }
+
+    /**
+     * Endosa el cheque a un proveedor y cancela deuda en la cuenta corriente
+     * de la empresa. No genera movimiento de caja/banco.
+     */
+    private function registrarEndoso(array $cheque, array $context, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+        $proveedorId = (int)($context['proveedor_id'] ?? 0);
+        if ($proveedorId <= 0) {
+            throw new Exception('Seleccione el proveedor al que se endosa el cheque.');
+        }
+
+        $stmt = $this->db->prepare("SELECT id, razon_social FROM proveedores WHERE id = ? AND activo = 1");
+        $stmt->execute([$proveedorId]);
+        $proveedor = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$proveedor) {
+            throw new Exception('Proveedor no encontrado o inactivo.');
+        }
+
+        $fecha = trim((string)($context['fecha_endoso'] ?? '')) ?: date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            throw new Exception('La fecha del endoso no es válida.');
+        }
+
+        $descripcion = "Endoso cheque {$cheque['banco']} Nº {$cheque['numero']} - {$proveedor['razon_social']}";
+
+        $cceId = $this->ccEmpresa->create([
+            'tipo'            => 'ENDOSO',
+            'descripcion'     => $descripcion,
+            'monto'           => (float)$cheque['monto'],
+            'fecha'           => $fecha . ' 00:00:00',
+            'proveedor_id'    => $proveedorId,
+            'referencia_id'   => $id,
+            'referencia_tipo' => 'ENDOSO_CHEQUE',
+            'usuario_id'      => $usuarioId,
+        ]);
+
+        $asientoId = $this->asientoAuto->chequeEndosado($cheque, $proveedorId, $usuarioId, $fecha);
+
+        $this->db->prepare("
+            UPDATE cheques
+            SET estado = 'ENDOSADO',
+                proveedor_id = ?,
+                endosado_at = ?,
+                cuenta_corriente_empresa_id = ?,
+                asiento_endoso_id = ?
+            WHERE id = ?
+        ")->execute([$proveedorId, $fecha . ' 00:00:00', $cceId, $asientoId, $id]);
+    }
+
+    /**
+     * Rechaza el cheque: revierte la acreditación si existía, saca el activo
+     * de cartera y vuelve a debitar al cliente en su cuenta corriente.
+     */
+    private function registrarRechazo(array $cheque, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+        $estadoAnterior = strtoupper((string)$cheque['estado']);
+
+        if ($estadoAnterior === 'COBRADO') {
+            $this->revertirCobro($cheque, $usuarioId);
+        } elseif ($estadoAnterior === 'ENDOSADO') {
+            $this->revertirEndoso($cheque, $usuarioId);
+        }
+
+        $this->revertirCartera($cheque, $usuarioId);
+
+        $this->ccCliente->registrarDebito(
+            (int)$cheque['cliente_id'],
+            (float)$cheque['monto'],
+            'CHEQUE_RECHAZADO',
+            $id,
+            $usuarioId,
+            "Cheque rechazado {$cheque['banco']} Nº {$cheque['numero']}",
+            !empty($cheque['cliente_nombre']) ? (string)$cheque['cliente_nombre'] : null
+        );
+
+        $this->setEstado($id, 'RECHAZADO');
+    }
+
+    /**
+     * Vuelve de RECHAZADO a EN_CARTERA: rehace el crédito en ctacte y el
+     * asiento de cartera que se habían revertido al rechazar.
+     */
+    private function revertirRechazo(array $cheque, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+
+        $this->ccCliente->registrarCredito(
+            (int)$cheque['cliente_id'],
+            (float)$cheque['monto'],
+            'CHEQUE_RECHAZO_REVERTIDO',
+            $id,
+            $usuarioId,
+            "Reversión rechazo cheque {$cheque['banco']} Nº {$cheque['numero']}",
+            !empty($cheque['cliente_nombre']) ? (string)$cheque['cliente_nombre'] : null
+        );
+
+        $asientoId = $this->asientoAuto->chequeEnCartera(
+            (int)$cheque['cliente_id'],
+            (float)$cheque['monto'],
+            $id,
+            $usuarioId,
+            !empty($cheque['cliente_nombre']) ? (string)$cheque['cliente_nombre'] : null
+        );
+
+        $this->db->prepare("UPDATE cheques SET estado = 'EN_CARTERA', asiento_cartera_id = ? WHERE id = ?")
+            ->execute([$asientoId, $id]);
+    }
+
+    /**
+     * Revierte la acreditación en banco: asiento inverso + egreso de caja.
+     */
+    private function revertirCobro(array $cheque, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+
+        $asientoId = !empty($cheque['asiento_cobro_id']) ? (int)$cheque['asiento_cobro_id'] : 0;
+        if ($asientoId <= 0) {
+            $asiento = $this->asientoModel->findByOrigen('CHEQUES', 'COBRADO', $id);
+            $asientoId = $asiento ? (int)$asiento['id'] : 0;
+        }
+
+        $reversoAsientoId = null;
+        if ($asientoId > 0) {
+            $reversoAsientoId = $this->asientoModel->anular($asientoId, $usuarioId);
+        }
+
+        $movimiento = null;
+        if (!empty($cheque['movimiento_caja_id'])) {
+            $movimiento = $this->cajaModel->findMovimiento((int)$cheque['movimiento_caja_id']);
+        }
+        if (!$movimiento && !empty($cheque['caja_banco_id'])) {
+            $movimiento = $this->cajaModel->getMovimientosByReferencia('CHEQUES', 'COBRADO', $id);
+        }
+
+        if ($movimiento) {
+            $this->cajaModel->registrarMovimiento([
+                'caja_banco_id'       => $movimiento['caja_banco_id'],
+                'fecha'               => date('Y-m-d'),
+                'tipo'                => 'EGRESO',
+                'monto'               => (float)$movimiento['monto'],
+                'descripcion'         => "Reverso cobro cheque #{$id}",
+                'asiento_contable_id' => $reversoAsientoId,
+                'referencia_modulo'   => 'CHEQUES',
+                'referencia_tipo'     => 'REVERSO_COBRO',
+                'referencia_id'       => $id,
+                'usuario_id'          => $usuarioId,
+            ]);
+        }
+
+        $this->db->prepare("
+            UPDATE cheques
+            SET fecha_acreditacion = NULL,
+                movimiento_caja_id = NULL,
+                asiento_cobro_id = NULL
+            WHERE id = ?
+        ")->execute([$id]);
+    }
+
+    /**
+     * Revierte el endoso: asiento inverso y baja lógica del movimiento de
+     * cuenta corriente de la empresa (la deuda con el proveedor vuelve).
+     */
+    private function revertirEndoso(array $cheque, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+
+        $asientoId = !empty($cheque['asiento_endoso_id']) ? (int)$cheque['asiento_endoso_id'] : 0;
+        if ($asientoId <= 0) {
+            $asiento = $this->asientoModel->findByOrigen('CHEQUES', 'ENDOSADO', $id);
+            $asientoId = $asiento ? (int)$asiento['id'] : 0;
+        }
+        if ($asientoId > 0) {
+            $this->asientoModel->anular($asientoId, $usuarioId);
+        }
+
+        $cceId = !empty($cheque['cuenta_corriente_empresa_id']) ? (int)$cheque['cuenta_corriente_empresa_id'] : 0;
+        if ($cceId <= 0) {
+            $stmt = $this->db->prepare("
+                SELECT id FROM cuentas_corrientes_empresa
+                WHERE referencia_tipo = 'ENDOSO_CHEQUE' AND referencia_id = ? AND activo = 1
+                ORDER BY id DESC LIMIT 1
+            ");
+            $stmt->execute([$id]);
+            $cceId = (int)$stmt->fetchColumn();
+        }
+        if ($cceId > 0) {
+            $this->db->prepare("UPDATE cuentas_corrientes_empresa SET activo = 0 WHERE id = ?")
+                ->execute([$cceId]);
+        }
+
+        $this->db->prepare("
+            UPDATE cheques
+            SET proveedor_id = NULL,
+                endosado_at = NULL,
+                cuenta_corriente_empresa_id = NULL,
+                asiento_endoso_id = NULL
+            WHERE id = ?
+        ")->execute([$id]);
+    }
+
+    /**
+     * Revierte el asiento de cartera del cheque.
+     */
+    private function revertirCartera(array $cheque, int $usuarioId): void
+    {
+        $id = (int)$cheque['id'];
+
+        $asientoId = !empty($cheque['asiento_cartera_id']) ? (int)$cheque['asiento_cartera_id'] : 0;
+        if ($asientoId <= 0) {
+            $asiento = $this->asientoModel->findByOrigen('CHEQUES', 'EN_CARTERA', $id);
+            $asientoId = $asiento ? (int)$asiento['id'] : 0;
+        }
+        if ($asientoId > 0) {
+            $this->asientoModel->anular($asientoId, $usuarioId);
+        }
+
+        $this->db->prepare("UPDATE cheques SET asiento_cartera_id = NULL WHERE id = ?")
+            ->execute([$id]);
+    }
+
+    private function setEstado(int $id, string $estado): void
+    {
+        $this->db->prepare("UPDATE cheques SET estado = ? WHERE id = ?")->execute([$estado, $id]);
+    }
+
+    /**
+     * Anula el cheque porque se anuló el cobro. No toca la cuenta corriente:
+     * eso lo hace Cobro::anular() con el débito de reversión.
+     */
+    public function anularCobro(int $pagoId, int $usuarioId): void
+    {
+        $cheque = $this->porPago($pagoId);
+        if (!$cheque) {
+            return;
+        }
+        if (strtoupper((string)$cheque['estado']) === 'ANULADO') {
+            return;
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $estado = strtoupper((string)$cheque['estado']);
+            if ($estado === 'COBRADO') {
+                $this->revertirCobro($cheque, $usuarioId);
+            } elseif ($estado === 'ENDOSADO') {
+                $this->revertirEndoso($cheque, $usuarioId);
+            }
+
+            $this->revertirCartera($cheque, $usuarioId);
+
+            $this->db->prepare("
+                UPDATE cheques
+                SET estado = 'ANULADO',
+                    proveedor_id = NULL,
+                    endosado_at = NULL,
+                    fecha_acreditacion = NULL,
+                    cuenta_corriente_empresa_id = NULL
+                WHERE id = ?
+            ")->execute([(int)$cheque['id']]);
+
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
+        } catch (Exception $e) {
+            if (!$inTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Compatibilidad con el nombre anterior.
+     */
+    public function anularPorPago(int $pagoId): void
+    {
+        $usuarioId = (int)($_SESSION['user_id'] ?? 0);
+        if ($usuarioId <= 0) {
+            throw new Exception('No se pudo identificar al usuario para anular el cheque.');
+        }
+        $this->anularCobro($pagoId, $usuarioId);
     }
 
     /**
@@ -353,6 +814,9 @@ class Cheque extends Model
         $cheque = $this->find($id);
         if (!$cheque) {
             throw new Exception('Cheque no encontrado.');
+        }
+        if (strtoupper((string)($cheque['estado'] ?? '')) === 'ANULADO' || !empty($cheque['pago_anulado'])) {
+            throw new Exception('No se puede editar un cheque anulado.');
         }
 
         $numero = trim((string)($data['numero'] ?? ''));
@@ -375,6 +839,14 @@ class Cheque extends Model
         }
         if ($monto <= 0) {
             throw new Exception('El monto del cheque debe ser mayor a cero.');
+        }
+        if (abs($monto - (float)$cheque['monto']) >= 0.01) {
+            throw new Exception('No se puede modificar el monto del cheque porque ya impactó en la cuenta corriente y en la contabilidad. Anulá el cobro y registrá uno nuevo.');
+        }
+
+        $nuevaCaja = !empty($data['caja_banco_id']) ? (int)$data['caja_banco_id'] : null;
+        if (($cheque['estado'] ?? '') === 'COBRADO' && (int)($cheque['caja_banco_id'] ?? 0) !== (int)($nuevaCaja ?? 0)) {
+            throw new Exception('El cheque ya está acreditado en una caja/banco. Para cambiarlo, volvé a cartera primero.');
         }
 
         $tipo = strtoupper((string)($data['tipo'] ?? 'FISICO'));
@@ -431,16 +903,8 @@ class Cheque extends Model
     }
 
     /**
-     * Anula el cheque asociado a un cobro anulado.
-     */
-    public function anularPorPago(int $pagoId): void
-    {
-        $this->db->prepare("UPDATE cheques SET estado = 'ANULADO' WHERE pago_id = ?")->execute([$pagoId]);
-    }
-
-    /**
-     * Cheques en cartera que vencen dentro de N días (o ya vencidos) y que
-     * todavía no fueron avisados hoy. Lo usa el cron de notificaciones.
+     * Cheques pendientes de acreditación que vencen dentro de N días (o ya
+     * vencidos) y que todavía no fueron avisados hoy. Lo usa el cron.
      */
     public function pendientesAviso(int $dias = 7, bool $ignorarAviso = false): array
     {
@@ -456,7 +920,7 @@ class Cheque extends Model
                    DATEDIFF(ch.fecha_vencimiento, CURDATE()) AS dias_restantes
             FROM cheques ch
             LEFT JOIN clientes c ON c.id = ch.cliente_id
-            WHERE ch.estado = 'EN_CARTERA'
+            WHERE ch.estado IN ('EN_CARTERA','DEPOSITADO')
               AND ch.fecha_vencimiento <= DATE_ADD(CURDATE(), INTERVAL {$dias} DAY)
               {$filtroAviso}
             ORDER BY ch.fecha_vencimiento ASC, ch.id ASC
@@ -476,5 +940,14 @@ class Cheque extends Model
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $this->db->prepare("UPDATE cheques SET ultimo_aviso_at = NOW() WHERE id IN ({$placeholders})");
         $stmt->execute($ids);
+    }
+
+    /**
+     * Proveedores activos para el formulario de endoso.
+     */
+    public function proveedoresActivos(): array
+    {
+        return $this->db->query("SELECT id, razon_social FROM proveedores WHERE activo = 1 ORDER BY razon_social")
+            ->fetchAll(PDO::FETCH_ASSOC);
     }
 }

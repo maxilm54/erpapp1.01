@@ -172,7 +172,7 @@ class CuentaCorrienteEmpresa extends Model
      */
     public function getBalance(array $filters = []): array
     {
-        $result = ['ingresos' => 0.0, 'gastos' => 0.0, 'balance' => 0.0];
+        $result = ['ingresos' => 0.0, 'gastos' => 0.0, 'endosos' => 0.0, 'balance' => 0.0];
 
         $sql = "SELECT tipo, COALESCE(SUM(monto), 0) AS total
                 FROM cuentas_corrientes_empresa
@@ -213,6 +213,9 @@ class CuentaCorrienteEmpresa extends Model
                 $result['ingresos'] = (float)$row['total'];
             } elseif ($row['tipo'] === 'GASTO') {
                 $result['gastos'] = (float)$row['total'];
+            } elseif ($row['tipo'] === 'ENDOSO') {
+                // El endoso no es caja: solo cancela deuda con proveedor.
+                $result['endosos'] = (float)$row['total'];
             }
         }
         $result['balance'] = $result['ingresos'] - $result['gastos'];
@@ -227,7 +230,7 @@ class CuentaCorrienteEmpresa extends Model
     {
         $sql = "SELECT p.id, p.razon_social,
                        COALESCE(SUM(CASE WHEN c.tipo = 'GASTO' THEN c.monto
-                                         WHEN c.tipo = 'INGRESO' THEN -c.monto END), 0) AS saldo
+                                         WHEN c.tipo IN ('INGRESO','ENDOSO') THEN -c.monto END), 0) AS saldo
                 FROM proveedores p
                 LEFT JOIN cuentas_corrientes_empresa c ON c.proveedor_id = p.id AND c.activo = 1
                 WHERE p.activo = 1

@@ -93,6 +93,13 @@ class CuentacorrienteempresaController extends Controller
     {
         validarId($id, BASE_URL . '/cuentacorrienteempresa');
 
+        $movimiento = $this->modelo->findById($id);
+        if ($movimiento && strtoupper((string)$movimiento['tipo']) === 'ENDOSO') {
+            $_SESSION['error'] = 'Los endosos de cheque se revierten desde la cartera de cheques.';
+            header('Location: ' . BASE_URL . '/cuentacorrienteempresa');
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
                 $_SESSION['error'] = 'Token CSRF invalido.';
@@ -121,7 +128,6 @@ class CuentacorrienteempresaController extends Controller
             exit;
         }
 
-        $movimiento = $this->modelo->findById($id);
         if (!$movimiento) {
             $_SESSION['error'] = 'Movimiento no encontrado.';
             header('Location: ' . BASE_URL . '/cuentacorrienteempresa');
@@ -139,6 +145,13 @@ class CuentacorrienteempresaController extends Controller
     public function delete(int $id): void
     {
         validarId($id, BASE_URL . '/cuentacorrienteempresa');
+
+        $movimiento = $this->modelo->findById($id);
+        if ($movimiento && strtoupper((string)$movimiento['tipo']) === 'ENDOSO') {
+            $_SESSION['error'] = 'Los endosos de cheque se revierten desde la cartera de cheques.';
+            header('Location: ' . BASE_URL . '/cuentacorrienteempresa');
+            exit;
+        }
 
         $this->modelo->delete($id);
         $_SESSION['success'] = 'Movimiento anulado.';

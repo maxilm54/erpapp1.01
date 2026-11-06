@@ -167,6 +167,12 @@ class AsientoContable extends Model{
         $original = $this->findById($asientoId);
         if (!$original) throw new Exception("Asiento no encontrado");
 
+        // Idempotencia: si ya existe el asiento inverso, no volver a anularlo.
+        $inverso = $this->findByOrigen('CONTABILIDAD', 'ASIENTO', $asientoId);
+        if ($inverso) {
+            return (int)$inverso['id'];
+        }
+
         $lineasInversas = [];
         foreach ($original['detalle'] as $linea) {
             $lineasInversas[] = [
