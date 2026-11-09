@@ -205,6 +205,7 @@ class User extends Model{
         $dsn = "mysql:host={$host};dbname={$tenantDbname};charset=utf8mb4";
         $tenantDb = new PDO($dsn, $config['user'], $config['pass'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '-03:00'", // hora argentina fija
         ]);
 
         $sql = "INSERT INTO users (id, nombre, email, password_hash, email_verificado, rol, activo, created_at, updated_at)

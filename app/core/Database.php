@@ -19,6 +19,9 @@ class Database{
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
+            // Hora argentina fija (-03:00) en la sesion: NOW() y CURRENT_TIMESTAMP
+            // quedan en hora local sin importar la zona del server de hosting.
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '-03:00'",
         ]);
     }
 

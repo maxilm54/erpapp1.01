@@ -174,6 +174,7 @@ class Tenant extends Model{
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
             PDO::MYSQL_ATTR_MULTI_STATEMENTS => true,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '-03:00'", // hora argentina fija
         ]);
 
         $schemaFile = BASE_PATH . '/app/helpers/squemadb/tenant_schema.sql';

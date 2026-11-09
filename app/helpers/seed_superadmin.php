@@ -17,6 +17,7 @@ echo "=== Creando usuario SuperAdmin ===\n\n";
 try {
     $pdo = new PDO("mysql:host={$dbHost};charset=utf8mb4", $dbUser, $dbPass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::MYSQL_ATTR_INIT_COMMAND => "SET time_zone = '-03:00'", // hora argentina fija
     ]);
 
     // Verificar que existe la BD
