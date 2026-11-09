@@ -129,6 +129,7 @@
                     <th>Creada por</th>
                     <th>Fecha</th>
                     <th>Completada</th>
+                    <th style="min-width:420px">Observaciones</th>
                     <th class="text-end">Acciones</th>
                 </tr>
             </thead>
@@ -153,6 +154,36 @@
                         <?php else: ?>
                             -
                         <?php endif; ?>
+                    </td>
+                    <?php $obs = $observaciones[(int)$t['id']] ?? []; $totalObs = (int)($observacionesPorTarea[(int)$t['id']] ?? 0); ?>
+                    <td>
+                        <?php if ($totalObs > 0): ?>
+                        <div class="mb-1">
+                            <span class="badge bg-info text-dark">
+                                <i class="bi bi-chat-left-text"></i> <?= $totalObs ?> observacion<?= $totalObs === 1 ? '' : 'es' ?>
+                            </span>
+                        </div>
+                        <div class="small border rounded p-2 bg-light" style="max-height:150px; overflow-y:auto">
+                            <?php foreach (array_reverse($obs) as $o): ?>
+                                <div class="py-1">
+                                    <i class="bi bi-clock-history text-muted"></i>
+                                    <span class="text-muted fw-semibold"><?= htmlspecialchars(substr((string)$o['created_at'], 0, 16)) ?></span>
+                                    &mdash; <span class="fw-semibold"><?= htmlspecialchars($o['usuario_nombre'] ?? '-') ?></span>
+                                    <div class="ps-4"><?= nl2br(htmlspecialchars($o['observacion'])) ?></div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                        <!-- Form para agregar observacion (tambien en tareas HECHA / cerradas) -->
+                        <form method="POST" action="<?= BASE_URL ?>/admin/tareas-observacion/<?= (int)$t['id'] ?>"
+                              class="d-flex gap-1 mt-1">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                            <input type="text" class="form-control form-control-sm" name="observacion" maxlength="1000"
+                                   placeholder="Agregar observacion (con fecha y hora)..." required>
+                            <button class="btn btn-sm btn-outline-success" title="Agregar observacion">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </form>
                     </td>
                     <td class="text-end">
                         <?php if ($t['estado'] === 'PENDIENTE'): ?>

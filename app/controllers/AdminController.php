@@ -591,6 +591,13 @@ class AdminController extends Controller{
         try {
             $tareas = $this->tareaModel()->all($filtros);
             $pendientes = $this->tareaModel()->countPendientes();
+            $observacionesPorTarea = $this->tareaModel()->countObservaciones();
+            $observaciones = [];
+            foreach ($tareas as $t) {
+                if (!empty($observacionesPorTarea[(int)$t['id']])) {
+                    $observaciones[(int)$t['id']] = $this->tareaModel()->getObservaciones((int)$t['id']);
+                }
+            }
         } catch (PDOException $e) {
             error_log('[Admin] Tabla de tareas no disponible: ' . $e->getMessage());
             $error = 'La tabla de tareas todavia no existe en la BD master. '
@@ -604,6 +611,8 @@ class AdminController extends Controller{
             'filtros'          => $filtros,
             'pendientes'       => $pendientes,
             'masterPendientes' => count($masterMm->getPending()),
+            'observacionesPorTarea' => $observacionesPorTarea ?? [],
+            'observaciones' => $observaciones ?? [],
             'error'            => $error,
         ]);
     }
@@ -685,6 +694,45 @@ class AdminController extends Controller{
             $this->tareaModel()->reabrir($id);
 
             $_SESSION['success'] = 'Tarea reabierta.';
+            header('Location: ' . BASE_URL . '/admin/tareas');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/tareas');
+        exit;
+    }
+
+    /**
+     * Agrega una observacion a una tarea (con fecha y hora automaticas).
+     * Permitido tanto en tareas pendientes como en tareas ya cerradas (HECHA).
+     */
+    public function tareasObservacion(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/tareas');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $texto = trim($_POST['observacion'] ?? '');
+            if($texto === ''){
+                $_SESSION['error'] = 'La observacion no puede quedar vacia.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            if($this->tareaModel()->findById($id) === null){
+                $_SESSION['error'] = 'La tarea no existe.';
+                header('Location: ' . BASE_URL . '/admin/tareas');
+                exit;
+            }
+
+            $this->tareaModel()->addObservacion($id, (int)($_SESSION['user_id'] ?? 0), $texto);
+
+            $_SESSION['success'] = 'Observacion agregada.';
             header('Location: ' . BASE_URL . '/admin/tareas');
             exit;
         }

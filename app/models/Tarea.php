@@ -101,6 +101,51 @@ class Tarea extends Model
         return $stmt->execute([':id' => $id]);
     }
 
+    /**
+     * Observaciones de una tarea, cada una con su fecha y hora.
+     */
+    public function getObservaciones(int $tareaId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT o.*, u.nombre AS usuario_nombre
+             FROM tareas_observaciones o
+             LEFT JOIN users u ON u.id = o.usuario_id
+             WHERE o.tarea_id = :tarea_id
+             ORDER BY o.created_at DESC, o.id DESC"
+        );
+        $stmt->execute([':tarea_id' => $tareaId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Cantidad de observaciones por tarea (para el listado).
+     */
+    public function countObservaciones(): array
+    {
+        $rows = $this->db->query(
+            "SELECT tarea_id, COUNT(*) AS total FROM tareas_observaciones GROUP BY tarea_id"
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $out = [];
+        foreach ($rows as $r) $out[(int)$r['tarea_id']] = (int)$r['total'];
+        return $out;
+    }
+
+    /**
+     * Agrega una observacion a la tarea (permitido tambien si esta HECHA).
+     */
+    public function addObservacion(int $tareaId, int $usuarioId, string $texto): bool
+    {
+        $stmt = $this->db->prepare(
+            "INSERT INTO tareas_observaciones (tarea_id, usuario_id, observacion)
+             VALUES (:tarea_id, :usuario_id, :observacion)"
+        );
+        return $stmt->execute([
+            ':tarea_id'    => $tareaId,
+            ':usuario_id'  => $usuarioId,
+            ':observacion' => $texto,
+        ]);
+    }
+
     public function delete(int $id): bool
     {
         $stmt = $this->db->prepare("DELETE FROM tareas WHERE id = :id");
