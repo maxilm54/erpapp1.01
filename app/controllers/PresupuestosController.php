@@ -5,6 +5,7 @@ require_once BASE_PATH.'/app/models/Presupuesto.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/services/MailService.php';
@@ -32,6 +33,8 @@ class PresupuestosController extends Controller
             'productos' => (new Producto())->all(),
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'cpCampos'  => (new Campopersonalizado())->porModulo('PRESUPUESTO'),
+            'cpValores' => [],
         ]);
     }
 
@@ -60,6 +63,13 @@ class PresupuestosController extends Controller
                     'items'        => $items,
                     'observaciones'=> $_POST['observaciones'] ?? ''
                 ]);
+
+                // Campos personalizados del formulario (config Empresa -> Configuraciones)
+                try {
+                    (new Campopersonalizado())->guardarDesdePost('PRESUPUESTO', (int)$id, $_POST['campos_cp'] ?? []);
+                } catch (Exception $e) {
+                    error_log('[Campos PR] ' . $e->getMessage());
+                }
 
                 // Adjuntos subidos en el form de creacion (config activa)
                 if ((new Configuracion())->activa('usar_adjuntos', false)
@@ -108,6 +118,8 @@ class PresupuestosController extends Controller
             'productos'   => (new Producto())->all(),
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'cpCampos'    => (new Campopersonalizado())->porModulo('PRESUPUESTO'),
+            'cpValores'   => (new Campopersonalizado())->valoresMapa('PRESUPUESTO', (int)$id),
         ]);
     }
 
@@ -136,6 +148,13 @@ class PresupuestosController extends Controller
                     'items'        => $items,
                     'observaciones'=> $_POST['observaciones'] ?? ''
                 ]);
+
+                // Campos personalizados del formulario (config Empresa -> Configuraciones)
+                try {
+                    (new Campopersonalizado())->guardarDesdePost('PRESUPUESTO', (int)$id, $_POST['campos_cp'] ?? []);
+                } catch (Exception $e) {
+                    error_log('[Campos PR] ' . $e->getMessage());
+                }
 
                 // Adjuntos nuevos subidos en el form de edicion (config activa)
                 if ((new Configuracion())->activa('usar_adjuntos', false)
@@ -216,6 +235,10 @@ class PresupuestosController extends Controller
 
                     $copiados = $adjuntos->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
 
+                    // Campos personalizados del presupuesto viajan a la NP (se ven
+                    // aunque la NP no tenga esos campos configurados)
+                    $cpHeredados = (new Campopersonalizado())->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
+
                     try {
                         $np->generarYGuardarPdf($npId);
                     } catch (Exception $e) {
@@ -223,7 +246,7 @@ class PresupuestosController extends Controller
                     }
 
                     $_SESSION['success'] = 'Presupuesto aprobado. Se generó automáticamente la NP #' . $npId
-                        . ' con ' . $copiados . ' adjunto(s) heredado(s).';
+                        . ' con ' . $copiados . ' adjunto(s) y ' . $cpHeredados . ' campo(s) adicional(es) heredado(s).';
                     header('Location: ' . BASE_URL . '/notaspedido/show/' . $npId);
                     exit;
                 }
@@ -291,6 +314,9 @@ class PresupuestosController extends Controller
             echo json_encode(['error' => 'Presupuesto no encontrado']);
             return;
         }
+
+        // Campos personalizados cargados en el presupuesto (los muestra el form de la NP)
+        $presupuesto['campos_personalizados'] = (new Campopersonalizado())->valoresVisibles('PRESUPUESTO', (int)$id);
 
         echo json_encode($presupuesto);
     }

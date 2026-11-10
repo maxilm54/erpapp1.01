@@ -27,6 +27,9 @@
 <?php $adjModulo = 'ORDEN_COMPRA'; $adjDocId = (int)$orden['id'];
       require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
 
+<?php $cpModulo = 'ORDEN_COMPRA'; $cpDocId = (int)$orden['id'];
+      require BASE_PATH . '/app/views/campos_personalizados/panel.php'; ?>
+
 <h5>Detalle</h5>
 <div class="table-scroll mt-3">
     <table class="table table-bordered table-striped">

@@ -145,6 +145,9 @@ $action = $isEdit
         <label>Observaciones:</label>
         <textarea name="observaciones" class="form-control" rows="4"><?= htmlspecialchars($presupuesto['observaciones'] ?? '') ?></textarea>
 
+        <?php $cpCampos = $cpCampos ?? []; $cpValores = $cpValores ?? [];
+              require BASE_PATH . '/app/views/campos_personalizados/inputs.php'; ?>
+
         <?php if (!empty($usarAdjuntos)): ?>
         <!-- Adjuntos (config Empresa -> Configuraciones) -->
         <div class="card border-secondary mt-3">

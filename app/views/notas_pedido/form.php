@@ -17,6 +17,11 @@
     <select name="presupuesto_id" id="presupuesto_id" class="form-control mb-3">
         <option value="">Sin presupuesto</option>
     </select>
+    <div id="campos_presupuesto" class="alert alert-info py-2 small d-none">
+        <strong><i class="bi bi-card-list"></i> Información adicional del presupuesto</strong>
+        <ul id="campos_presupuesto_lista" class="mb-0 ps-3"></ul>
+    </div>
+
     <input type="text" id="buscador-producto" class="form-control" placeholder="Buscar producto...">
     <button type="button" class="btn btn-success" id="btn-agregar">+</button>
 
@@ -80,6 +85,9 @@
         <label>Observaciones</label>
         <textarea name="observaciones" class="form-control"></textarea>
     </div>
+
+    <?php $cpCampos = $cpCampos ?? []; $cpValores = $cpValores ?? [];
+          require BASE_PATH . '/app/views/campos_personalizados/inputs.php'; ?>
 
     <?php if (!empty($usarAdjuntos)): ?>
     <div class="card border-secondary mb-3">
@@ -156,11 +164,36 @@ document.getElementById('presupuesto_id').addEventListener('change', function ()
             }
 
             cargarLineasDesdePresupuesto(data.detalle);
+            cargarCamposPresupuesto(data.campos_personalizados || []);
         });
 });
 
+// Información adicional cargada en el presupuesto elegido (se hereda al guardar la NP)
+function cargarCamposPresupuesto(campos) {
+    const cont = document.getElementById('campos_presupuesto');
+    const lista = document.getElementById('campos_presupuesto_lista');
+    if (!cont || !lista) return;
+
+    lista.innerHTML = '';
+    if (!campos.length) {
+        cont.classList.add('d-none');
+        return;
+    }
+    campos.forEach(cp => {
+        const li = document.createElement('li');
+        li.textContent = `${cp.campo_nombre}: ${cp.valor}`;
+        lista.appendChild(li);
+    });
+    cont.classList.remove('d-none');
+}
+
 function limpiarDetalle() {
     document.getElementById('detalle').innerHTML = '';
+    const cont = document.getElementById('campos_presupuesto');
+    if (cont) {
+        cont.classList.add('d-none');
+        document.getElementById('campos_presupuesto_lista').innerHTML = '';
+    }
 }
 
 // 🧾 Cargar líneas

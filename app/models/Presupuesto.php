@@ -6,6 +6,7 @@ use Dompdf\Options;
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Cliente.php';
 require_once BASE_PATH . '/app/models/Configuracion.php';
+require_once BASE_PATH . '/app/models/Campopersonalizado.php';
 
 class Presupuesto extends Model
 {
@@ -373,6 +374,9 @@ class Presupuesto extends Model
         ");
         $stmt->execute([$id]);
         $presupuesto['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Campos personalizados con valores (para el PDF)
+        $presupuesto['campos_personalizados'] = (new Campopersonalizado())->valoresVisibles('PRESUPUESTO', (int)$id);
 
         $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>''];
         $logo = '';

@@ -5,6 +5,7 @@ require_once BASE_PATH.'/app/models/Proveedor.php';
 require_once BASE_PATH.'/app/models/Materiaprima.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
 
 class OrdenesCompraController extends Controller
@@ -132,6 +133,13 @@ class OrdenesCompraController extends Controller
                     }
                 }
 
+                // Campos personalizados del formulario (config Empresa -> Configuraciones)
+                try {
+                    (new Campopersonalizado())->guardarDesdePost('ORDEN_COMPRA', (int)$ocId, $_POST['campos_cp'] ?? []);
+                } catch (Exception $e) {
+                    error_log('[Campos OC] ' . $e->getMessage());
+                }
+
                 header('Location: '.BASE_URL.'/ordenescompra');
                 exit;
 
@@ -145,7 +153,9 @@ class OrdenesCompraController extends Controller
             'title'=>'Nueva Orden de Compra',
             'proveedores'=>(new Proveedor())->all(),
             'materias_primas'=>(new MateriaPrima())->all(),
-            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false)
+            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false),
+            'cpCampos' => (new Campopersonalizado())->porModulo('ORDEN_COMPRA'),
+            'cpValores' => []
         ]);
     }
 
@@ -202,6 +212,14 @@ class OrdenesCompraController extends Controller
             }
 
             $this->oc->update($id, $_POST);
+
+            // Campos personalizados del formulario (config Empresa -> Configuraciones)
+            try {
+                (new Campopersonalizado())->guardarDesdePost('ORDEN_COMPRA', (int)$id, $_POST['campos_cp'] ?? []);
+            } catch (Exception $e) {
+                error_log('[Campos OC] ' . $e->getMessage());
+            }
+
             header('Location: '.BASE_URL.'/ordenescompra');
             exit;
         }
@@ -227,7 +245,9 @@ class OrdenesCompraController extends Controller
             'detalle'          => $orden['detalle'],
             'materias_primas'  => $this->oc->materiasPrimas(), // 👈 CLAVE
             'proveedores'      => $this->oc->proveedores(),
-            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false)
+            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false),
+            'cpCampos'         => (new Campopersonalizado())->porModulo('ORDEN_COMPRA'),
+            'cpValores'        => (new Campopersonalizado())->valoresMapa('ORDEN_COMPRA', (int)$id)
         ]);
     }
 

@@ -102,6 +102,10 @@ if (!$remito) {
         $detalle = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $remito['detalle'] = $detalle;
 
+        // Campos personalizados con valores (para el PDF)
+        require_once BASE_PATH . '/app/models/Campopersonalizado.php';
+        $remito['campos_personalizados'] = (new Campopersonalizado())->valoresVisibles('REMITO_SALIDA', (int)$remitoId);
+
         // Cargar empresa directamente del master DB - sin depender de Auth/tenant
         $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>'', 'logo_file'=>null];
         $logo = '';

@@ -99,6 +99,9 @@ $esManual = empty($remito['idNpRem']);
 <?php $adjModulo = 'REMITO_SALIDA'; $adjDocId = (int)$remito['NumRem'];
       require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
 
+<?php $cpModulo = 'REMITO_SALIDA'; $cpDocId = (int)$remito['NumRem'];
+      require BASE_PATH . '/app/views/campos_personalizados/panel.php'; ?>
+
 <!-- Detalle de items -->
 <div class="card mb-3">
     <div class="card-header">

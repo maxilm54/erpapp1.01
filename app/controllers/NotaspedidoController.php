@@ -4,6 +4,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
 require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 
@@ -32,6 +33,8 @@ class NotasPedidoController extends Controller
             'presupuestos' => [],
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'cpCampos'     => (new Campopersonalizado())->porModulo('NOTA_PEDIDO'),
+            'cpValores'    => [],
         ]);
     }
 
@@ -53,6 +56,23 @@ class NotasPedidoController extends Controller
                     'items'        => $_POST['items'] ?? [],
                     'observaciones' => $_POST['observaciones'] ?? ''
                 ]);
+
+                // Campos personalizados: primero heredar los del presupuesto elegido
+                // (se ven en la NP aunque ahi no esten configurados) y luego guardar
+                // los propios del form de la NP.
+                try {
+                    $cp = new Campopersonalizado();
+                    $prIdOrigen = (int)($_POST['presupuesto_id'] ?? 0);
+                    $cpHeredados = $prIdOrigen > 0
+                        ? $cp->copiarTodos('PRESUPUESTO', $prIdOrigen, 'NOTA_PEDIDO', (int)$id)
+                        : 0;
+                    $cp->guardarDesdePost('NOTA_PEDIDO', (int)$id, $_POST['campos_cp'] ?? []);
+                    if ($cpHeredados > 0) {
+                        $_SESSION['success'] = "Nota de pedido creada con {$cpHeredados} campo(s) adicional(es) heredado(s) del presupuesto.";
+                    }
+                } catch (Exception $e) {
+                    error_log('[Campos NP] ' . $e->getMessage());
+                }
 
                 // Adjuntos subidos en el form de creacion (config activa)
                 if ((new Configuracion())->activa('usar_adjuntos', false)

@@ -4,6 +4,7 @@ require_once BASE_PATH.'/app/models/Remitosalida.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Deposito.php';
+require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller
 {
@@ -163,6 +164,14 @@ class RemitosSalidaController extends Controller
                     $itemsManuales
                 );
                 error_log('Remito de Salida creado con ID: ' . $id . ' - ' . __FILE__ . ':' . __LINE__);
+
+                // Campos personalizados del formulario (config Empresa -> Configuraciones)
+                try {
+                    (new Campopersonalizado())->guardarDesdePost('REMITO_SALIDA', (int)$id, $_POST['campos_cp'] ?? []);
+                } catch (Exception $e) {
+                    error_log('[Campos Remito] ' . $e->getMessage());
+                }
+
                 // GENERAR Y GUARDA PDF AUTOMÁTICO (antes descargaba auto ahora no por seguridad)
                 //$this->model->generarPdf($id); -> obsoleto, ahora lo hago y lo guardo en la db
                 $this->model->generarYGuardarPdf($id);
@@ -179,7 +188,9 @@ class RemitosSalidaController extends Controller
 
         $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
             'np' => $np,
-            'depositos' => (new Deposito())->allSeleccionables()
+            'depositos' => (new Deposito())->allSeleccionables(),
+            'cpCampos' => (new Campopersonalizado())->porModulo('REMITO_SALIDA'),
+            'cpValores' => []
         ]);
     }
 

@@ -1,6 +1,7 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Configuracion.php';
+require_once BASE_PATH . '/app/models/Campopersonalizado.php';
 
 /**
  * Menu de Configuraciones del tenant (Empresa -> Configuraciones).
@@ -25,12 +26,20 @@ class ConfiguracionesController extends Controller
         $this->requireEmpresaAdmin();
 
         $config = new Configuracion();
+        $camposModel = new Campopersonalizado();
+
+        $camposPorModulo = [];
+        foreach (Campopersonalizado::MODULOS as $modulo) {
+            $camposPorModulo[$modulo] = $camposModel->porModulo($modulo);
+        }
+
         $this->view('configuraciones/index', [
             'title'     => 'Configuraciones',
             'config'    => $config->all(),
             'nomenclador' => $config->activa('usar_nomenclador', true),
             'usarAdjuntos' => $config->activa('usar_adjuntos', false),
             'usarAdjuntosCompra' => $config->activa('usar_adjuntos_compra', false),
+            'camposPorModulo' => $camposPorModulo,
         ]);
     }
 
@@ -67,6 +76,106 @@ class ConfiguracionesController extends Controller
             $_SESSION['success'] = 'Configuraciones guardadas correctamente.';
             header('Location: ' . BASE_URL . '/configuraciones');
             exit;
+        }
+
+        header('Location: ' . BASE_URL . '/configuraciones');
+        exit;
+    }
+
+    // =====================================================
+    // Campos personalizados por modulo
+    // =====================================================
+
+    /**
+     * Alta de un campo personalizado (modulo + nombre + tipo).
+     */
+    public function campoAgregar(): void
+    {
+        $this->requireEmpresaAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/configuraciones');
+                exit;
+            }
+
+            try {
+                $nombre = (string)($_POST['cp_nombre'] ?? '');
+                (new Campopersonalizado())->crear(
+                    (string)($_POST['cp_modulo'] ?? ''),
+                    $nombre,
+                    (string)($_POST['cp_tipo'] ?? 'texto')
+                );
+                $_SESSION['success'] = "Campo '{$nombre}' agregado. Ya aparece en el formulario del módulo.";
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+            }
+        }
+
+        header('Location: ' . BASE_URL . '/configuraciones');
+        exit;
+    }
+
+    /**
+     * Renombra / cambia el tipo de un campo personalizado.
+     */
+    public function campoEditar($id): void
+    {
+        $this->requireEmpresaAdmin();
+        validarId($id, BASE_URL . '/configuraciones');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/configuraciones');
+                exit;
+            }
+
+            try {
+                $nombre = (string)($_POST['cp_nombre'] ?? '');
+                $tipo   = (string)($_POST['cp_tipo'] ?? 'texto');
+                $campos = new Campopersonalizado();
+
+                // Unicidad de nombre dentro del modulo (sin contar este campo)
+                $campo = $campos->find((int)$id);
+                if ($campo) {
+                    foreach ($campos->porModulo($campo['modulo']) as $otro) {
+                        if ((int)$otro['id'] !== (int)$id && mb_strtolower(trim($otro['nombre'])) === mb_strtolower(trim($nombre))) {
+                            throw new Exception("Ya existe otro campo '{$nombre}' en ese módulo.");
+                        }
+                    }
+                }
+
+                $campos->actualizar((int)$id, $nombre, $tipo);
+                $_SESSION['success'] = "Campo actualizado a '{$nombre}'. Los valores ya guardados no se pierden.";
+            } catch (Exception $e) {
+                $_SESSION['error'] = $e->getMessage();
+            }
+        }
+
+        header('Location: ' . BASE_URL . '/configuraciones');
+        exit;
+    }
+
+    /**
+     * Baja logica del campo: deja de aparecer en los formularios. Los valores ya
+     * guardados siguen visibles en los documentos (snapshot del nombre).
+     */
+    public function campoEliminar($id): void
+    {
+        $this->requireEmpresaAdmin();
+        validarId($id, BASE_URL . '/configuraciones');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/configuraciones');
+                exit;
+            }
+
+            (new Campopersonalizado())->eliminar((int)$id);
+            $_SESSION['success'] = 'Campo eliminado de los formularios. Los valores ya guardados siguen visibles en los documentos.';
         }
 
         header('Location: ' . BASE_URL . '/configuraciones');

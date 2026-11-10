@@ -106,6 +106,9 @@
     <textarea name="observaciones" class="form-control"></textarea>
 </div>
 
+<?php $cpCampos = $cpCampos ?? []; $cpValores = $cpValores ?? [];
+      require BASE_PATH . '/app/views/campos_personalizados/inputs.php'; ?>
+
 <button class="btn btn-success">Confirmar Remito</button>
 <a href="<?= BASE_URL ?>/notaspedido/show/<?= $np['id'] ?>" class="btn btn-secondary">Ver NP</a>
 

@@ -46,6 +46,9 @@
     <?php $adjModulo = 'PRESUPUESTO'; $adjDocId = (int)$presupuesto['id'];
           require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
 
+    <?php $cpModulo = 'PRESUPUESTO'; $cpDocId = (int)$presupuesto['id'];
+          require BASE_PATH . '/app/views/campos_personalizados/panel.php'; ?>
+
     <div class="table-scroll mt-3 table-responsive">
         <table class="table table-bordered align-middle">
             <thead class="table-light">

@@ -160,6 +160,23 @@
     </tbody>
 </table>
 
+<!-- INFORMACION ADICIONAL (campos personalizados) -->
+<?php if (!empty($remito['campos_personalizados'])): ?>
+<div class="observaciones">
+    <div class="seccion-titulo">Información Adicional</div>
+    <table class="productos-tabla" style="margin-bottom:0;">
+        <tbody>
+        <?php foreach ($remito['campos_personalizados'] as $cp): ?>
+            <tr>
+                <td style="width:40%;"><strong><?= htmlspecialchars($cp['campo_nombre'] ?? '') ?></strong></td>
+                <td><?= htmlspecialchars((string)$cp['valor']) ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+</div>
+<?php endif; ?>
+
 <!-- OBSERVACIONES -->
 <?php if (!empty(trim($remito['observaciones'] ?? ''))): ?>
 <div class="observaciones">

@@ -20,6 +20,9 @@
         <textarea name="observaciones" class="form-control" rows="2" placeholder="Información adicional..."><?= isset($orden['observaciones']) ? htmlspecialchars($orden['observaciones']) : '' ?></textarea>
     </div>
 
+    <?php $cpCampos = $cpCampos ?? []; $cpValores = $cpValores ?? [];
+          require BASE_PATH . '/app/views/campos_personalizados/inputs.php'; ?>
+
     <h5>Detalle</h5>
     
     <div class="row mb-3">

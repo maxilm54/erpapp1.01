@@ -6,6 +6,7 @@ use Dompdf\Options;
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Cliente.php';
 require_once BASE_PATH . '/app/models/Configuracion.php';
+require_once BASE_PATH . '/app/models/Campopersonalizado.php';
 
 class NotaPedido extends Model
 {
@@ -357,6 +358,9 @@ class NotaPedido extends Model
         ");
         $stmt->execute([$id]);
         $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Campos personalizados con valores (incluye los heredados del presupuesto)
+        $np['campos_personalizados'] = (new Campopersonalizado())->valoresVisibles('NOTA_PEDIDO', (int)$id);
 
         $empresa = ['nombre'=>'', 'cuit'=>'', 'email'=>'', 'telefono'=>'', 'direccion'=>'', 'logo'=>''];
         $logo = '';
