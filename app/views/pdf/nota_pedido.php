@@ -85,6 +85,9 @@
             <td class="hdr-der">
                 <div class="doc-numero">N° <?= $np['id'] ?></div>
                 <div class="doc-fecha">Fecha: <?= date('d/m/Y', strtotime($np['created_at'])) ?></div>
+                <?php if (!empty($np['fecha_entrega'])): ?>
+                <div class="doc-fecha">Entrega: <?= date('d/m/Y', strtotime($np['fecha_entrega'])) ?></div>
+                <?php endif; ?>
             </td>
         </tr>
     </table>

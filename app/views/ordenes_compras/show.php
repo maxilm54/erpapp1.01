@@ -13,6 +13,9 @@
     <div class="card-body">
         <p><strong>Proveedor:</strong> <?= htmlspecialchars($orden['razon_social']) ?></p>
         <p><strong>Fecha:</strong> <?= date('d/m/Y', strtotime($orden['created_at'])) ?></p>
+        <?php if (!empty($orden['fecha_entrega'])): ?>
+            <p><strong>Entrega comprometida:</strong> <?= date('d/m/Y', strtotime($orden['fecha_entrega'])) ?></p>
+        <?php endif; ?>
         <?php if (!empty($orden['aprobada_at'])): ?>
             <p class="mb-1"><strong>Aprobada:</strong> <?= date('d/m/Y H:i', strtotime($orden['aprobada_at'])) ?>
                 por <?= htmlspecialchars($orden['aprobado_por_nombre'] ?? 'N/D') ?></p>

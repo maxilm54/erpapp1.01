@@ -369,6 +369,11 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   - **Endosado** saca el cheque de cartera y cancela deuda con un proveedor vía Cta. Cte. Empresa (`tipo = ENDOSO`), sin pasar por banco.
   - **Rechazado** revierte la acreditación y vuelve a debitar al cliente. Para anular el cheque hay que anular el cobro.
   - Avisos por email: `php app/helpers/notificar_cheques.php --dias=7` (cron diario). Usa el SMTP del tenant y avisa una vez por día por cheque.
+- **Fechas de entrega comprometidas** (migración 034): campo **opcional** `fecha_entrega` en Presupuestos, Notas de Pedido y Órdenes de Compra (columna `aviso_entrega_at` marca el último aviso).
+  - Se carga en los formularios de creación/edición; si el presupuesto elegido en la NP tiene fecha de entrega, se pre-carga en el form, y la NP automática que nace al aprobar un presupuesto la hereda.
+  - Se muestra en el listado, la vista, y el PDF del presupuesto y la NP.
+  - Avisos por email: `php app/helpers/notificar_entregas.php --dias=7` (cron diario, mismo esquema que cheques: SMTP del tenant, una vez por día por documento, `--tenant=`, `--email=`, `--force`, `--dry-run`).
+    - Avisa presupuestos (`BORRADOR`/`APROBADO` y aún `LIBRE`, la entrega ya la sigue la NP), notas de pedido no remitidas por completo y órdenes de compra `PENDIENTE`/`APROBADA`/`PARCIAL`.
 - **Pagos a Proveedores**: Similar a cobros pero para egresos.
 - **Cta. Corriente de la Empresa** (`/cuentacorrienteempresa`): libro de movimientos de la empresa.
   - `INGRESO` = entra dinero a la empresa; `GASTO` = sale dinero. Saldo = ingresos - gastos.

@@ -26,6 +26,19 @@ class PresupuestosController extends Controller
         ]);
     }
 
+    /**
+     * Fecha de entrega comprometida (opcional) desde el form: solo acepta un
+     * YYYY-MM-DD valido, cualquier otra cosa entra como NULL. La usa store/update.
+     */
+    private function fechaEntregaDesdePost(): ?string
+    {
+        $fecha = trim((string)($_POST['fecha_entrega'] ?? ''));
+        if ($fecha === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return null;
+        }
+        return $fecha;
+    }
+
     public function create()
     {
         $this->view('presupuestos/form', [
@@ -61,7 +74,8 @@ class PresupuestosController extends Controller
                     'cliente_id'   => (int) $_POST['cliente_id'],
                     'usuario_id'   => $_SESSION['user_id'],
                     'items'        => $items,
-                    'observaciones'=> $_POST['observaciones'] ?? ''
+                    'observaciones'=> $_POST['observaciones'] ?? '',
+                    'fecha_entrega'=> $this->fechaEntregaDesdePost()
                 ]);
 
                 // Campos personalizados del formulario (config Empresa -> Configuraciones)
@@ -146,7 +160,8 @@ class PresupuestosController extends Controller
                 $this->pr->update($id, [
                     'cliente_id'   => $_POST['cliente_id'],
                     'items'        => $items,
-                    'observaciones'=> $_POST['observaciones'] ?? ''
+                    'observaciones'=> $_POST['observaciones'] ?? '',
+                    'fecha_entrega'=> $this->fechaEntregaDesdePost()
                 ]);
 
                 // Campos personalizados del formulario (config Empresa -> Configuraciones)
@@ -228,6 +243,7 @@ class PresupuestosController extends Controller
                     'usuario_id'     => $_SESSION['user_id'],
                     'items'          => $items,
                     'observaciones'  => $presupuesto['observaciones'] ?? '',
+                    'fecha_entrega'  => $presupuesto['fecha_entrega'] ?? null,
                 ]);
 
                 // El presupuesto queda asignado a esta NP: no vuelve a aparecer en

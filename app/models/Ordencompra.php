@@ -16,13 +16,14 @@ class OrdenCompra extends Model
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(
-            "INSERT INTO ordenes_compra (proveedor_id, observaciones, usuario_id)
-             VALUES (:p, :obs, :u)"
+            "INSERT INTO ordenes_compra (proveedor_id, observaciones, usuario_id, fecha_entrega)
+             VALUES (:p, :obs, :u, :fe)"
         );
         $stmt->execute([
             'p' => $data['proveedor_id'],
             'obs' => $data['observaciones'] ?? null,
-            'u' => $data['usuario_id']
+            'u' => $data['usuario_id'],
+            'fe' => $data['fecha_entrega'] ?? null
         ]);
 
         return (int)$this->db->lastInsertId();
@@ -166,11 +167,12 @@ class OrdenCompra extends Model
             // 1️⃣ Actualizar cabecera
             $this->db->prepare(
                 "UPDATE ordenes_compra
-                SET proveedor_id = :p, observaciones = :obs
+                SET proveedor_id = :p, observaciones = :obs, fecha_entrega = :fe
                 WHERE id = :id AND estado = 'PENDIENTE'"
             )->execute([
                 'p'  => $data['proveedor_id'],
                 'obs' => $data['observaciones'] ?? null,
+                'fe' => $data['fecha_entrega'] ?? null,
                 'id' => $id
             ]);
 
@@ -340,7 +342,49 @@ class OrdenCompra extends Model
             $this->db->rollBack();
             error_log('Error al agregar la cantidad de una mp en una oc(proceso desde creacion con faltantes), '.$e->getMessage().'-'.__FILE__.'-'.__LINE__);
         }
-        
+
     }
-    
+
+    /**
+     * Ordenes de compra con fecha de entrega comprometida que vencen dentro de N dias
+     * (o ya vencidas) y que todavia no fueron avisadas hoy. Lo usa el cron
+     * app/helpers/notificar_entregas.php. Solo ordenes vivas que no se recibieron
+     * por completo y no estan anuladas.
+     */
+    public function pendientesAvisoEntrega(int $dias = 7, bool $ignorarAviso = false): array
+    {
+        $dias = max(0, $dias);
+        $filtroAviso = $ignorarAviso
+            ? ''
+            : 'AND (oc.aviso_entrega_at IS NULL OR DATE(oc.aviso_entrega_at) < CURDATE())';
+
+        return $this->db->query("
+            SELECT oc.id, oc.fecha_entrega, oc.estado,
+                   DATEDIFF(oc.fecha_entrega, CURDATE()) AS dias_restantes,
+                   p.razon_social
+            FROM ordenes_compra oc
+            JOIN proveedores p ON p.id = oc.proveedor_id
+            WHERE oc.fecha_entrega IS NOT NULL
+              AND oc.estado IN ('PENDIENTE','APROBADA','PARCIAL')
+              AND oc.fecha_entrega <= DATE_ADD(CURDATE(), INTERVAL {$dias} DAY)
+              {$filtroAviso}
+            ORDER BY oc.fecha_entrega ASC, oc.id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Marca las ordenes de compra avisadas para no repetir el mail el mismo dia.
+     */
+    public function marcarAvisadosEntrega(array $ids): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("UPDATE ordenes_compra SET aviso_entrega_at = NOW() WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
+    }
+
 }

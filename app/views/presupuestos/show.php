@@ -37,6 +37,9 @@
     <div class="mb-3">
         <strong>Cliente:</strong> <?= htmlspecialchars($presupuesto['razon_social']) ?><br>
         <strong>Fecha:</strong> <?= date('d/m/Y', strtotime($presupuesto['created_at'])) ?><br>
+        <?php if (!empty($presupuesto['fecha_entrega'])): ?>
+        <strong>Entrega comprometida:</strong> <?= date('d/m/Y', strtotime($presupuesto['fecha_entrega'])) ?><br>
+        <?php endif; ?>
         <strong>Estado:</strong>
         <span class="badge bg-<?= $presupuesto['estado'] === 'APROBADO' ? 'success' : 'secondary' ?>">
             <?= $presupuesto['estado'] ?>

@@ -13,6 +13,12 @@
         <strong id="hint_nomenclador_valor"></strong>:
         los productos se identificarán como <code>SKU-<span id="hint_nomenclador_sufijo"></span></code>.
     </div>
+    <label class="mt-3">Fecha de entrega comprometida <small class="text-muted">(opcional)</small></label>
+    <input type="date" name="fecha_entrega" id="fecha_entrega" class="form-control" style="max-width: 220px;">
+    <div class="small text-muted">
+        Si la carga, entra en los avisos automáticos de entregas. Si elige un presupuesto con fecha
+        de entrega, se pre-carga acá.
+    </div>
     <label class="mt-3">Presupuesto (opcional)</label>
     <select name="presupuesto_id" id="presupuesto_id" class="form-control mb-3">
         <option value="">Sin presupuesto</option>
@@ -165,6 +171,14 @@ document.getElementById('presupuesto_id').addEventListener('change', function ()
 
             cargarLineasDesdePresupuesto(data.detalle);
             cargarCamposPresupuesto(data.campos_personalizados || []);
+
+            // Fecha de entrega comprometida del presupuesto: se pre-carga si el campo esta vacio
+            if (data.fecha_entrega) {
+                const fecha = document.getElementById('fecha_entrega');
+                if (fecha && !fecha.value) {
+                    fecha.value = data.fecha_entrega;
+                }
+            }
         });
 });
 

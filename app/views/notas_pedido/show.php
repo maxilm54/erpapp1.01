@@ -2,6 +2,9 @@
 
 <p><strong>Cliente:</strong> <?= $np['razon_social'] ?></p>
 <p><strong>Estado:</strong> <?= $np['estado'] ?></p>
+<?php if (!empty($np['fecha_entrega'])): ?>
+    <p><strong>Entrega comprometida:</strong> <?= date('d/m/Y', strtotime($np['fecha_entrega'])) ?></p>
+<?php endif; ?>
 <?php if ($np['estado'] === 'ANULADA'): ?>
     <div class="alert alert-danger">
         <strong>Nota de Pedido ANULADA</strong><br>

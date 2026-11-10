@@ -9,6 +9,7 @@
                 <th>Cliente</th>
                 <th>Estado</th>
                 <th>Fecha</th>
+                <th>Entrega</th>
                 <th>Ver/Remitar</th>
             </tr>
         </thead>
@@ -19,6 +20,7 @@
                 <td><?= $n['razon_social'] ?></td>
                 <td><?= $n['estado'] ?></td>
                 <td><?= date('d/m/Y', strtotime($n['created_at'])) ?></td>
+                <td><?= !empty($n['fecha_entrega']) ? date('d/m/Y', strtotime($n['fecha_entrega'])) : '&mdash;' ?></td>
                 <td>
                     <a href="<?= BASE_URL ?>/notaspedido/show/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Ver</a>
                     <?php if ($n['remitido'] !== 'RemitidoCompleto'): ?>

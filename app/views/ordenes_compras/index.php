@@ -12,6 +12,7 @@
         <th>#</th>
         <th>Proveedor</th>
         <th>Fecha</th>
+        <th>Entrega</th>
         <th>Estado</th>
         <th>Acciones</th>
     </tr>
@@ -22,6 +23,7 @@
         <td><?= $oc['id'] ?></td>
         <td><?= htmlspecialchars($oc['razon_social']) ?></td>
         <td><?= date('d/m/Y', strtotime($oc['created_at'])) ?></td>
+        <td><?= !empty($oc['fecha_entrega']) ? date('d/m/Y', strtotime($oc['fecha_entrega'])) : '&mdash;' ?></td>
         <td>
             <?php if ($oc['estado'] === 'PENDIENTE'): ?>
                 <span class="badge bg-secondary">PENDIENTE</span>

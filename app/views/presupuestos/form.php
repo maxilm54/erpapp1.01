@@ -32,6 +32,16 @@ $action = $isEdit
             </div>
         </div>
 
+        <!-- Fecha de entrega comprometida (opcional) -->
+        <div class="mb-3">
+            <label class="form-label">Fecha de entrega comprometida <small class="text-muted">(opcional)</small></label>
+            <input type="date" name="fecha_entrega" class="form-control" style="max-width: 220px;"
+                   value="<?= htmlspecialchars($presupuesto['fecha_entrega'] ?? '') ?>">
+            <div class="form-text">
+                Si la carga, entra en los avisos automáticos de entregas mientras el presupuesto siga abierto.
+            </div>
+        </div>
+
         <!-- Detalle -->
         <h5 class="mt-4">Detalle</h5>
 

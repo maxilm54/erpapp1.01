@@ -13,6 +13,7 @@
                     <th>#</th>
                     <th>Cliente</th>
                     <th>Fecha</th>
+                    <th>Entrega</th>
                     <th>Estado</th>
                     <th class="text-center">Acciones</th>
                 </tr>
@@ -23,6 +24,7 @@
                     <td><?= $p['id'] ?></td>
                     <td><?= htmlspecialchars($p['razon_social']) ?></td>
                     <td><?= date('d/m/Y', strtotime($p['created_at'])) ?></td>
+                    <td><?= !empty($p['fecha_entrega']) ? date('d/m/Y', strtotime($p['fecha_entrega'])) : '&mdash;' ?></td>
                     <td>
                         <span class="badge bg-<?= $p['estado'] === 'APROBADO' ? 'success' : 'secondary' ?>">
                             <?= $p['estado'] ?>

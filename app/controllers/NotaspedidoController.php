@@ -49,12 +49,18 @@ class NotasPedidoController extends Controller
                 exit;
             }
             try {
+                $fechaEntrega = trim((string)($_POST['fecha_entrega'] ?? ''));
+                if ($fechaEntrega === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaEntrega)) {
+                    $fechaEntrega = null;
+                }
+
                 $id = $this->np->create([
                     'cliente_id'   => $_POST['cliente_id'],
                     'presupuesto_id' => $_POST['presupuesto_id'] ?: null,
                     'usuario_id'   => $_SESSION['user_id'],
                     'items'        => $_POST['items'] ?? [],
-                    'observaciones' => $_POST['observaciones'] ?? ''
+                    'observaciones' => $_POST['observaciones'] ?? '',
+                    'fecha_entrega' => $fechaEntrega
                 ]);
 
                 // Campos personalizados: primero heredar los del presupuesto elegido

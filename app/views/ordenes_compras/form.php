@@ -16,6 +16,15 @@
     </div>
 
     <div class="mb-3">
+        <label class="form-label">Fecha de entrega comprometida <small class="text-muted">(opcional)</small></label>
+        <input type="date" name="fecha_entrega" class="form-control" style="max-width: 220px;"
+               value="<?= htmlspecialchars($orden['fecha_entrega'] ?? '') ?>">
+        <div class="form-text">
+            Si la carga, entra en los avisos automáticos de recepciones atrasadas mientras la orden siga pendiente/aprobada.
+        </div>
+    </div>
+
+    <div class="mb-3">
         <label class="form-label">Observaciones</label>
         <textarea name="observaciones" class="form-control" rows="2" placeholder="Información adicional..."><?= isset($orden['observaciones']) ? htmlspecialchars($orden['observaciones']) : '' ?></textarea>
     </div>

@@ -103,13 +103,14 @@ class Presupuesto extends Model
         try { 
             //cabecera
             $stmt = $this->db->prepare(
-                "INSERT INTO presupuestos (cliente_id, usuario_id, observaciones)
-                 VALUES (:c, :u, :obs)"
+                "INSERT INTO presupuestos (cliente_id, usuario_id, observaciones, fecha_entrega)
+                 VALUES (:c, :u, :obs, :fe)"
             );
             $stmt->execute([
                 'c'   => $data['cliente_id'],
                 'u'   => $_SESSION['user_id'],
-                'obs' => $data['observaciones'] ?? ''
+                'obs' => $data['observaciones'] ?? '',
+                'fe'  => $data['fecha_entrega'] ?? null
             ]);
 
             $presupuestoId = (int)$this->db->lastInsertId();
@@ -173,11 +174,12 @@ class Presupuesto extends Model
         try {
             $this->db->prepare(
                 "UPDATE presupuestos
-                 SET cliente_id = ?, observaciones = ?
+                 SET cliente_id = ?, observaciones = ?, fecha_entrega = ?
                  WHERE id = ? AND estado = 'BORRADOR'"
             )->execute([
                 $data['cliente_id'],
                 $data['observaciones'] ?? '',
+                $data['fecha_entrega'] ?? null,
                 $id
             ]);
 
@@ -251,7 +253,7 @@ class Presupuesto extends Model
     {
         // Cabecera
         $stmt = $this->db->prepare("
-            SELECT p.id, p.cliente_id, p.created_at
+            SELECT p.id, p.cliente_id, p.created_at, p.fecha_entrega
             FROM presupuestos p
             WHERE p.id = ?
         ");
@@ -352,7 +354,7 @@ class Presupuesto extends Model
     private function renderPdfHtml(int $id): string
     {
         $stmt = $this->db->prepare("
-            SELECT p.id, p.created_at, p.observaciones, p.estado,
+            SELECT p.id, p.created_at, p.observaciones, p.estado, p.fecha_entrega,
                 c.razon_social AS cliente, c.direccion, c.cuit
             FROM presupuestos p
             LEFT JOIN clientes c ON c.id = p.cliente_id
@@ -444,4 +446,47 @@ class Presupuesto extends Model
 
         return $path;
     }
-}    
+
+    /**
+     * Presupuestos con fecha de entrega comprometida que vencen dentro de N dias
+     * (o ya vencidos) y que todavia no fueron avisados hoy. Lo usa el cron
+     * app/helpers/notificar_entregas.php. Solo se avisan presupuestos vivos que
+     * todavia no derivaron en NP (pre_asign LIBRE): la entrega la sigue la NP.
+     */
+    public function pendientesAvisoEntrega(int $dias = 7, bool $ignorarAviso = false): array
+    {
+        $dias = max(0, $dias);
+        $filtroAviso = $ignorarAviso
+            ? ''
+            : 'AND (pr.aviso_entrega_at IS NULL OR DATE(pr.aviso_entrega_at) < CURDATE())';
+
+        return $this->db->query("
+            SELECT pr.id, pr.fecha_entrega, pr.estado,
+                   DATEDIFF(pr.fecha_entrega, CURDATE()) AS dias_restantes,
+                   c.razon_social
+            FROM presupuestos pr
+            JOIN clientes c ON c.id = pr.cliente_id
+            WHERE pr.fecha_entrega IS NOT NULL
+              AND pr.estado IN ('BORRADOR','APROBADO')
+              AND pr.pre_asign = 'LIBRE'
+              AND pr.fecha_entrega <= DATE_ADD(CURDATE(), INTERVAL {$dias} DAY)
+              {$filtroAviso}
+            ORDER BY pr.fecha_entrega ASC, pr.id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Marca los presupuestos avisados para no repetir el mail el mismo dia.
+     */
+    public function marcarAvisadosEntrega(array $ids): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("UPDATE presupuestos SET aviso_entrega_at = NOW() WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
+    }
+}

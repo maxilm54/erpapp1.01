@@ -76,15 +76,16 @@ class NotaPedido extends Model
         try {
         $stmt = $this->db->prepare("
             INSERT INTO notas_pedido
-            (cliente_id, presupuesto_id, usuario_id, observaciones)
-            VALUES (:c, :p, :u, :o)
+            (cliente_id, presupuesto_id, usuario_id, observaciones, fecha_entrega)
+            VALUES (:c, :p, :u, :o, :fe)
         ");
 
         $stmt->execute([
             'c' => $data['cliente_id'],
             'p' => $presupuestoId,
             'u' => $data['usuario_id'],
-            'o' => $data['observaciones']
+            'o' => $data['observaciones'],
+            'fe' => $data['fecha_entrega'] ?? null
         ]);
 
         $id = (int)$this->db->lastInsertId();
@@ -336,7 +337,7 @@ class NotaPedido extends Model
     private function renderPdfHtml(int $id): string
     {
         $stmt = $this->db->prepare("
-            SELECT np.id, np.created_at, np.observaciones, np.estado,
+            SELECT np.id, np.created_at, np.observaciones, np.estado, np.fecha_entrega,
                 c.razon_social AS cliente, c.direccion, c.cuit
             FROM notas_pedido np
             LEFT JOIN clientes c ON c.id = np.cliente_id
@@ -427,5 +428,47 @@ class NotaPedido extends Model
         ")->execute([$path, $id]);
 
         return $path;
+    }
+
+    /**
+     * Notas de pedido con fecha de entrega comprometida que vencen dentro de N dias
+     * (o ya vencidas) y que todavia no fueron avisadas hoy. Lo usa el cron
+     * app/helpers/notificar_entregas.php. Solo NPs vivas y no remitidas por completo.
+     */
+    public function pendientesAvisoEntrega(int $dias = 7, bool $ignorarAviso = false): array
+    {
+        $dias = max(0, $dias);
+        $filtroAviso = $ignorarAviso
+            ? ''
+            : 'AND (np.aviso_entrega_at IS NULL OR DATE(np.aviso_entrega_at) < CURDATE())';
+
+        return $this->db->query("
+            SELECT np.id, np.fecha_entrega, np.estado, np.remitido,
+                   DATEDIFF(np.fecha_entrega, CURDATE()) AS dias_restantes,
+                   c.razon_social
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            WHERE np.fecha_entrega IS NOT NULL
+              AND np.estado IN ('BORRADOR','APROBADA')
+              AND np.remitido <> 'RemitidoCompleto'
+              AND np.fecha_entrega <= DATE_ADD(CURDATE(), INTERVAL {$dias} DAY)
+              {$filtroAviso}
+            ORDER BY np.fecha_entrega ASC, np.id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Marca las notas de pedido avisadas para no repetir el mail el mismo dia.
+     */
+    public function marcarAvisadosEntrega(array $ids): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (empty($ids)) {
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->prepare("UPDATE notas_pedido SET aviso_entrega_at = NOW() WHERE id IN ({$placeholders})");
+        $stmt->execute($ids);
     }
 }

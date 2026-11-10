@@ -90,10 +90,16 @@ class OrdenesCompraController extends Controller
             $db->beginTransaction();
 
             try {
+                $fechaEntrega = trim((string)($_POST['fecha_entrega'] ?? ''));
+                if ($fechaEntrega === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaEntrega)) {
+                    $fechaEntrega = null;
+                }
+
                 $ocId = $this->oc->create([
                     'proveedor_id'=>$_POST['proveedor_id'],
                     'observaciones'=>$_POST['observaciones'] ?? null,
-                    'usuario_id'=>$_SESSION['user_id']
+                    'usuario_id'=>$_SESSION['user_id'],
+                    'fecha_entrega'=>$fechaEntrega
                 ]);
 
                 foreach ($_POST['items'] as $item) {
