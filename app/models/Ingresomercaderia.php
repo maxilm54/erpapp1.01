@@ -225,39 +225,40 @@ class IngresoMercaderia extends Model
 
     private function actualizarEstadoOrden($orden_id)
     {
-        // Calcular total recibido de todas las materias primas y productos
-        $stmt = $this->db->prepare("
-            SELECT SUM(idt.cantidad) AS cantidad
-            FROM ingresos_mercaderia_detalle idt
-            JOIN ordenes_compra_detalle d ON d.orden_compra_id = idt.oc_id
-            WHERE idt.oc_id = ?
-        ");
-        $stmt->execute([$orden_id]);
-        $ingreso_oc_total = (float)$stmt->fetchColumn() ?? 0;
-        
+        // Estado por LINEA, no por total global: la OC queda RECIBIDA solo cuando
+        // todas sus lineas tienen lo pedido ingresado. Antes se sumaban todos los
+        // ingresos contra el total de la OC (y el JOIN multiplicaba el total por
+        // la cantidad de lineas), lo que marcaba RECIBIDA con ingresos parciales.
         try {
             $stmt = $this->db->prepare("
-            SELECT SUM(oc.cantidad) AS cantidad
-            FROM ordenes_compra_detalle oc
-            WHERE oc.orden_compra_id=?
+                SELECT COUNT(*)
+                FROM ordenes_compra_detalle d
+                WHERE d.orden_compra_id = ?
+                  AND d.cantidad > COALESCE((
+                      SELECT SUM(idt.cantidad)
+                      FROM ingresos_mercaderia_detalle idt
+                      WHERE idt.oc_id = d.orden_compra_id
+                        AND (
+                            (idt.materia_prima_id IS NOT NULL AND idt.materia_prima_id = d.materia_prima_id)
+                            OR (idt.producto_id IS NOT NULL AND idt.producto_id = d.producto_id)
+                        )
+                  ), 0)
             ");
             $stmt->execute([$orden_id]);
-            $oc_total = (float)$stmt->fetchColumn() ?? 0;
-        } catch(Exception $e) {
-            $oc_total = 0;
-        }
-        
-        $faltante = $oc_total - $ingreso_oc_total;
-        error_log("Actualizando estado orden #$orden_id: $oc_total - $ingreso_oc_total = $faltante");
-        
-        if ($faltante <= 0) {
-            $this->db->prepare(
-                "UPDATE ordenes_compra SET estado = 'RECIBIDA' WHERE id = ?"
-            )->execute([$orden_id]);
-        } else {
-            $this->db->prepare(
-                "UPDATE ordenes_compra SET estado = 'PARCIAL' WHERE id = ?"
-            )->execute([$orden_id]);
+            $lineasConFaltante = (int)$stmt->fetchColumn();
+
+            if ($lineasConFaltante === 0) {
+                $this->db->prepare(
+                    "UPDATE ordenes_compra SET estado = 'RECIBIDA' WHERE id = ?"
+                )->execute([$orden_id]);
+            } else {
+                $this->db->prepare(
+                    "UPDATE ordenes_compra SET estado = 'PARCIAL' WHERE id = ?"
+                )->execute([$orden_id]);
+            }
+            error_log("Actualizando estado orden #$orden_id: $lineasConFaltante linea(s) con faltante");
+        } catch (Exception $e) {
+            error_log('Error actualizando estado de OC ' . $orden_id . ': ' . $e->getMessage());
         }
     }
 

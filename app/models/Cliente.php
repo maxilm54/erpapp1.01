@@ -55,8 +55,8 @@ class Cliente extends Model
     {
         try {
             $sql = "INSERT INTO clientes 
-            (razon_social, cuit, email, telefono, localidad, direccion, contacto, es_distribuidor,observaciones_gral,obs_financieras) 
-            VALUES (:razon, :cuit, :email, :telefono, :localidad, :direccion, :contacto, :es_distribuidor,:observaciones_gral,:obs_financieras)";
+            (razon_social, cuit, email, telefono, localidad, direccion, contacto, es_distribuidor, nomenclador, observaciones_gral, obs_financieras) 
+            VALUES (:razon, :cuit, :email, :telefono, :localidad, :direccion, :contacto, :es_distribuidor, :nomenclador, :observaciones_gral, :obs_financieras)";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
@@ -68,6 +68,7 @@ class Cliente extends Model
                 'direccion' => $data['direccion'],
                 'contacto' => $data['contacto'],
                 'es_distribuidor' => $data['es_distribuidor'],
+                'nomenclador' => $data['nomenclador'] ?? null,
                 'observaciones_gral' => $data['observaciones_gral'] ?? null,
                 'obs_financieras' => $data['obs_financieras'] ?? null,
             ]);
@@ -86,7 +87,7 @@ class Cliente extends Model
     {
         try {
             $sql = "UPDATE clientes SET razon_social = :razon, cuit = :cuit, email = :email, telefono = :telefono, direccion = :direccion,
-            localidad = :localidad, contacto = :contacto, es_distribuidor = :es_distribuidor, observaciones_gral = :observaciones_gral,
+            localidad = :localidad, contacto = :contacto, es_distribuidor = :es_distribuidor, nomenclador = :nomenclador, observaciones_gral = :observaciones_gral,
             obs_financieras = :obs_financieras
             WHERE id = :id";
             $stmt = $this->db->prepare($sql);
@@ -100,6 +101,7 @@ class Cliente extends Model
                 'localidad' => $data['localidad'],
                 'contacto' => $data['contacto'],
                 'es_distribuidor' => $data['es_distribuidor'],
+                'nomenclador' => $data['nomenclador'] ?? null,
                 'observaciones_gral' => $data['observaciones_gral'] ?? null,
                 'obs_financieras' => $data['obs_financieras'] ?? null,
             ]);
@@ -129,6 +131,20 @@ class Cliente extends Model
             return false;
         }
     }
+    /**
+     * Nomenclador (sufijo de codigo) asignado a un cliente, o NULL si no tiene.
+     */
+    public function nomencladorDe(int $clienteId): ?string
+    {
+        $stmt = $this->db->prepare(
+            "SELECT nomenclador FROM clientes WHERE id = :id AND activo = 1"
+        );
+        $stmt->execute(['id' => $clienteId]);
+        $nom = $stmt->fetchColumn();
+        $nom = $nom !== false ? trim((string)$nom) : '';
+        return $nom !== '' ? $nom : null;
+    }
+
     public function activar(int $id): bool
     {
         try {

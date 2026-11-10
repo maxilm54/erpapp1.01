@@ -4,10 +4,54 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 require_once BASE_PATH . '/app/models/Producto.php';
+require_once BASE_PATH . '/app/models/Cliente.php';
+require_once BASE_PATH . '/app/models/Configuracion.php';
 
 class Presupuesto extends Model
 {
     protected string $table = 'presupuestos';
+
+    /**
+     * Resuelve el producto de una linea segun el nomenclador del cliente:
+     *  - Producto existente + cliente con nomenclador => variante (SKU_BASE-nomenclador),
+     *    creada si todavia no existe.
+     *  - Producto libre a crear + checkbox aplicar_nomenclador => se crea con
+     *    sufijo en el SKU (LIBRE-XXXX-nomenclador).
+     * Si la configuracion usar_nomenclador esta apagada o el cliente no tiene
+     * nomenclador, la linea queda como viene.
+     */
+    private function resolverNomencladorLinea(array $item, ?int $productoId, int $clienteId): ?int
+    {
+        $config = new Configuracion();
+        if (!$config->activa('usar_nomenclador', true)) {
+            return $productoId;
+        }
+
+        $nomenclador = (new Cliente())->nomencladorDe($clienteId);
+        if ($nomenclador === null) {
+            return $productoId;
+        }
+
+        $producto = new Producto();
+
+        // Producto existente: usar/crear la variante del cliente
+        if ($productoId !== null) {
+            return $producto->crearVarianteCliente($productoId, $nomenclador);
+        }
+
+        // Producto libre marcado para crearse, con el checkbox del nomenclador
+        $descripcion = trim((string)($item['descripcion'] ?? ''));
+        if ($descripcion !== '' && !empty($item['crear_producto']) && !empty($item['aplicar_nomenclador'])) {
+            $productoId = $producto->crearDesdeLinea(
+                $descripcion,
+                (float)($item['precio'] ?? 0),
+                1,
+                $nomenclador
+            );
+        }
+
+        return $productoId;
+    }
 
     public function all(): array
     {
@@ -88,7 +132,10 @@ class Presupuesto extends Model
                 $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
                 $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
 
-                // Producto libre marcado para agregarse a la base
+                // Nomenclador del cliente: variante existente o producto libre con sufijo
+                $productoId = $this->resolverNomencladorLinea($item, $productoId, (int)$data['cliente_id']);
+
+                // Producto libre marcado para agregarse a la base (sin nomenclador)
                 if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
                     $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
                     $descripcion = null;
@@ -145,7 +192,10 @@ class Presupuesto extends Model
                 $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
                 $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
 
-                // Producto libre marcado para agregarse a la base
+                // Nomenclador del cliente: variante existente o producto libre con sufijo
+                $productoId = $this->resolverNomencladorLinea($item, $productoId, (int)$data['cliente_id']);
+
+                // Producto libre marcado para agregarse a la base (sin nomenclador)
                 if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
                     $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
                     $descripcion = null;

@@ -96,6 +96,9 @@ $esManual = empty($remito['idNpRem']);
 </div>
 <?php endif; ?>
 
+<?php $adjModulo = 'REMITO_SALIDA'; $adjDocId = (int)$remito['NumRem'];
+      require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
+
 <!-- Detalle de items -->
 <div class="card mb-3">
     <div class="card-header">

@@ -90,6 +90,8 @@ class OrdenPago extends Model
                    fc.tipo_fiscal AS factura_tipo,
                    fc.fecha_factura,
                    fc.monto_total AS factura_total,
+                   fc.monto_base AS factura_base,
+                   fc.monto_iva AS factura_iva,
                    cb.nombre AS caja_nombre,
                    u.nombre AS usuario_nombre
             FROM ordenes_pago op
@@ -118,6 +120,8 @@ class OrdenPago extends Model
                    fc.tipo_fiscal AS factura_tipo,
                    fc.fecha_factura,
                    fc.monto_total AS factura_total,
+                   fc.monto_base AS factura_base,
+                   fc.monto_iva AS factura_iva,
                    fc.orden_compra_id,
                    cb.nombre AS caja_nombre,
                    u.nombre AS usuario_nombre
@@ -183,6 +187,8 @@ class OrdenPago extends Model
                    fc.tipo_fiscal,
                    fc.fecha_factura,
                    fc.monto_total,
+                   fc.monto_base,
+                   fc.monto_iva,
                    p.razon_social AS proveedor_nombre,
                    COALESCE(SUM(CASE WHEN op.estado IN ('APROBADA','PAGADA') THEN op.monto ELSE 0 END), 0) AS comprometido,
                    (fc.monto_total - COALESCE(SUM(CASE WHEN op.estado IN ('APROBADA','PAGADA') THEN op.monto ELSE 0 END), 0)) AS saldo

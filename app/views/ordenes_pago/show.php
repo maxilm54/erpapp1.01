@@ -48,6 +48,16 @@ $badgeEstado = [
                             <?= htmlspecialchars(($orden['factura_tipo'] ?? '') !== '' ? $orden['factura_tipo'] . ' ' : '') ?><?= htmlspecialchars($orden['factura_numero'] ?? '') ?>
                         </a>
                         <small class="text-muted d-block">Fecha factura: <?= date('d/m/Y', strtotime($orden['fecha_factura'])) ?></small>
+                        <?php $ivaFactura = (float)($orden['factura_iva'] ?? 0); ?>
+                        <small class="text-muted d-block">
+                            <?php if ($ivaFactura > 0.009): ?>
+                                Discriminación: neto $ <?= number_format((float)($orden['factura_base'] ?? 0), 2, ',', '.') ?>
+                                + IVA $ <?= number_format($ivaFactura, 2, ',', '.') ?>
+                                = $ <?= number_format((float)($orden['factura_total'] ?? 0), 2, ',', '.') ?>
+                            <?php else: ?>
+                                Sin IVA discriminado (neto $ <?= number_format((float)($orden['factura_base'] ?? (float)($orden['factura_total'] ?? 0)), 2, ',', '.') ?>)
+                            <?php endif; ?>
+                        </small>
                     </div>
                     <?php if (!empty($orden['orden_compra_id'])): ?>
                     <div class="col-md-4 mb-3">

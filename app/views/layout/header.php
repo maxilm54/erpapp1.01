@@ -95,6 +95,7 @@ Compras
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ingresosmercaderia/showhist">Historial Ingresos</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/facturascompra">Facturas de compra</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/facturascompra/create"><i class="bi bi-plus-lg"></i> Nueva Factura de Compra</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenespago">Órdenes de pago</a></li>
 </ul>
 </li>
@@ -205,6 +206,7 @@ Empresa
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/empresa/create-user"><i class="bi bi-person-plus"></i> Nuevo Usuario</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/numeradores"><i class="bi bi-list-ol"></i> Numeradores</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/configuraciones"><i class="bi bi-gear"></i> Configuraciones</a></li>
 <li><hr class="dropdown-divider"></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/email/config"><i class="bi bi-envelope-gear"></i> Config Email (SMTP)</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/email/templates"><i class="bi bi-envelope-paper"></i> Templates Email</a></li>

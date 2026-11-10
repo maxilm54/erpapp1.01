@@ -4,10 +4,49 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 require_once BASE_PATH . '/app/models/Producto.php';
+require_once BASE_PATH . '/app/models/Cliente.php';
+require_once BASE_PATH . '/app/models/Configuracion.php';
 
 class NotaPedido extends Model
 {
     protected string $table = 'notas_pedido';
+
+    /**
+     * Resuelve el producto de una linea segun el nomenclador del cliente
+     * (misma logica que Presupuesto::resolverNomencladorLinea):
+     * producto existente => variante SKU_BASE-nomenclador; producto libre con
+     * el checkbox aplicar_nomenclador => se crea con sufijo en el SKU.
+     */
+    private function resolverNomencladorLinea(array $item, ?int $productoId, int $clienteId): ?int
+    {
+        $config = new Configuracion();
+        if (!$config->activa('usar_nomenclador', true)) {
+            return $productoId;
+        }
+
+        $nomenclador = (new Cliente())->nomencladorDe($clienteId);
+        if ($nomenclador === null) {
+            return $productoId;
+        }
+
+        $producto = new Producto();
+
+        if ($productoId !== null) {
+            return $producto->crearVarianteCliente($productoId, $nomenclador);
+        }
+
+        $descripcion = trim((string)($item['descripcion'] ?? ''));
+        if ($descripcion !== '' && !empty($item['crear_producto']) && !empty($item['aplicar_nomenclador'])) {
+            $productoId = $producto->crearDesdeLinea(
+                $descripcion,
+                (float)($item['precio'] ?? 0),
+                1,
+                $nomenclador
+            );
+        }
+
+        return $productoId;
+    }
 
     // 📄 Listado
     public function all(): array
@@ -58,7 +97,10 @@ class NotaPedido extends Model
             $productoId  = !empty($item['producto_id']) ? (int)$item['producto_id'] : null;
             $descripcion = mb_substr(trim((string)($item['descripcion'] ?? '')), 0, 255);
 
-            // Producto libre marcado para agregarse a la base
+            // Nomenclador del cliente: variante existente o producto libre con sufijo
+            $productoId = $this->resolverNomencladorLinea($item, $productoId, (int)$data['cliente_id']);
+
+            // Producto libre marcado para agregarse a la base (sin nomenclador)
             if ($productoId === null && $descripcion !== '' && !empty($item['crear_producto'])) {
                 $productoId  = (new Producto())->crearDesdeLinea($descripcion, $precio);
                 $descripcion = null;
@@ -174,7 +216,7 @@ class NotaPedido extends Model
     public function clientes(): array // clientes solo activos para realizar np
     {
         return $this->db->query("
-            SELECT id, razon_social FROM clientes WHERE activo=1 ORDER BY razon_social
+            SELECT id, razon_social, nomenclador FROM clientes WHERE activo=1 ORDER BY razon_social
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 

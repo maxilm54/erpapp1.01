@@ -11,12 +11,12 @@ $action = $isEdit
         <?= $isEdit ? 'Editar Presupuesto' : 'Nuevo Presupuesto' ?>
     </h3>
 
-    <form method="POST" action="<?= $action ?>">
+    <form method="POST" action="<?= $action ?>" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
         <!-- Cliente -->
         <div class="mb-3">
             <label class="form-label">Cliente</label>
-            <select name="cliente_id" class="form-select" required>
+            <select name="cliente_id" id="cliente_id" class="form-select" required>
                 <option value="">Seleccione</option>
                 <?php foreach ($clientes as $c): ?>
                     <option value="<?= htmlspecialchars($c['id']) ?>"
@@ -25,6 +25,11 @@ $action = $isEdit
                     </option>
                 <?php endforeach; ?>
             </select>
+            <div id="hint_nomenclador" class="form-text d-none">
+                <i class="bi bi-tags"></i> Este cliente usa el nomenclador
+                <strong id="hint_nomenclador_valor"></strong>:
+                los productos se identificarán como <code>SKU-<span id="hint_nomenclador_sufijo"></span></code>.
+            </div>
         </div>
 
         <!-- Detalle -->
@@ -75,6 +80,12 @@ $action = $isEdit
                             <input class="form-check-input" type="checkbox" id="libre_crear">
                             <label class="form-check-label" for="libre_crear">
                                 Agregar a Productos
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="libre_nomenclador" disabled>
+                            <label class="form-check-label" for="libre_nomenclador" title="Requiere un cliente con nomenclador">
+                                Aplicar nomenclador (SKU-...)
                             </label>
                         </div>
                     </div>
@@ -133,6 +144,22 @@ $action = $isEdit
         </div>
         <label>Observaciones:</label>
         <textarea name="observaciones" class="form-control" rows="4"><?= htmlspecialchars($presupuesto['observaciones'] ?? '') ?></textarea>
+
+        <?php if (!empty($usarAdjuntos)): ?>
+        <!-- Adjuntos (config Empresa -> Configuraciones) -->
+        <div class="card border-secondary mt-3">
+            <div class="card-header bg-secondary-subtle py-2">
+                <strong><i class="bi bi-paperclip"></i> Adjuntar archivos</strong>
+                <small class="text-muted">— también podrá agregar más luego, desde la vista del presupuesto</small>
+            </div>
+            <div class="card-body py-2">
+                <input type="file" class="form-control form-control-sm" name="archivos_adjuntos[]" multiple
+                       accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.doc,.docx,.odt,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.txt,.zip,.rar,.msg,.eml">
+                <div class="form-text small">Hasta 10 MB por archivo. Al aprobar este presupuesto, los adjuntos viajan con la NP automática.</div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="mt-3">
             <button class="btn btn-success">Guardar</button>
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Cancelar</a>
@@ -141,6 +168,15 @@ $action = $isEdit
 </div>
 <script>
 const PRODUCTOS = <?= json_encode($productos, JSON_UNESCAPED_UNICODE) ?>;
+// Nomenclador (sufijo de codigo) por cliente, desde el ABM de Clientes
+const NOMENCLADORES = <?= json_encode(
+    array_reduce($clientes, function ($acc, $c) {
+        $nom = trim((string)($c['nomenclador'] ?? ''));
+        if ($nom !== '') $acc[$c['id']] = $nom;
+        return $acc;
+    }, [])
+, JSON_UNESCAPED_UNICODE) ?>;
+const USAR_NOMENCLADOR = <?= json_encode($usarNomenclador ?? true) ?>;
 </script>
 <script>
 let productoSeleccionado = null;
@@ -149,6 +185,41 @@ const inputBuscar   = document.getElementById('producto_buscar');
 const resultados    = document.getElementById('resultado_productos');
 const btnAgregar    = document.getElementById('btn_agregar_producto');
 const tablaDetalle  = document.querySelector('#tabla_detalle tbody');
+
+// Nomenclador del cliente seleccionado (null si no aplica)
+function nomencladorCliente() {
+    if (!USAR_NOMENCLADOR) return null;
+    const id = document.getElementById('cliente_id').value;
+    return id && NOMENCLADORES[id] ? NOMENCLADORES[id] : null;
+}
+
+function actualizarHintNomenclador() {
+    const nom = nomencladorCliente();
+    const hint = document.getElementById('hint_nomenclador');
+    const chk = document.getElementById('libre_nomenclador');
+
+    if (nom) {
+        hint.classList.remove('d-none');
+        document.getElementById('hint_nomenclador_valor').textContent = nom;
+        document.getElementById('hint_nomenclador_sufijo').textContent = nom;
+    } else {
+        hint.classList.add('d-none');
+        chk.checked = false;
+    }
+    chk.disabled = !nom;
+}
+
+document.getElementById('cliente_id').addEventListener('change', actualizarHintNomenclador);
+document.getElementById('libre_crear').addEventListener('change', function () {
+    const nom = nomencladorCliente();
+    document.getElementById('libre_nomenclador').disabled = !nom || !this.checked;
+    if (!this.checked) document.getElementById('libre_nomenclador').checked = false;
+});
+document.addEventListener('DOMContentLoaded', actualizarHintNomenclador);
+<?php if ($isEdit): ?>
+// En edicion el cliente ya viene elegido: mostrar el hint al cargar
+setTimeout(actualizarHintNomenclador, 0);
+<?php endif; ?>
 
 inputBuscar.addEventListener('input', function () {
     const q = this.value.toLowerCase();
@@ -203,9 +274,15 @@ btnAgregar.addEventListener('click', function () {
 
     const row = document.createElement('tr');
 
+    // Si el cliente usa nomenclador, el backend crea/usara la variante SKU-nom
+    const nom = nomencladorCliente();
+    const badgeVariante = nom
+        ? ` <span class="badge bg-secondary">${productoSeleccionado.sku}-${nom}</span>`
+        : '';
+
     row.innerHTML = `
         <td>
-            ${productoSeleccionado.nombre}
+            ${productoSeleccionado.nombre}${badgeVariante}
             <input type="hidden" name="items[${index}][producto_id]" value="${productoSeleccionado.id}">
         </td>
         <td>
@@ -244,6 +321,7 @@ document.getElementById('btn_agregar_libre').addEventListener('click', function 
     const cantidad = parseFloat(document.getElementById('libre_cantidad').value) || 0;
     const precio   = parseFloat(document.getElementById('libre_precio').value) || 0;
     const crear    = document.getElementById('libre_crear').checked;
+    const conNom   = crear && document.getElementById('libre_nomenclador').checked;
 
     if (nombre === '') {
         Swal.fire('Falta el nombre', 'Escriba el nombre o descripción del producto libre.', 'warning');
@@ -254,13 +332,18 @@ document.getElementById('btn_agregar_libre').addEventListener('click', function 
         return;
     }
 
+    const nom = nomencladorCliente();
+    const badgeNom = (crear && nom) ? `<span class="badge bg-dark">SKU ...-${nom}</span>` : '';
+
     const row = document.createElement('tr');
     row.innerHTML = `
         <td>
             ${escapeHtml(nombre)} <span class="badge bg-info">Libre</span>
             ${crear ? '<span class="badge bg-success">se agregará a Productos</span>' : ''}
+            ${badgeNom}
             <input type="hidden" name="items[${index}][descripcion]" value="${escapeHtml(nombre)}">
             <input type="hidden" name="items[${index}][crear_producto]" value="${crear ? 1 : 0}">
+            <input type="hidden" name="items[${index}][aplicar_nomenclador]" value="${conNom ? 1 : 0}">
         </td>
         <td>
             <input type="number" step="0.01" min="0.01" name="items[${index}][cantidad]" value="${cantidad}" class="form-control" required>
@@ -280,5 +363,7 @@ document.getElementById('btn_agregar_libre').addEventListener('click', function 
     document.getElementById('libre_cantidad').value = 1;
     document.getElementById('libre_precio').value = 0;
     document.getElementById('libre_crear').checked = false;
+    document.getElementById('libre_nomenclador').checked = false;
+    document.getElementById('libre_nomenclador').disabled = !nomencladorCliente();
 });
 </script>

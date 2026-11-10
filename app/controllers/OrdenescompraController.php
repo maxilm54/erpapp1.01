@@ -4,6 +4,8 @@ require_once BASE_PATH.'/app/models/Ordencompra.php';
 require_once BASE_PATH.'/app/models/Proveedor.php';
 require_once BASE_PATH.'/app/models/Materiaprima.php';
 require_once BASE_PATH.'/app/models/Producto.php';
+require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Adjunto.php';
 
 class OrdenesCompraController extends Controller
 {
@@ -114,6 +116,22 @@ class OrdenesCompraController extends Controller
                 }
 
                 $db->commit();
+
+                // Adjuntos (comprobantes) subidos en el form - OPCIONAL: si no viene nada,
+                // la orden queda guardada igual (config Empresa -> Configuraciones).
+                if ((new Configuracion())->activa('usar_adjuntos_compra', false)
+                    && !empty($_FILES['archivos_adjuntos']['name'][0])) {
+                    try {
+                        $n = (new Adjunto())->guardarMultiples('ORDEN_COMPRA', (int)$ocId, $_FILES['archivos_adjuntos']);
+                        if ($n > 0) {
+                            $_SESSION['success'] = "Orden de compra creada con {$n} comprobante(s) adjunto(s).";
+                        }
+                    } catch (Exception $e) {
+                        error_log('[Adjuntos OC] ' . $e->getMessage());
+                        $_SESSION['error'] = 'La orden se creó pero falló un adjunto: ' . $e->getMessage();
+                    }
+                }
+
                 header('Location: '.BASE_URL.'/ordenescompra');
                 exit;
 
@@ -126,7 +144,8 @@ class OrdenesCompraController extends Controller
         $this->view('ordenes_compras/form', [
             'title'=>'Nueva Orden de Compra',
             'proveedores'=>(new Proveedor())->all(),
-            'materias_primas'=>(new MateriaPrima())->all()
+            'materias_primas'=>(new MateriaPrima())->all(),
+            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false)
         ]);
     }
 
@@ -207,7 +226,8 @@ class OrdenesCompraController extends Controller
             'orden'            => $orden,
             'detalle'          => $orden['detalle'],
             'materias_primas'  => $this->oc->materiasPrimas(), // 👈 CLAVE
-            'proveedores'      => $this->oc->proveedores()
+            'proveedores'      => $this->oc->proveedores(),
+            'usarAdjuntosCompra' => (new Configuracion())->activa('usar_adjuntos_compra', false)
         ]);
     }
 

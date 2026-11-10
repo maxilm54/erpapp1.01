@@ -65,8 +65,19 @@ class FacturasCompraController extends Controller
             'ocs'        => $this->facturaModel->ocsDisponibles(),
             'monedas'    => $this->facturaModel->monedas(),
             'monedaDefault' => $this->facturaModel->monedaPorDefecto(),
+            'impuestos'  => $this->facturaModel->impuestos(),
             'csrf'       => Csrf::generate(),
         ]);
+    }
+
+    /**
+     * OCs con saldo por facturar de un proveedor (AJAX del form multi-OC).
+     */
+    public function ocsProveedor(int $proveedorId): void
+    {
+        validarId($proveedorId, BASE_URL . '/facturascompra/create');
+        header('Content-Type: application/json');
+        echo json_encode($this->facturaModel->ocsDisponibles($proveedorId));
     }
 
     public function store(): void
@@ -111,6 +122,7 @@ class FacturasCompraController extends Controller
         $this->view('facturas_compra/show', [
             'title'       => "Factura #{$id}",
             'factura'     => $factura,
+            'ocs'         => $this->facturaModel->ocsDeFactura($id),
             'ordenesPago' => $this->facturaModel->ordenesPago($id),
             'csrf'        => Csrf::generate(),
         ]);

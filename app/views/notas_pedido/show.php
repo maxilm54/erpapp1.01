@@ -29,6 +29,10 @@
 <?php if ($np['observaciones']): ?>
 <p><strong>Observaciones:</strong> <?= nl2br($np['observaciones']) ?></p>
 <?php endif ?>
+
+<?php $adjModulo = 'NOTA_PEDIDO'; $adjDocId = (int)$np['id'];
+      require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
+
 <div class="table-scroll mt-3">
     <table class="table table-bordered">
         <thead>

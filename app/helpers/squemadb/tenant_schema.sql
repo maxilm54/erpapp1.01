@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS `clientes` (
   `direccion` varchar(255) DEFAULT NULL,
   `contacto` varchar(100) DEFAULT NULL,
   `es_distribuidor` enum('Si','No') NOT NULL DEFAULT 'No',
+  `nomenclador` varchar(20) DEFAULT NULL COMMENT 'Sufijo de codigo para variantes de producto del cliente (ej: PIST)',
   `activo` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
@@ -44,6 +45,34 @@ CREATE TABLE IF NOT EXISTS `clientes` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `cuit` (`cuit`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `configuraciones` (
+  `clave` varchar(50) NOT NULL,
+  `valor` varchar(255) DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),
+  PRIMARY KEY (`clave`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Configuraciones del tenant (clave/valor) administradas desde el menu Empresa';
+
+INSERT INTO configuraciones (clave, valor) VALUES ('usar_nomenclador', '1');
+INSERT INTO configuraciones (clave, valor) VALUES ('usar_adjuntos', '0');
+INSERT INTO configuraciones (clave, valor) VALUES ('usar_adjuntos_compra', '0');
+
+CREATE TABLE IF NOT EXISTS `documentos_adjuntos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `modulo` enum('PRESUPUESTO','NOTA_PEDIDO','REMITO_SALIDA','PRODUCCION','ORDEN_COMPRA') NOT NULL,
+  `documento_id` int(11) NOT NULL,
+  `nombre_original` varchar(255) NOT NULL COMMENT 'Nombre con el que subio el usuario',
+  `nombre_guardado` varchar(255) NOT NULL COMMENT 'Nombre fisico en storage/empresa_N/adjuntos',
+  `tamano` int(11) NOT NULL DEFAULT 0,
+  `mime` varchar(100) DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_doc` (`modulo`, `documento_id`),
+  CONSTRAINT `fk_adj_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Archivos adjuntos de presupuestos, notas de pedido, remitos y ordenes de produccion';
 
 DROP TABLE IF EXISTS `compras`;
 CREATE TABLE IF NOT EXISTS `compras` (

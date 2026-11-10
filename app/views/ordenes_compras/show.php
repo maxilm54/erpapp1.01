@@ -24,6 +24,9 @@
     </div>
 </div>
 
+<?php $adjModulo = 'ORDEN_COMPRA'; $adjDocId = (int)$orden['id'];
+      require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
+
 <h5>Detalle</h5>
 <div class="table-scroll mt-3">
     <table class="table table-bordered table-striped">
@@ -41,8 +44,12 @@
             </tr>
         </thead>
         <tbody>
+        <?php
+            $total = 0; // inicializacion: sin esto el total queda indefinido si no hay detalle
+            $totalesPorMoneda = [];
+        ?>
         <?php foreach ($orden['detalle'] as $d): ?>
-        <?php 
+        <?php
             $tipoLabel = ($d['tipo'] ?? 'materia_prima') === 'producto' ? 'Producto' : 'Materia Prima';
             $tipoClass = ($d['tipo'] ?? 'materia_prima') === 'producto' ? 'info' : 'warning';
         ?>
@@ -55,16 +62,27 @@
             <td><?= htmlspecialchars($d['nombre_medida'] ?? $d['id_unidadmedida'] ?? '') ?></td>
             <td><?= number_format($d['precio_unitario'], 3,',','.') ?></td>
             <?php
-                $Subtotal = $d['recibida'] * $d['precio_unitario']; 
-                $total+=$Subtotal;
+                // Subtotal de lo PEDIDO (independiente de lo recibido): siempre visible
+                $Subtotal = (float)$d['pedida'] * (float)$d['precio_unitario'];
+                $moneda = (string)($d['moneda'] ?? '');
+                $totalesPorMoneda[$moneda] = ($totalesPorMoneda[$moneda] ?? 0) + $Subtotal;
             ?>
-            <td><?= number_format($Subtotal, 3,',','.') ?></td>
-            <td><?= htmlspecialchars($d['moneda']) ?></td>
+            <td class="fw-semibold"><?= number_format($Subtotal, 2,',','.') ?></td>
+            <td><?= htmlspecialchars($moneda) ?></td>
         </tr>
         <?php endforeach; ?>
         <tr>
             <th colspan="7" class="text-end">Total:</th>
-            <th><?= number_format($total, 3,',','.') ?></th>
+            <?php if (count($totalesPorMoneda) > 1): ?>
+                <th colspan="2">
+                    <?php foreach ($totalesPorMoneda as $moneda => $tot): ?>
+                        <div><?= htmlspecialchars($moneda !== '' ? $moneda : '$') ?> <?= number_format($tot, 2,',','.') ?></div>
+                    <?php endforeach; ?>
+                </th>
+            <?php else: ?>
+                <?php $total = reset($totalesPorMoneda) ?: 0; ?>
+                <th class="fw-bold"><?= number_format($total, 2,',','.') ?></th>
+            <?php endif; ?>
             <th></th>
         </tr>
         </tbody>
@@ -99,10 +117,30 @@
     <?php endif; ?>
 
     <?php if (in_array($orden['estado'], ['APROBADA', 'PARCIAL', 'RECIBIDA'], true)): ?>
-        <a href="<?= BASE_URL ?>/facturascompra/create?oc=<?= $orden['id'] ?>"
-           class="btn btn-outline-primary">
-           <i class="bi bi-receipt"></i> Registrar factura
-        </a>
+        <?php
+            // Facturado activo sobre esta OC (por la tabla de relacion)
+            $facturadoOc = 0.0;
+            foreach ($facturas as $fc) {
+                if (($fc['estado'] ?? '') === 'REGISTRADA') {
+                    $facturadoOc += (float)($fc['monto_asignado'] ?? $fc['monto_total'] ?? 0);
+                }
+            }
+            $totalOcMostrar = 0.0;
+            foreach ($orden['detalle'] as $d) {
+                $totalOcMostrar += (float)$d['pedida'] * (float)$d['precio_unitario'];
+            }
+            $ocCubierta = $totalOcMostrar > 0 && $facturadoOc >= $totalOcMostrar - 0.02;
+        ?>
+        <?php if (!$ocCubierta): ?>
+            <a href="<?= BASE_URL ?>/facturascompra/create?oc=<?= $orden['id'] ?>"
+               class="btn btn-outline-primary">
+               <i class="bi bi-receipt"></i> Registrar factura
+            </a>
+        <?php else: ?>
+            <span class="badge bg-success align-self-center" title="La OC ya está cubierta por facturas registradas">
+                <i class="bi bi-check2-circle"></i> Facturada
+            </span>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 

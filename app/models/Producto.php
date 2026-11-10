@@ -162,8 +162,9 @@ class Producto extends Model
     /**
      * Crea un producto a partir de una linea libre de Presupuesto / Nota de Pedido.
      * Genera un SKU unico y lo marca como PRESENTACION con la unidad "Unidad" por defecto.
+     * Si se pasa $sufijoNomenclador (del cliente del documento), el SKU queda LIBRE-XXXX-nomenclador.
      */
-    public function crearDesdeLinea(string $nombre, float $precio, int $unidadMedida = 1): int
+    public function crearDesdeLinea(string $nombre, float $precio, int $unidadMedida = 1, ?string $sufijoNomenclador = null): int
     {
         $nombre = trim($nombre);
         if ($nombre === '') {
@@ -179,9 +180,13 @@ class Producto extends Model
             $unidadMedida = $primeraUm !== false ? (int)$primeraUm : 1;
         }
 
+        // Sufijo del nomenclador del cliente (se valida para que no rompa el SKU)
+        $sufijoNomenclador = self::normalizarSufijo($sufijoNomenclador);
+        $sufijoSku = $sufijoNomenclador !== null ? '-' . $sufijoNomenclador : '';
+
         // SKU unico generado (los productos libres no tienen SKU propio)
         do {
-            $sku = 'LIBRE-' . strtoupper(bin2hex(random_bytes(4)));
+            $sku = 'LIBRE-' . strtoupper(bin2hex(random_bytes(4))) . $sufijoSku;
             $stmt = $this->db->prepare("SELECT COUNT(*) FROM productos WHERE sku = ?");
             $stmt->execute([$sku]);
         } while ((int)$stmt->fetchColumn() > 0);
@@ -195,7 +200,9 @@ class Producto extends Model
         $stmt->execute([
             'nombre'            => $nombre,
             'sku'               => $sku,
-            'descripcion'       => 'Creado desde un documento (producto libre)',
+            'descripcion'       => $sufijoNomenclador !== null
+                ? 'Creado desde un documento (producto libre, nomenclador ' . $sufijoNomenclador . ')'
+                : 'Creado desde un documento (producto libre)',
             'precio'            => $precio,
             'user_create'       => $_SESSION['user_id'] ?? 0,
             'last_user_updated' => $_SESSION['user_id'] ?? 0,
@@ -203,6 +210,82 @@ class Producto extends Model
         ]);
 
         return (int)$this->db->lastInsertId();
+    }
+
+    /**
+     * Normaliza un sufijo de nomenclador: solo letras/numeros/guion, sin espacios.
+     * Devuelve NULL si el sufijo queda vacio.
+     */
+    public static function normalizarSufijo(?string $sufijo): ?string
+    {
+        $sufijo = strtoupper(trim((string)$sufijo));
+        $sufijo = preg_replace('/[^A-Z0-9\-]/', '', $sufijo);
+        return $sufijo !== '' ? $sufijo : null;
+    }
+
+    /**
+     * Devuelve (buscando o creando) la variante de un producto para un cliente
+     * con nomenclador: SKU = SKU_BASE-nomenclador. La variante clona nombre,
+     * precio, unidad, serie y tipo del producto base.
+     *
+     * @return int ID del producto variante a usar en el documento.
+     */
+    public function crearVarianteCliente(int $productoBaseId, string $nomenclador): int
+    {
+        $sufijo = self::normalizarSufijo($nomenclador);
+        if ($sufijo === null) {
+            return $productoBaseId;
+        }
+
+        $stmt = $this->db->prepare("SELECT * FROM productos WHERE id = ?");
+        $stmt->execute([$productoBaseId]);
+        $base = $stmt->fetch();
+        if (!$base) {
+            return $productoBaseId;
+        }
+
+        $skuVariante = mb_substr($base['sku'], 0, 90) . '-' . $sufijo;
+
+        // La variante ya existe? (activa o inactiva, se reactiva su uso)
+        $stmt = $this->db->prepare("SELECT id FROM productos WHERE sku = ?");
+        $stmt->execute([$skuVariante]);
+        $idVariante = $stmt->fetchColumn();
+        if ($idVariante !== false) {
+            return (int)$idVariante;
+        }
+
+        try {
+            $insert = $this->db->prepare(
+                "INSERT INTO productos
+                 (nombre, sku, descripcion, precio_venta, imagen, user_create, last_user_updated,
+                  unidad_medida, usa_serie, tipo, producto_base_id)
+                 VALUES (:nombre, :sku, :descripcion, :precio, :imagen, :user_create, :last_user_updated,
+                  :unidad_medida, :usa_serie, 'PRESENTACION', :producto_base_id)"
+            );
+            $insert->execute([
+                'nombre'            => $base['nombre'],
+                'sku'               => $skuVariante,
+                'descripcion'       => 'Variante de cliente (nomenclador ' . $sufijo . ') de ' . $base['sku'],
+                'precio'            => $base['precio_venta'],
+                'imagen'            => $base['imagen'] ?: null,
+                'user_create'       => $_SESSION['user_id'] ?? 0,
+                'last_user_updated' => $_SESSION['user_id'] ?? 0,
+                'unidad_medida'     => $base['unidad_medida'],
+                'usa_serie'         => $base['usa_serie'],
+                'producto_base_id'  => $base['producto_base_id'] ?: $base['id'],
+            ]);
+            return (int)$this->db->lastInsertId();
+        } catch (Exception $e) {
+            // Carrera: otro proceso la creo a la vez -> la busco y devuelvo
+            $stmt = $this->db->prepare("SELECT id FROM productos WHERE sku = ?");
+            $stmt->execute([$skuVariante]);
+            $idVariante = $stmt->fetchColumn();
+            if ($idVariante !== false) {
+                return (int)$idVariante;
+            }
+            error_log('[Producto] Error creando variante de cliente: ' . $e->getMessage());
+            return $productoBaseId;
+        }
     }
 
     public function update(int $id, array $data, ?string $imagen = null): bool

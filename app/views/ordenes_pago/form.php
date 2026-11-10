@@ -5,6 +5,18 @@ $facturas = $facturas ?? [];
 $csrf = $csrf ?? Csrf::generate();
 
 $prefijada = $factura && !empty($factura['id']);
+
+// Discriminacion IVA de la factura a pagar: neto + IVA + total
+function ordenPagoDesglose(array $fc): string {
+    $base = (float)($fc['monto_base'] ?? 0);
+    $iva  = (float)($fc['monto_iva'] ?? 0);
+    if ($iva <= 0.009) {
+        return 'Sin IVA discriminado (neto $ ' . number_format($base, 2, ',', '.') . ')';
+    }
+    return 'Neto $ ' . number_format($base, 2, ',', '.')
+        . ' + IVA $ ' . number_format($iva, 2, ',', '.')
+        . ' = Total $ ' . number_format((float)$fc['monto_total'], 2, ',', '.');
+}
 ?>
 <h3><i class="bi bi-cash-coin"></i> <?= htmlspecialchars($title) ?></h3>
 
@@ -14,6 +26,7 @@ $prefijada = $factura && !empty($factura['id']);
         Pagando la factura <strong><?= htmlspecialchars(($factura['tipo_fiscal'] ?? '') !== '' ? $factura['tipo_fiscal'] . ' ' : '') ?><?= htmlspecialchars($factura['numero']) ?></strong>
         de <strong><?= htmlspecialchars($factura['proveedor_nombre'] ?? '') ?></strong>.
         Saldo pendiente: <strong>$ <?= number_format((float)$factura['saldo'], 2, ',', '.') ?></strong>.
+        <div class="small mt-1"><?= ordenPagoDesglose($factura) ?></div>
     </div>
     <a href="<?= BASE_URL ?>/ordenespago/create" class="btn btn-sm btn-outline-secondary">Elegir otra</a>
 </div>
@@ -32,16 +45,19 @@ $prefijada = $factura && !empty($factura['id']);
                 <?php if (!$prefijada): ?>
                     <div class="col-md-8 mb-3">
                         <label class="form-label fw-bold">Factura de compra *</label>
-                        <select name="factura_compra_id" class="form-select" required>
+                        <select name="factura_compra_id" id="factura_select" class="form-select" required>
                             <option value="">Seleccione una factura con saldo...</option>
                             <?php foreach ($facturas as $fc): ?>
-                                <option value="<?= (int)$fc['id'] ?>" <?= (int)($orden['factura_compra_id'] ?? 0) === (int)$fc['id'] ? 'selected' : '' ?>>
+                                <option value="<?= (int)$fc['id'] ?>"
+                                        data-desglose="<?= htmlspecialchars(ordenPagoDesglose($fc)) ?>"
+                                        <?= (int)($orden['factura_compra_id'] ?? 0) === (int)$fc['id'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars(($fc['tipo_fiscal'] ?? '') !== '' ? $fc['tipo_fiscal'] . ' ' : '') ?><?= htmlspecialchars($fc['numero']) ?>
                                     — <?= htmlspecialchars($fc['proveedor_nombre']) ?>
                                     (<?= date('d/m/Y', strtotime($fc['fecha_factura'])) ?>, saldo $ <?= number_format((float)$fc['saldo'], 2, ',', '.') ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                        <div id="factura_desglose" class="form-text"></div>
                         <?php if (empty($facturas)): ?>
                             <div class="form-text text-warning">No hay facturas con saldo pendiente. Registre una factura de compra primero.</div>
                         <?php endif; ?>
@@ -91,3 +107,18 @@ $prefijada = $factura && !empty($factura['id']);
         </button>
     </div>
 </form>
+
+<script>
+// Discriminacion IVA de la factura seleccionada en la orden de pago
+const selFactura = document.getElementById('factura_select');
+const divDesglose = document.getElementById('factura_desglose');
+function actualizarDesglose() {
+    if (!selFactura || !divDesglose) return;
+    const opt = selFactura.selectedOptions[0];
+    divDesglose.textContent = (opt && opt.value) ? (opt.dataset.desglose || '') : '';
+}
+if (selFactura) {
+    selFactura.addEventListener('change', actualizarDesglose);
+    actualizarDesglose();
+}
+</script>

@@ -122,22 +122,79 @@ class FacturaCompra extends Model
     }
 
     /**
-     * Facturas activas de una orden de compra.
+     * Facturas activas de una orden de compra (via tabla de relacion,
+     * soporta facturas que cubren varias OCs).
      */
     public function porOC(int $ocId): array
     {
         $stmt = $this->db->prepare("
             SELECT fc.*,
+                   fco.monto_asignado,
                    COALESCE(SUM(CASE WHEN op.estado IN ('APROBADA','PAGADA') THEN op.monto ELSE 0 END), 0) AS pagado_comprometido,
                    (fc.monto_total - COALESCE(SUM(CASE WHEN op.estado IN ('APROBADA','PAGADA') THEN op.monto ELSE 0 END), 0)) AS saldo
             FROM facturas_compra fc
+            JOIN facturas_compra_ocs fco ON fco.factura_id = fc.id AND fco.oc_id = ?
             LEFT JOIN ordenes_pago op ON op.factura_compra_id = fc.id
-            WHERE fc.orden_compra_id = ?
-            GROUP BY fc.id
+            GROUP BY fc.id, fco.monto_asignado
             ORDER BY fc.fecha_factura ASC, fc.id ASC
         ");
         $stmt->execute([$ocId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * OCs cubiertas por una factura, con el monto asignado a cada una.
+     */
+    public function ocsDeFactura(int $facturaId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT fco.oc_id, fco.monto_asignado,
+                   oc.estado AS oc_estado,
+                   COALESCE(ocd.total_oc, 0) AS total_oc
+            FROM facturas_compra_ocs fco
+            JOIN ordenes_compra oc ON oc.id = fco.oc_id
+            LEFT JOIN (
+                SELECT orden_compra_id, SUM(cantidad * precio_unitario) AS total_oc
+                FROM ordenes_compra_detalle
+                GROUP BY orden_compra_id
+            ) ocd ON ocd.orden_compra_id = oc.id
+            WHERE fco.factura_id = ?
+            ORDER BY fco.oc_id
+        ");
+        $stmt->execute([$facturaId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Total facturado (facturas REGISTRADA) sobre una OC, sumando los
+     * montos asignados de cada factura. Es el control para no facturar
+     * de mas: si ya cubre el total de la OC, no se admite otra factura.
+     */
+    public function facturadoOC(int $ocId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(fco.monto_asignado), 0)
+            FROM facturas_compra_ocs fco
+            JOIN facturas_compra fc ON fc.id = fco.factura_id
+            WHERE fco.oc_id = ? AND fc.estado = 'REGISTRADA'
+        ");
+        $stmt->execute([$ocId]);
+        return (float)($stmt->fetchColumn() ?: 0);
+    }
+
+    /**
+     * Total de una OC en la moneda indicada (las lineas de otra moneda
+     * no cuentan para el control de cobertura).
+     */
+    public function totalOcEnMoneda(int $ocId, int $moneda): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(cantidad * precio_unitario), 0)
+            FROM ordenes_compra_detalle
+            WHERE orden_compra_id = ? AND moneda = ?
+        ");
+        $stmt->execute([$ocId, $moneda]);
+        return (float)($stmt->fetchColumn() ?: 0);
     }
 
     /**
@@ -221,6 +278,62 @@ class FacturaCompra extends Model
             }
         }
 
+        // OCs cubiertas por la factura (puede ser una o varias).
+        // Formato esperado: $data['ocs'] = [ocId => montoAsignado, ...]
+        $ocsAsignadas = [];
+        if (!empty($data['ocs']) && is_array($data['ocs'])) {
+            foreach ($data['ocs'] as $ocAsigId => $montoAsignado) {
+                $ocAsigId = (int)$ocAsigId;
+                $montoAsignado = (float)$montoAsignado;
+                if ($ocAsigId <= 0 || $montoAsignado <= 0) {
+                    continue;
+                }
+                $stmt = $this->db->prepare("SELECT proveedor_id, estado FROM ordenes_compra WHERE id = ?");
+                $stmt->execute([$ocAsigId]);
+                $ocAsig = $stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$ocAsig) {
+                    throw new Exception("La OC #{$ocAsigId} no existe.");
+                }
+                if ((int)$ocAsig['proveedor_id'] !== $proveedorId) {
+                    throw new Exception("La OC #{$ocAsigId} pertenece a otro proveedor.");
+                }
+                if (!in_array($ocAsig['estado'], ['APROBADA', 'PARCIAL', 'RECIBIDA'], true)) {
+                    throw new Exception("La OC #{$ocAsigId} no está aprobada ni recibida.");
+                }
+
+                // Control de cobertura: lo ya facturado + lo que asigna esta
+                // factura no puede superar el total de la OC en esta moneda.
+                $totalOc = $this->totalOcEnMoneda($ocAsigId, $moneda);
+                $facturado = $this->facturadoOC($ocAsigId);
+                if ($facturado + $montoAsignado > $totalOc + 0.02) {
+                    $resto = max(0, $totalOc - $facturado);
+                    throw new Exception(sprintf(
+                        'La OC #%d ya está cubierta por otras facturas (facturado %.2f de %.2f). Solo quedarían %.2f por facturar en esa moneda.',
+                        $ocAsigId, $facturado, $totalOc, $resto
+                    ));
+                }
+                $ocsAsignadas[$ocAsigId] = $montoAsignado;
+            }
+
+            // Lo asignado no puede superar el total de la factura
+            if (array_sum($ocsAsignadas) > $montoTotal + 0.02) {
+                throw new Exception('La suma asignada a las OCs supera el total de la factura.');
+            }
+        } elseif ($ocId !== null) {
+            // Flujo clasico (Registrar factura desde la OC): la factura cubre esa OC
+            // por el total de la factura. Aplica el mismo control de cobertura.
+            $totalOc = $this->totalOcEnMoneda($ocId, $moneda);
+            $facturado = $this->facturadoOC($ocId);
+            if ($facturado + $montoTotal > $totalOc + 0.02) {
+                $resto = max(0, $totalOc - $facturado);
+                throw new Exception(sprintf(
+                    'La OC #%d ya está cubierta por otras facturas (facturado %.2f de %.2f). Solo quedarían %.2f por facturar en esa moneda.',
+                    $ocId, $facturado, $totalOc, $resto
+                ));
+            }
+            $ocsAsignadas = [$ocId => $montoTotal];
+        }
+
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM monedas WHERE id_moned = ?");
         $stmt->execute([$moneda]);
         if (!(int)$stmt->fetchColumn()) {
@@ -236,6 +349,10 @@ class FacturaCompra extends Model
             $this->db->beginTransaction();
         }
         try {
+            // La columna legacy guarda la primera OC (compatibilidad)
+            if (empty($ocId) && !empty($ocsAsignadas)) {
+                $ocId = (int)array_key_first($ocsAsignadas);
+            }
             $stmt = $this->db->prepare("
                 INSERT INTO facturas_compra
                     (proveedor_id, orden_compra_id, tipo_fiscal, numero, fecha_factura,
@@ -258,6 +375,15 @@ class FacturaCompra extends Model
                 $usuarioId,
             ]);
             $facturaId = (int)$this->db->lastInsertId();
+
+            // Relacion factura <-> OCs con el monto asignado a cada una
+            $stmtRel = $this->db->prepare("
+                INSERT INTO facturas_compra_ocs (factura_id, oc_id, monto_asignado)
+                VALUES (?, ?, ?)
+            ");
+            foreach ($ocsAsignadas as $ocAsigId => $montoAsignado) {
+                $stmtRel->execute([$facturaId, (int)$ocAsigId, $montoAsignado]);
+            }
 
             $asientoId = $this->asientoAuto->facturaCompraRegistrada([
                 'id'           => $facturaId,
@@ -380,11 +506,13 @@ class FacturaCompra extends Model
 
     /**
      * OCs disponibles para facturar: aprobadas o recibidas, con proveedor
-     * asignado, mostrando total, facturado y saldo.
+     * asignado, mostrando total, facturado y saldo (via tabla de relacion).
+     * Si $proveedorId > 0, solo las de ese proveedor (para el form multi-OC).
+     * Excluye las OCs ya cubiertas por facturas activas (saldo <= 0.02).
      */
-    public function ocsDisponibles(): array
+    public function ocsDisponibles(?int $proveedorId = null): array
     {
-        return $this->db->query("
+        $sql = "
             SELECT oc.id,
                    oc.estado,
                    oc.proveedor_id,
@@ -400,15 +528,24 @@ class FacturaCompra extends Model
                 GROUP BY orden_compra_id
             ) ocd ON ocd.orden_compra_id = oc.id
             LEFT JOIN (
-                SELECT orden_compra_id, SUM(monto_total) AS total_facturado
-                FROM facturas_compra
-                WHERE estado = 'REGISTRADA' AND orden_compra_id IS NOT NULL
-                GROUP BY orden_compra_id
-            ) fact ON fact.orden_compra_id = oc.id
+                SELECT fco.oc_id, SUM(fco.monto_asignado) AS total_facturado
+                FROM facturas_compra_ocs fco
+                JOIN facturas_compra fc ON fc.id = fco.factura_id
+                WHERE fc.estado = 'REGISTRADA'
+                GROUP BY fco.oc_id
+            ) fact ON fact.oc_id = oc.id
             WHERE oc.estado IN ('APROBADA','PARCIAL','RECIBIDA')
               AND oc.proveedor_id > 0
-            ORDER BY oc.id DESC
-        ")->fetchAll(PDO::FETCH_ASSOC);
+        ";
+        $params = [];
+        if ($proveedorId !== null && $proveedorId > 0) {
+            $sql .= ' AND oc.proveedor_id = ?';
+            $params[] = $proveedorId;
+        }
+        $sql .= " ORDER BY oc.id DESC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -418,6 +555,20 @@ class FacturaCompra extends Model
     {
         return $this->db->query("
             SELECT id_moned, nombre, simbolo FROM monedas ORDER BY id_moned
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Alicuotas de IVA activas (tabla impuestos) para el selector del form.
+     * Se ordenan por porcentaje: 0% primero para que "Sin IVA" quede arriba.
+     */
+    public function impuestos(): array
+    {
+        return $this->db->query("
+            SELECT id, nombre, codigo, porcentaje
+            FROM impuestos
+            WHERE activo = 1
+            ORDER BY porcentaje ASC, nombre ASC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 

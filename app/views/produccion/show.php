@@ -55,6 +55,9 @@ foreach ($orden_det as $r) {
 
 <hr>
 
+<?php $adjModulo = 'PRODUCCION'; $adjDocId = (int)$orden['id'];
+      require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
+
 <!-- Materia Prima Reservada -->
 <h5><i class="bi bi-box-seam"></i> Materia Prima Reservada</h5>
 <div class="table-responsive mt-3">

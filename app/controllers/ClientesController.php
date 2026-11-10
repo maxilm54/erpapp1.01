@@ -28,6 +28,7 @@ class ClientesController extends Controller{
                 'direccion' => htmlspecialchars(trim($_POST['direccion'])),
                 'contacto' => htmlspecialchars(trim($_POST['contacto'])),
                 'es_distribuidor' => htmlspecialchars(trim($_POST['es_distribuidor'])),
+                'nomenclador' => strtoupper(htmlspecialchars(trim($_POST['nomenclador'] ?? ''))),
                 'observaciones_gral' => htmlspecialchars(trim($_POST['observaciones_gral'])),
                 'obs_financieras' => htmlspecialchars(trim($_POST['obs_financieras']))
             ]);

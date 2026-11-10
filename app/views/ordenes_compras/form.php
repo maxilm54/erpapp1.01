@@ -1,6 +1,6 @@
 <h3 class="mb-3"><?= $title ?></h3>
 
-<form method="POST" class="card p-4">
+<form method="POST" class="card p-4" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <div class="mb-3">
         <label class="form-label">Proveedor</label>
@@ -51,6 +51,21 @@
     
     <div id="items-container">
     </div>
+
+    <?php if (!empty($usarAdjuntosCompra)): ?>
+    <!-- Adjuntos (comprobantes) - config Empresa -> Configuraciones -->
+    <div class="card border-secondary mt-3">
+        <div class="card-header bg-secondary-subtle py-2">
+            <strong><i class="bi bi-paperclip"></i> Adjuntar comprobantes</strong>
+            <small class="text-muted">— opcional, también podrá agregar más luego desde la vista de la orden</small>
+        </div>
+        <div class="card-body py-2">
+            <input type="file" class="form-control form-control-sm" name="archivos_adjuntos[]" multiple
+                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.doc,.docx,.odt,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.txt,.zip,.rar,.msg,.eml">
+            <div class="form-text small">Hasta 10 MB por archivo. Si no adjunta nada, la orden se guarda igual.</div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="d-flex gap-2 justify-content-end">
         <a href="<?= BASE_URL ?>/ordenescompra" class="btn btn-secondary">Cancelar</a>

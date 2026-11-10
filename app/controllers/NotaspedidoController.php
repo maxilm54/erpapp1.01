@@ -3,6 +3,8 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
+require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Adjunto.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 
 class NotasPedidoController extends Controller
@@ -27,7 +29,9 @@ class NotasPedidoController extends Controller
     {
         $this->view('notas_pedido/form', [
             'clientes'     => $this->np->clientes(),
-            'presupuestos' => []
+            'presupuestos' => [],
+            'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
+            'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
         ]);
     }
 
@@ -49,6 +53,20 @@ class NotasPedidoController extends Controller
                     'items'        => $_POST['items'] ?? [],
                     'observaciones' => $_POST['observaciones'] ?? ''
                 ]);
+
+                // Adjuntos subidos en el form de creacion (config activa)
+                if ((new Configuracion())->activa('usar_adjuntos', false)
+                    && !empty($_FILES['archivos_adjuntos']['name'][0])) {
+                    try {
+                        $n = (new Adjunto())->guardarMultiples('NOTA_PEDIDO', (int)$id, $_FILES['archivos_adjuntos']);
+                        if ($n > 0) {
+                            $_SESSION['success'] = "Nota de pedido creada con {$n} adjunto(s).";
+                        }
+                    } catch (Exception $e) {
+                        error_log('[Adjuntos NP] ' . $e->getMessage());
+                        $_SESSION['error'] = 'La NP se creó pero falló un adjunto: ' . $e->getMessage();
+                    }
+                }
             } catch (Exception $e) {
                 $_SESSION['error'] = $e->getMessage();
                 header('Location: ' . BASE_URL . '/notaspedido/create');

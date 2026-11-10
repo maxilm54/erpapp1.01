@@ -26,6 +26,9 @@
               <option value="Si">Es Distruibuidor</option>
               <option value="No">No Es Distruibuidor</option>
        </Select>
+       <input class="form-control mb-3" name="nomenclador" maxlength="20"
+              value="<?= $cliente['nomenclador'] ?? '' ?>"
+              placeholder="Nomenclador (sufijo de código, ej: PIST)">
        <textarea name="observaciones_gral" class="form-control mb-3" placeholder="Observaciones Generales del cliente"><?= $cliente['observaciones_gral'] ?? '' ?></textarea>
        <textarea name="obs_financieras" class="form-control mb-3" placeholder="Obersvaciones Financieras del clente"><?= $cliente['obs_financieras'] ?? '' ?></textarea>
        <div class="col d-flex justify-content-end">

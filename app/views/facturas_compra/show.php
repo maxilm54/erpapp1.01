@@ -45,8 +45,16 @@ $tipoFiscal = ($factura['tipo_fiscal'] ?? '') !== '' ? $factura['tipo_fiscal'] .
                         <?php endif; ?>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <small class="text-muted d-block">Orden de Compra</small>
-                        <?php if (!empty($factura['oc_id'])): ?>
+                        <small class="text-muted d-block">Orden(es) de Compra</small>
+                        <?php $ocsFactura = $ocs ?? []; ?>
+                        <?php if (!empty($ocsFactura)): ?>
+                            <?php foreach ($ocsFactura as $ocF): ?>
+                                <div>
+                                    <a href="<?= BASE_URL ?>/ordenescompra/show/<?= (int)$ocF['oc_id'] ?>">OC #<?= (int)$ocF['oc_id'] ?></a>
+                                    <small class="text-muted">(cubre $ <?= number_format((float)$ocF['monto_asignado'], 2, ',', '.') ?>)</small>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php elseif (!empty($factura['oc_id'])): ?>
                             <a href="<?= BASE_URL ?>/ordenescompra/show/<?= (int)$factura['oc_id'] ?>">OC #<?= (int)$factura['oc_id'] ?></a>
                         <?php else: ?>
                             <strong>Sin OC</strong>
