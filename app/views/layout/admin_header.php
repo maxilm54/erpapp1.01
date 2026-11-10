@@ -113,6 +113,9 @@
             <a href="<?= BASE_URL ?>/admin/migrations" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/migrations') ? 'active' : '' ?>">
                 <i class="bi bi-database"></i> Migraciones
             </a>
+            <a href="<?= BASE_URL ?>/admin/novedades" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/novedades') ? 'active' : '' ?>">
+                <i class="bi bi-megaphone"></i> Novedades
+            </a>
             <a href="<?= BASE_URL ?>/admin/backups" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/backups') ? 'active' : '' ?>">
                 <i class="bi bi-save2"></i> Backups
             </a>

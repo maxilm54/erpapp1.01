@@ -382,11 +382,22 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   - Anulación por baja lógica (`activo = 0`): los movimientos contables no se borran físicamente.
   - Ruta: `/cuentacorrienteempresa`, `/create`, `/edit/{id}`, `/delete/{id}`.
 
-### 6b. Perfil del Usuario
+### 6b. Perfil del Usuario y Notificaciones
 
 - **Mi Perfil** (`/perfil`): el usuario logueado ve y edita sus propios datos (nombre, email y contraseña).
 - No permite cambiar el rol ni el estado: eso es exclusivo de un administrador de la empresa.
 - El cambio se guarda en la BD master (`app_master.users`) y se propaga a la copia del usuario en cada empresa (`users` del tenant) para que no quede desincronizado.
+- **Centro de Notificaciones** (sección en `/perfil#notificaciones` + campana con badge en el header): módulo general de alertas por usuario (migración master 003, tablas `notificaciones` + `notificaciones_leidos` en la **BD master**, el estado leído/no leído es **por usuario**).
+  - **Alertas operativas por empresa** (se regeneran en cada consulta desde la BD del tenant, con clave estable `tipo:id:fecha`):
+    - `CHEQUE_VENCIMIENTO`: cheques en cartera/depositados que vencen en los próximos 30 días o ya vencidos.
+    - `PRESUPUESTO_ENTREGA`: presupuestos **sin aprobar** con fecha de entrega comprometida.
+    - `NP_ENTREGA`: notas de pedido **aprobadas** con fecha de entrega que siguen sin remitarse completo.
+    - `OP_ENTREGA`: órdenes de producción (`PENDIENTE`/`EN_PRODUCCION`) con fecha de entrega.
+    - El ítem desaparece cuando el documento se cierra (cheque cobrado, NP remitida, OP finalizada, presupuesto aprobado); si cambia la fecha, cambia la clave y vuelve a figurar como nueva.
+  - **Novedades globales** (`NOVEDAD`): las publica el superadmin en Admin → Novedades y se ven en todas (o una) empresa hasta `vigencia_hasta`.
+  - **Al iniciar sesión** se muestra (una vez por login) un modal con las no leídas; la campana del header muestra el contador de no leídas.
+  - Cada notificación se puede marcar como leída individualmente o todas juntas (`perfil/notificacion-leer/{id}`, `perfil/notificaciones-leer-todas`, POST + CSRF).
+  - El listado se agrupa **día por día** por su fecha de referencia (Vencidas / Hoy / Mañana / dd/mm/aa).
 
 ### 7. Contabilidad (Partida Doble)
 
@@ -427,6 +438,10 @@ Módulo para registrar movimientos de stock que no generan comprobante fiscal ni
 - **Usuarios**: gestión global y por empresa.
 - **Migraciones**: estado por tenant + migraciones pendientes de la BD master.
 - **Tareas** (`/admin/tareas`): registro de tareas de la instalación.
+- **Novedades** (`/admin/novedades`): avisos globales que el superadmin publica para las empresas (nuevas funcionalidades, avisos, etc.).
+  - Campos: título, mensaje, empresa (`vacío = todas`) y **visible hasta** (`vigencia_hasta`, obligatorio: último día en que se muestra).
+  - Se ven en el centro de notificaciones de los usuarios mientras estén vigentes; la baja es lógica (`activo = 0`).
+  - Rutas: `/admin/novedades`, `/admin/novedades-create`, `/admin/novedades-edit/{id}`, `/admin/novedades-update/{id}`, `/admin/novedades-delete/{id}`.
 
 #### Registro de tareas
 
@@ -443,7 +458,7 @@ Reemplaza al viejo `tareas.json` de la raíz del repo (eliminado). Vive en la ta
 
 ### Estructura Multi-Tenant
 
-- **Master DB** (`app_master`): 5 tablas (tenants, users, user_tenant, tareas, master_migrations).
+- **Master DB** (`app_master`): 7 tablas (tenants, users, user_tenant, tareas, master_migrations, notificaciones, notificaciones_leidos).
 - **Tenant DB** (ej: `app_triba`): 50+ tablas con datos de la empresa.
 
 ### Tablas Principales del Tenant

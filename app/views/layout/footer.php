@@ -6,5 +6,9 @@
     <!-- alertas con SweetAlert2 JS -->
     <?php require_once BASE_PATH.'/app/views/layout/alerts.php'; ?>
     <script src="<?= BASE_URL ?>/js/confirmations.js"></script>
+    <?php if (Auth::check() && Auth::hasTenant()): ?>
+    <!-- Notificaciones: badge + modal al iniciar sesion -->
+    <?php require_once BASE_PATH.'/app/views/layout/notificaciones_modal.php'; ?>
+    <?php endif; ?>
 </body>
 </html>

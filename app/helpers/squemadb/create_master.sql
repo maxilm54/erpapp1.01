@@ -114,6 +114,47 @@ CREATE TABLE IF NOT EXISTS `master_migrations` (
   COMMENT='Migraciones aplicadas sobre la BD master';
 
 -- -----------------------------------------------------------
+-- TABLA: notificaciones (modulo de notificaciones, master migration 003)
+-- tenant_id NULL = novedad global del superadmin; con tenant_id = alerta
+-- operativa de esa empresa, regenerada con una clave estable.
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notificaciones` (
+  `id`               INT NOT NULL AUTO_INCREMENT,
+  `tenant_id`        INT DEFAULT NULL,
+  `clave`            VARCHAR(120) DEFAULT NULL,
+  `tipo`             VARCHAR(40) NOT NULL,
+  `titulo`           VARCHAR(150) NOT NULL,
+  `mensaje`          TEXT DEFAULT NULL,
+  `fecha_referencia` DATE DEFAULT NULL,
+  `url`              VARCHAR(255) DEFAULT NULL,
+  `vigencia_hasta`   DATE DEFAULT NULL,
+  `activo`           TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_clave` (`clave`),
+  KEY `idx_tenant` (`tenant_id`),
+  KEY `idx_tipo` (`tipo`),
+  KEY `idx_fecha_ref` (`fecha_referencia`),
+  KEY `idx_activo` (`activo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Alertas operativas por empresa y novedades globales';
+
+-- -----------------------------------------------------------
+-- TABLA: notificaciones_leidos (estado leido / no leido por usuario)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `notificaciones_leidos` (
+  `id`              INT NOT NULL AUTO_INCREMENT,
+  `notificacion_id` INT NOT NULL,
+  `user_id`         INT NOT NULL,
+  `leido_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_notif_user` (`notificacion_id`, `user_id`),
+  KEY `idx_user` (`user_id`),
+  CONSTRAINT `fk_notif_leido_notif` FOREIGN KEY (`notificacion_id`) REFERENCES `notificaciones` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Lectura por usuario de cada notificacion';
+
+-- -----------------------------------------------------------
 -- DATOS INICIALES
 -- -----------------------------------------------------------
 

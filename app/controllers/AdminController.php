@@ -2,6 +2,7 @@
 require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Tenant.php';
 require_once BASE_PATH.'/app/models/User.php';
+require_once BASE_PATH.'/app/models/Notificacion.php';
 require_once BASE_PATH.'/app/core/Csrf.php';
 require_once BASE_PATH.'/app/core/Role.php';
 require_once BASE_PATH.'/app/helpers/MigrationManager.php';
@@ -559,6 +560,175 @@ class AdminController extends Controller{
 
         header('Location: ' . BASE_URL . '/admin/migrations');
         exit;
+    }
+
+    // =====================================================
+    // NOVEDADES (avisos globales del superadmin para las empresas)
+    // Cada novedad tiene vigencia_hasta: fecha limite hasta la cual se muestra
+    // en el centro de notificaciones de los usuarios (tenant_id NULL = todas
+    // las empresas).
+    // =====================================================
+
+    /**
+     * Listado + formulario de alta de novedades.
+     */
+    public function novedades(): void{
+        $this->requireAdmin();
+
+        $notifModel = new Notificacion();
+
+        $this->adminView('admin/novedades', [
+            'title'     => 'Novedades',
+            'novedades' => $notifModel->novedades(),
+            'tenants'   => Database::getMaster()
+                ->query("SELECT id, nombre FROM tenants ORDER BY nombre")
+                ->fetchAll(PDO::FETCH_ASSOC),
+            'editar'    => null,
+        ]);
+    }
+
+    /**
+     * Formulario de edicion de una novedad (mismo view, form precargado).
+     */
+    public function novedadesEdit($id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/novedades');
+
+        $notifModel = new Notificacion();
+        $novedad = $notifModel->find((int)$id);
+
+        if (!$novedad || $novedad['tipo'] !== Notificacion::TIPO_NOVEDAD) {
+            $_SESSION['error'] = 'La novedad no existe.';
+            header('Location: ' . BASE_URL . '/admin/novedades');
+            exit;
+        }
+
+        $this->adminView('admin/novedades', [
+            'title'     => 'Novedades',
+            'novedades' => $notifModel->novedades(),
+            'tenants'   => Database::getMaster()
+                ->query("SELECT id, nombre FROM tenants ORDER BY nombre")
+                ->fetchAll(PDO::FETCH_ASSOC),
+            'editar'    => $novedad,
+        ]);
+    }
+
+    /**
+     * Guarda una novedad nueva.
+     */
+    public function novedadesCreate(): void{
+        $this->requireAdmin();
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            $datos = $this->datosNovedadDesdePost();
+            if ($datos === null) {
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            (new Notificacion())->crearNovedad($datos);
+
+            $_SESSION['success'] = 'Novedad creada. Se muestra hasta el ' . date('d/m/Y', strtotime($datos['vigencia_hasta'])) . '.';
+            header('Location: ' . BASE_URL . '/admin/novedades');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/novedades');
+        exit;
+    }
+
+    /**
+     * Guarda los cambios de una novedad existente.
+     */
+    public function novedadesUpdate($id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/novedades');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            $notifModel = new Notificacion();
+            $novedad = $notifModel->find((int)$id);
+            if (!$novedad || $novedad['tipo'] !== Notificacion::TIPO_NOVEDAD) {
+                $_SESSION['error'] = 'La novedad no existe.';
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            $datos = $this->datosNovedadDesdePost();
+            if ($datos === null) {
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            $notifModel->actualizarNovedad((int)$id, $datos);
+
+            $_SESSION['success'] = 'Novedad actualizada.';
+            header('Location: ' . BASE_URL . '/admin/novedades');
+            exit;
+        }
+
+        header('Location: ' . BASE_URL . '/admin/novedades');
+        exit;
+    }
+
+    /**
+     * Baja logica de una novedad (activo = 0): deja de mostrarse en las empresas.
+     */
+    public function novedadesDelete($id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/novedades');
+
+        if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')){
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/novedades');
+                exit;
+            }
+
+            (new Notificacion())->desactivar((int)$id);
+
+            $_SESSION['success'] = 'Novedad desactivada.';
+        }
+
+        header('Location: ' . BASE_URL . '/admin/novedades');
+        exit;
+    }
+
+    /**
+     * Valida los campos del form de novedades. Retorna null si falta algo
+     * (deja el flash de error correspondiente).
+     */
+    private function datosNovedadDesdePost(): ?array{
+        $titulo = trim($_POST['titulo'] ?? '');
+        $mensaje = trim($_POST['mensaje'] ?? '');
+        $vigencia = trim($_POST['vigencia_hasta'] ?? '');
+
+        if ($titulo === '') {
+            $_SESSION['error'] = 'El titulo de la novedad es obligatorio.';
+            return null;
+        }
+        if ($vigencia === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $vigencia)) {
+            $_SESSION['error'] = 'La fecha de vigencia es obligatoria (hasta que dia se muestra la novedad).';
+            return null;
+        }
+
+        return [
+            'titulo'         => mb_substr($titulo, 0, 150),
+            'mensaje'        => $mensaje !== '' ? $mensaje : null,
+            'vigencia_hasta' => $vigencia,
+            'tenant_id'      => $_POST['tenant_id'] ?? null,
+        ];
     }
 
     // =====================================================

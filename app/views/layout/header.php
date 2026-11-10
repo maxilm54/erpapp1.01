@@ -217,6 +217,18 @@ Empresa
 
 <ul class="navbar-nav">
 <?php if (Auth::check()): ?>
+<?php if (Auth::hasTenant()): ?>
+<!-- Campana de notificaciones (badge + centro en Mi Perfil) -->
+<li class="nav-item">
+    <a class="nav-link position-relative" href="<?= BASE_URL ?>/perfil#notificaciones"
+       title="Notificaciones">
+        <i class="bi bi-bell" style="font-size: 1.1rem;"></i>
+        <span id="notif-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">
+            0
+        </span>
+    </a>
+</li>
+<?php endif; ?>
 <li class="nav-item dropdown">
 <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
 <i class="bi bi-person-circle"></i>

@@ -77,6 +77,9 @@ class AuthController extends Controller{
             $_SESSION['user_nombre'] = $user['nombre'];
             $_SESSION['user_rol'] = $user['rol'];
 
+            // El modal de notificaciones se muestra una vez por inicio de sesion
+            $_SESSION['ver_notificaciones'] = true;
+
             // SuperAdmin va directo al panel admin
             if (strtoupper($user['rol']) === 'SUPERADMIN') {
                 header('Location: ' . BASE_URL . '/admin');
