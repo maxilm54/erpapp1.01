@@ -39,6 +39,7 @@ class ConfiguracionesController extends Controller
             'nomenclador' => $config->activa('usar_nomenclador', true),
             'usarAdjuntos' => $config->activa('usar_adjuntos', false),
             'usarAdjuntosCompra' => $config->activa('usar_adjuntos_compra', false),
+            'npAprobadaAuto' => $config->activa('np_automatica_aprobada', false),
             'camposPorModulo' => $camposPorModulo,
         ]);
     }
@@ -70,6 +71,9 @@ class ConfiguracionesController extends Controller
                     break;
                 case 'usar_adjuntos_compra':
                     $config->set('usar_adjuntos_compra', !empty($_POST['usar_adjuntos_compra']) ? '1' : '0');
+                    break;
+                case 'np_automatica_aprobada':
+                    $config->set('np_automatica_aprobada', !empty($_POST['np_automatica_aprobada']) ? '1' : '0');
                     break;
             }
 

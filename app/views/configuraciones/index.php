@@ -98,6 +98,44 @@
     </div>
 </div>
 
+<!-- NP automatica al aprobar presupuesto -->
+<div class="card mb-3">
+    <div class="card-header bg-success text-white">
+        <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Nota de Pedido automática al aprobar un Presupuesto</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= BASE_URL ?>/configuraciones/guardar">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="guardar" value="np_automatica_aprobada">
+
+            <p class="text-muted small">
+                Al aprobar un presupuesto se genera <strong>siempre</strong> la Nota de Pedido automáticamente
+                (hereda items, observaciones, adjuntos y los campos personalizados cargados en el presupuesto).
+            </p>
+
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="np_automatica_aprobada"
+                       name="np_automatica_aprobada" value="1" <?= $npAprobadaAuto ? 'checked' : '' ?>>
+                <label class="form-check-label fw-semibold" for="np_automatica_aprobada">
+                    Las NPs generadas automáticamente quedan ya aprobadas
+                </label>
+            </div>
+            <p class="text-muted mb-0 small">
+                <strong>Activado:</strong> la NP nace en estado <span class="badge bg-success">APROBADA</span>,
+                lista para remitir. <strong>Desactivado:</strong> la NP nace en
+                <span class="badge bg-secondary">BORRADOR</span> y hay que aprobarla manualmente desde su vista.
+                En ambos casos, los campos personalizados de la NP se pueden completar/editar después
+                desde la vista de la NP.
+            </p>
+
+            <div class="mt-3">
+                <button class="btn btn-success"><i class="bi bi-save"></i> Guardar</button>
+                <a href="<?= BASE_URL ?>/home" class="btn btn-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Campos personalizados por modulo -->
 <div class="card mb-3">
     <div class="card-header bg-dark text-white">

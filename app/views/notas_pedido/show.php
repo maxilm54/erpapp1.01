@@ -34,6 +34,9 @@
       require BASE_PATH . '/app/views/adjuntos/panel.php'; ?>
 
 <?php $cpModulo = 'NOTA_PEDIDO'; $cpDocId = (int)$np['id'];
+      $cpEditable = true;
+      $cpEditAction = BASE_URL . '/notaspedido/guardar-campos/' . (int)$np['id'];
+      $cpQuitarBase = BASE_URL . '/notaspedido/quitar-valor';
       require BASE_PATH . '/app/views/campos_personalizados/panel.php'; ?>
 
 <div class="table-scroll mt-3">

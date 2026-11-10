@@ -15,31 +15,7 @@ $cpValores = is_array($cpValores ?? null) ? $cpValores : [];
         <small class="text-muted">— campos configurados en Empresa &gt; Configuraciones</small>
     </div>
     <div class="card-body py-2">
-        <div class="row g-3">
-            <?php foreach ($cpCampos as $cp): ?>
-                <?php
-                    $cpId    = (int)$cp['id'];
-                    $cpValor = (string)($cpValores[$cpId] ?? '');
-                    $cpTipo  = $cp['tipo'] ?? 'texto';
-                ?>
-                <div class="col-md-4">
-                    <label class="form-label" for="cp_campo_<?= $cpId ?>"><?= htmlspecialchars($cp['nombre']) ?></label>
-                    <?php if ($cpTipo === 'numero'): ?>
-                        <input type="number" step="any" id="cp_campo_<?= $cpId ?>"
-                               name="campos_cp[<?= $cpId ?>]" value="<?= htmlspecialchars($cpValor) ?>"
-                               class="form-control">
-                    <?php elseif ($cpTipo === 'fecha'): ?>
-                        <input type="date" id="cp_campo_<?= $cpId ?>"
-                               name="campos_cp[<?= $cpId ?>]" value="<?= htmlspecialchars($cpValor) ?>"
-                               class="form-control">
-                    <?php else: ?>
-                        <input type="text" id="cp_campo_<?= $cpId ?>"
-                               name="campos_cp[<?= $cpId ?>]" value="<?= htmlspecialchars($cpValor) ?>"
-                               class="form-control" maxlength="255">
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
+        <?php require BASE_PATH . '/app/views/campos_personalizados/inputs_inner.php'; ?>
     </div>
 </div>
 <?php endif; ?>

@@ -188,6 +188,54 @@ class Campopersonalizado extends Model
     }
 
     /**
+     * Igual que valoresMapa, pero los campos configurados del modulo que no tienen
+     * valor propio se prellenan con el valor de una fila heredada del mismo nombre
+     * (ej: NP con campo agregado a la configuracion DESPUES de generarse). Asi el
+     * usuario ve el valor y al guardar no lo pierde: la fila heredada queda
+     * reemplazada por la propia.
+     */
+    public function valoresMapaConHeredadas(string $modulo, int $documentoId): array
+    {
+        $mapa = $this->valoresMapa($modulo, $documentoId);
+
+        $campos = $this->porModulo($modulo);
+        if (empty($campos)) {
+            return $mapa;
+        }
+
+        // nombre normalizado => campo_id (para matchear heredadas) + ids propios
+        $porNombre = [];
+        $idsConfig = [];
+        foreach ($campos as $c) {
+            $porNombre[mb_strtolower(trim((string)$c['nombre']))] = (int)$c['id'];
+            $idsConfig[] = (int)$c['id'];
+        }
+
+        foreach ($this->valoresDe($modulo, $documentoId) as $v) {
+            $campoId = (int)$v['campo_id'];
+            if (in_array($campoId, $idsConfig, true)) {
+                continue; // fila propia del modulo: ya esta en el mapa
+            }
+            // fila heredada: si su nombre matchea un campo activo del modulo sin
+            // valor propio, ese campo se prellena con el valor heredado
+            $nombre = mb_strtolower(trim((string)($v['campo_nombre'] ?? '')));
+            if ($nombre === '' || !isset($porNombre[$nombre])) {
+                continue;
+            }
+            $destId = $porNombre[$nombre];
+            if (isset($mapa[$destId]) && trim((string)$mapa[$destId]) !== '') {
+                continue; // el campo propio ya tiene valor
+            }
+            if (trim((string)$v['valor']) === '') {
+                continue;
+            }
+            $mapa[$destId] = (string)$v['valor'];
+        }
+
+        return $mapa;
+    }
+
+    /**
      * Guarda los valores que llegan del formulario ($_POST['campos_cp']).
      * Solo acepta campos activos del modulo; reescribe esas filas sin tocar las
      * heredadas de otro modulo. Devuelve la cantidad de filas escritas.
@@ -212,7 +260,37 @@ class Campopersonalizado extends Model
             return 0;
         }
 
-        return $this->guardarValores($modulo, $documentoId, $valores, $campos);
+        $escritas = $this->guardarValores($modulo, $documentoId, $valores, $campos);
+
+        // Los campos propios del modulo que recibieron valor "absorben" las filas
+        // heredadas del mismo nombre (evita mostrar el valor duplicado: una vez
+        // como fila heredada y otra en el campo propio).
+        $idsConfig = array_map('intval', array_column($campos, 'id'));
+        $nombres = [];
+        foreach ($campos as $c) {
+            if (array_key_exists((int)$c['id'], $valores)) {
+                $nombres[] = (string)$c['nombre'];
+            }
+        }
+        if (!empty($nombres)) {
+            $placeholdersIds = implode(',', array_fill(0, count($idsConfig), '?'));
+            $placeholdersNombres = implode(',', array_fill(0, count($nombres), '?'));
+            $stmt = $this->db->prepare(
+                "DELETE v FROM campos_personalizados_valores v
+                 LEFT JOIN campos_personalizados cp ON cp.id = v.campo_id
+                 WHERE v.modulo = ?
+                   AND v.documento_id = ?
+                   AND v.campo_id NOT IN ($placeholdersIds)
+                   AND COALESCE(NULLIF(v.campo_nombre, ''), cp.nombre) IN ($placeholdersNombres)"
+            );
+            $stmt->execute(array_merge(
+                [strtoupper($modulo), $documentoId],
+                $idsConfig,
+                $nombres
+            ));
+        }
+
+        return $escritas;
     }
 
     /**
@@ -259,27 +337,81 @@ class Campopersonalizado extends Model
 
     /**
      * Copia los valores de un documento a otro (ej: Presupuesto -> Nota de Pedido
-     * generada desde ese presupuesto). Las filas heredadas quedan con el mismo
-     * campo_id y snapshot del nombre, asi se ven en el destino aunque ahi el
-     * campo no este configurado. Devuelve la cantidad de filas afectadas.
+     * generada desde ese presupuesto), en dos pasos:
+     *
+     *  1) Si el modulo destino tiene un campo ACTIVO con el mismo nombre, el valor
+     *     se guarda en ese campo propio del destino (el formulario del destino
+     *     lo muestra cargado).
+     *  2) Si no hay campo con ese nombre en el destino, la fila se copia como
+     *     "heredada" (mismo campo_id + snapshot del nombre), asi se ve en el
+     *     destino aunque ahi el campo no este configurado.
+     *
+     * Devuelve la cantidad de filas afectadas.
      */
     public function copiarTodos(string $moduloOrigen, int $docOrigenId, string $moduloDestino, int $docDestinoId): int
     {
+        $moduloDestino = strtoupper($moduloDestino);
+        $afectadas = 0;
+
+        // 1) Valores que van a campos propios del destino (match por nombre)
         $stmt = $this->db->prepare(
             "INSERT INTO campos_personalizados_valores
                 (campo_id, modulo, documento_id, campo_nombre, valor)
-             SELECT v.campo_id, :dest, :docDest, COALESCE(NULLIF(v.campo_nombre, ''), cp.nombre), v.valor
+             SELECT dest.id, :dest1, :docDest1, dest.nombre, v.valor
              FROM campos_personalizados_valores v
              LEFT JOIN campos_personalizados cp ON cp.id = v.campo_id
+             JOIN campos_personalizados dest
+                  ON dest.modulo = :dest2 AND dest.activo = 1
+                 AND dest.nombre = COALESCE(NULLIF(v.campo_nombre, ''), cp.nombre)
              WHERE v.modulo = :origen AND v.documento_id = :docOrigen
              ON DUPLICATE KEY UPDATE campo_nombre = VALUES(campo_nombre), valor = VALUES(valor)"
         );
         $stmt->execute([
-            'dest'      => strtoupper($moduloDestino),
-            'docDest'   => $docDestinoId,
+            'dest1'     => $moduloDestino,
+            'docDest1'  => $docDestinoId,
+            'dest2'     => $moduloDestino,
             'origen'    => strtoupper($moduloOrigen),
             'docOrigen' => $docOrigenId,
         ]);
-        return $stmt->rowCount();
+        $afectadas += $stmt->rowCount();
+
+        // 2) El resto se copia como filas heredadas (sin campo propio que las reciba)
+        $stmt = $this->db->prepare(
+            "INSERT INTO campos_personalizados_valores
+                (campo_id, modulo, documento_id, campo_nombre, valor)
+             SELECT v.campo_id, :dest1, :docDest1, COALESCE(NULLIF(v.campo_nombre, ''), cp.nombre), v.valor
+             FROM campos_personalizados_valores v
+             LEFT JOIN campos_personalizados cp ON cp.id = v.campo_id
+             LEFT JOIN campos_personalizados dest
+                  ON dest.modulo = :dest2 AND dest.activo = 1
+                 AND dest.nombre = COALESCE(NULLIF(v.campo_nombre, ''), cp.nombre)
+             WHERE v.modulo = :origen AND v.documento_id = :docOrigen
+               AND dest.id IS NULL
+             ON DUPLICATE KEY UPDATE campo_nombre = VALUES(campo_nombre), valor = VALUES(valor)"
+        );
+        $stmt->execute([
+            'dest1'     => $moduloDestino,
+            'docDest1'  => $docDestinoId,
+            'dest2'     => $moduloDestino,
+            'origen'    => strtoupper($moduloOrigen),
+            'docOrigen' => $docOrigenId,
+        ]);
+        $afectadas += $stmt->rowCount();
+
+        return $afectadas;
+    }
+
+    /**
+     * Elimina una fila de valor SI pertenece al documento indicado (control de
+     * propiedad). Se usa para quitar valores heredados desde la vista del documento.
+     */
+    public function quitarValor(int $valorId, string $modulo, int $documentoId): bool
+    {
+        $stmt = $this->db->prepare(
+            "DELETE FROM campos_personalizados_valores
+             WHERE id = :id AND modulo = :modulo AND documento_id = :doc"
+        );
+        $stmt->execute(['id' => $valorId, 'modulo' => strtoupper($modulo), 'doc' => $documentoId]);
+        return $stmt->rowCount() > 0;
     }
 }

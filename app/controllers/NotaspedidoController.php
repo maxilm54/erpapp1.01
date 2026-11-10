@@ -197,6 +197,73 @@ class NotasPedidoController extends Controller
         $this->view('notas_pedido/anular', ['id' => $id]);
     }
 
+    // 💾 Guardar campos personalizados desde la vista de la NP (incluye las NPs
+    // generadas automaticamente al aprobar un presupuesto).
+    public function guardarCampos($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+                exit;
+            }
+
+            try {
+                $n = (new Campopersonalizado())->guardarDesdePost('NOTA_PEDIDO', (int)$id, $_POST['campos_cp'] ?? []);
+                $_SESSION['success'] = $n > 0
+                    ? 'Información adicional guardada.'
+                    : 'No hay campos configurados en Empresa > Configuraciones para este módulo.';
+            } catch (Exception $e) {
+                $_SESSION['error'] = 'No se pudo guardar la información adicional: ' . $e->getMessage();
+                error_log('[Campos NP guardarCampos] ' . $e->getMessage());
+            }
+
+            // Regenerar el PDF para que refleje los valores guardados
+            try {
+                $this->np->generarYGuardarPdf((int)$id);
+            } catch (Exception $e) {
+                error_log('[Campos NP PDF] ' . $e->getMessage());
+            }
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
+    }
+
+    // ❌ Quitar una fila de valor (ej: heredada del presupuesto) de la NP
+    public function quitarValor($id, $valorId)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+        validarId($valorId, BASE_URL . '/notaspedido/show/' . $id);
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+                exit;
+            }
+
+            try {
+                $quitado = (new Campopersonalizado())->quitarValor((int)$valorId, 'NOTA_PEDIDO', (int)$id);
+                $_SESSION['success'] = $quitado ? 'Valor quitado de la nota de pedido.' : 'El valor ya no existe.';
+            } catch (Exception $e) {
+                $_SESSION['error'] = 'No se pudo quitar el valor: ' . $e->getMessage();
+                error_log('[Campos NP quitarValor] ' . $e->getMessage());
+            }
+
+            try {
+                $this->np->generarYGuardarPdf((int)$id);
+            } catch (Exception $e) {
+                error_log('[Campos NP PDF] ' . $e->getMessage());
+            }
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
+    }
+
     public function pdf($id)
     {
         validarId($id, BASE_URL . '/notaspedido');

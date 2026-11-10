@@ -193,68 +193,86 @@ class PresupuestosController extends Controller
         validarId($id, BASE_URL . '/presupuestos');
         $this->pr->aprobar($id);
 
-        // Adjuntos activos + presupuesto con adjuntos => generar la NP automatica
-        // heredando los archivos (que se pueden seguir ampliando desde la NP).
+        // La NP se genera SIEMPRE automatica al aprobar el presupuesto
+        // (hereda items, observaciones, adjuntos y campos personalizados).
         $config = new Configuracion();
         $adjuntos = new Adjunto();
-        $npId = null;
-        if ($config->activa('usar_adjuntos', false)
-            && $adjuntos->countPorDocumento('PRESUPUESTO', (int)$id) > 0) {
 
-            try {
-                $npId = (int)$this->pr->getNotaPedidoByPresupuesto((int)$id);
-                if (!$npId) {
-                    $presupuesto = $this->pr->find((int)$id);
-                    $items = [];
-                    $idx = 0;
-                    foreach ($presupuesto['detalle'] as $d) {
-                        if ($d['cantidad'] <= 0) continue;
-                        if (!empty($d['producto_id'])) {
-                            $items[$idx++] = [
-                                'producto_id' => (int)$d['producto_id'],
-                                'cantidad'    => $d['cantidad'],
-                                'precio'      => $d['precio'],
-                            ];
-                        } elseif (!empty($d['descripcion'])) {
-                            $items[$idx++] = [
-                                'descripcion' => $d['descripcion'],
-                                'cantidad'    => $d['cantidad'],
-                                'precio'      => $d['precio'],
-                            ];
-                        }
+        try {
+            $npId = (int)$this->pr->getNotaPedidoByPresupuesto((int)$id);
+            if (!$npId) {
+                $presupuesto = $this->pr->find((int)$id);
+                $items = [];
+                $idx = 0;
+                foreach ($presupuesto['detalle'] as $d) {
+                    if ($d['cantidad'] <= 0) continue;
+                    if (!empty($d['producto_id'])) {
+                        $items[$idx++] = [
+                            'producto_id' => (int)$d['producto_id'],
+                            'cantidad'    => $d['cantidad'],
+                            'precio'      => $d['precio'],
+                        ];
+                    } elseif (!empty($d['descripcion'])) {
+                        $items[$idx++] = [
+                            'descripcion' => $d['descripcion'],
+                            'cantidad'    => $d['cantidad'],
+                            'precio'      => $d['precio'],
+                        ];
                     }
-
-                    $np = new NotaPedido();
-                    $npId = $np->create([
-                        'cliente_id'     => (int)$presupuesto['cliente_id'],
-                        'presupuesto_id' => (int)$id,
-                        'usuario_id'     => $_SESSION['user_id'],
-                        'items'          => $items,
-                        'observaciones'  => $presupuesto['observaciones'] ?? '',
-                    ]);
-
-                    $copiados = $adjuntos->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
-
-                    // Campos personalizados del presupuesto viajan a la NP (se ven
-                    // aunque la NP no tenga esos campos configurados)
-                    $cpHeredados = (new Campopersonalizado())->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
-
-                    try {
-                        $np->generarYGuardarPdf($npId);
-                    } catch (Exception $e) {
-                        error_log('[NP Automatica] Error generando PDF: ' . $e->getMessage());
-                    }
-
-                    $_SESSION['success'] = 'Presupuesto aprobado. Se generó automáticamente la NP #' . $npId
-                        . ' con ' . $copiados . ' adjunto(s) y ' . $cpHeredados . ' campo(s) adicional(es) heredado(s).';
-                    header('Location: ' . BASE_URL . '/notaspedido/show/' . $npId);
-                    exit;
                 }
-            } catch (Exception $e) {
-                error_log('[NP Automatica] Error al generar NP desde presupuesto ' . $id . ': ' . $e->getMessage());
-                $_SESSION['error'] = 'El presupuesto quedó aprobado pero no se pudo generar la NP automática: '
-                    . $e->getMessage();
+
+                $np = new NotaPedido();
+                $npId = $np->create([
+                    'cliente_id'     => (int)$presupuesto['cliente_id'],
+                    'presupuesto_id' => (int)$id,
+                    'usuario_id'     => $_SESSION['user_id'],
+                    'items'          => $items,
+                    'observaciones'  => $presupuesto['observaciones'] ?? '',
+                ]);
+
+                // El presupuesto queda asignado a esta NP: no vuelve a aparecer en
+                // el combo de presupuestos del form manual de NP (evita NP duplicadas).
+                $this->pr->marcarAsignado((int)$id);
+
+                // Adjuntos viajan si la config esta activa (no bloquean la generacion)
+                $copiados = 0;
+                if ($config->activa('usar_adjuntos', false)) {
+                    $copiados = $adjuntos->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
+                }
+
+                // Campos personalizados del presupuesto viajan a la NP: si la NP tiene
+                // un campo propio con el mismo nombre se llena con ese valor, y si no,
+                // queda como fila heredada (se ve aunque la NP no tenga el campo configurado).
+                $cpHeredados = (new Campopersonalizado())->copiarTodos('PRESUPUESTO', (int)$id, 'NOTA_PEDIDO', $npId);
+
+                // Config Empresa -> Configuraciones: la NP automatica puede nacer aprobada
+                $aprobadaAuto = false;
+                if ($config->activa('np_automatica_aprobada', false)) {
+                    $np->aprobar($npId);
+                    $aprobadaAuto = true;
+                }
+
+                try {
+                    $np->generarYGuardarPdf($npId);
+                } catch (Exception $e) {
+                    error_log('[NP Automatica] Error generando PDF: ' . $e->getMessage());
+                }
+
+                $_SESSION['success'] = 'Presupuesto aprobado. Se generó automáticamente la NP #' . $npId
+                    . ($aprobadaAuto ? ' ya aprobada' : ' en borrador')
+                    . ' con ' . $copiados . ' adjunto(s) y ' . $cpHeredados . ' campo(s) adicional(es) heredado(s).';
+                header('Location: ' . BASE_URL . '/notaspedido/show/' . $npId);
+                exit;
             }
+
+            // El presupuesto ya tenia su NP generada: avisar y llevar a esa NP
+            $_SESSION['success'] = 'El presupuesto ya tenía la NP #' . $npId . ' generada.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $npId);
+            exit;
+        } catch (Exception $e) {
+            error_log('[NP Automatica] Error al generar NP desde presupuesto ' . $id . ': ' . $e->getMessage());
+            $_SESSION['error'] = 'El presupuesto quedó aprobado pero no se pudo generar la NP automática: '
+                . $e->getMessage();
         }
 
         header('Location: '.BASE_URL.'/presupuestos/show/'.$id);
