@@ -3,38 +3,79 @@
 use function Safe\error_log;
 
 require_once BASE_PATH . '/app/core/Model.php';
+require_once BASE_PATH . '/app/models/Materiaprimaespecificacion.php';
 class MateriaPrima extends Model
 {
     public function all()
     {
         return $this->db->query(
-            "SELECT * FROM materias_primas WHERE activo = 1 ORDER BY nombre"
+            "SELECT mp.*, cat.categoria_nombre,
+                    um.nombre AS nombre_unidad,
+                    umc.nombre AS nombre_unidad_compra,
+                    esp.presentacion,
+                    (SELECT COALESCE(SUM(
+                        CASE
+                            WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                            WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                        END
+                    ), 0)
+                     FROM movimientos_stock m
+                     WHERE m.materia_prima_id = mp.id) AS stock
+             FROM materias_primas mp
+             LEFT JOIN categorias_mp_id cat ON cat.id_categoria = mp.categoria
+             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+             LEFT JOIN unidad_medida umc ON umc.id_medida = mp.id_unidadcompra
+             LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
+             WHERE mp.activo = 1
+             ORDER BY mp.nombre"
         )->fetchAll();
     }
 
-    public function find(int $id) // trae los datos de materia prima con cateogria y unidad de medida
+    public function find(int $id) // trae los datos de materia prima con categoria, unidad de medida y ficha tecnica
     {
         $stmt = $this->db->prepare(
-            "SELECT mp.*, cat.categoria_nombre AS nombre_categoria, um.nombre AS nombre_unidad, um.detalle AS detalle_unidad FROM materias_primas mp
+            "SELECT mp.*, cat.categoria_nombre AS nombre_categoria, um.nombre AS nombre_unidad, um.detalle AS detalle_unidad,
+                    umc.nombre AS nombre_unidad_compra, umc.detalle AS detalle_unidad_compra,
+                    esp.parametro_texto_1, esp.parametro_numerico_1, esp.parametro_numerico_2,
+                    esp.presentacion, esp.obs
+            FROM materias_primas mp
             LEFT JOIN categorias_mp_id cat ON cat.id_categoria = mp.categoria
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            LEFT JOIN unidad_medida umc ON umc.id_medida = mp.id_unidadcompra
+            LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
             WHERE mp.id = :id"
         );
         $stmt->execute(['id' => $id]);
         return $stmt->fetch();
     }
 
-    public function create(array $d, $img, $barcode, $tipo): bool // crea la maeteria prima y opcionalmente un código de barra asociado
+    public function create(array $d, $img, $barcode, $tipo): bool // crea la materia prima y opcionalmente un código de barra asociado
     {
         try {
             $this->db->beginTransaction();
-            $this->db->prepare("INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen, usa_serie)
-                VALUES (:n,:s,:u,:c,:i,:us)"
-                )->execute(['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['id_unidadmedida'],'c'=>$d['categoria'],'i'=>$img,'us'=>!empty($d['usa_serie']) ? 1 : 0]);
-            $mpId = $this->db->lastInsertId();
+            $tipoGestion = Materiaprimaespecificacion::normalizarTipoGestion($d['tipo_gestion'] ?? null);
+            $unidadCompra = !empty($d['id_unidadcompra']) ? (int)$d['id_unidadcompra'] : null;
+            $this->db->prepare("INSERT INTO materias_primas
+                (nombre, sku, id_unidadmedida, id_unidadcompra, factor_conversion, categoria, imagen, usa_serie, tipo_gestion)
+                VALUES (:n,:s,:u,:uc,:fc,:c,:i,:us,:tg)"
+                )->execute([
+                    'n' => $d['nombre'],
+                    's' => $d['sku'],
+                    'u' => $d['id_unidadmedida'] ?? $d['unidad_medida'] ?? null,
+                    'uc' => $unidadCompra,
+                    'fc' => self::factorDesdeDatos($d),
+                    'c' => !empty($d['categoria']) ? $d['categoria'] : null,
+                    'i' => $img,
+                    'us' => !empty($d['usa_serie']) ? 1 : 0,
+                    'tg' => $tipoGestion
+                ]);
+            $mpId = (int)$this->db->lastInsertId();
             if ($barcode) {
                 $this->db->prepare("INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo) VALUES (:mpId, :codigo, :tipo)")
                     ->execute(['mpId' => $mpId, 'codigo' => $barcode, 'tipo' => $tipo]);
+            }
+            if (Materiaprimaespecificacion::camposPresentes($d)) {
+                (new Materiaprimaespecificacion())->guardar($mpId, $d);
             }
             $_SESSION['success'] = "Materia Prima creada correctamente.";
             error_log('Materia Prima creada con ID ' . $mpId . ' in ' . __FILE__ . ':' . __LINE__);
@@ -62,9 +103,13 @@ class MateriaPrima extends Model
     public function search(string $q): array
     {
         $stmt = $this->db->prepare("
-            SELECT mp.id, mp.nombre, um.nombre AS nombre_medida
+            SELECT mp.id, mp.nombre, mp.tipo_gestion, mp.usa_serie,
+                   mp.id_unidadmedida, mp.id_unidadcompra, mp.factor_conversion,
+                   um.nombre AS nombre_medida,
+                   COALESCE(umc.nombre, um.nombre) AS nombre_medida_compra
             FROM materias_primas mp
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            LEFT JOIN unidad_medida umc ON umc.id_medida = mp.id_unidadcompra
             WHERE mp.activo = 1
               AND mp.nombre LIKE :q
             ORDER BY mp.nombre
@@ -74,12 +119,170 @@ class MateriaPrima extends Model
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Indica si el SKU ya existe (opcionalmente excluyendo una MP, para edicion).
+     */
+    public function skuExiste(string $sku, ?int $exceptoId = null): bool
+    {
+        $sql = "SELECT COUNT(*) FROM materias_primas WHERE sku = :sku";
+        $params = ['sku' => $sku];
+        if ($exceptoId !== null) {
+            $sql .= " AND id <> :id";
+            $params['id'] = $exceptoId;
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Normaliza el factor recibido del formulario (acepta coma o punto).
+     * Devuelve null si no es un numero mayor a cero.
+     */
+    public static function normalizarFactor($valor): ?float
+    {
+        $valor = trim(str_replace(',', '.', (string)$valor));
+        if ($valor === '' || !is_numeric($valor)) {
+            return null;
+        }
+        $numero = (float)$valor;
+        return $numero > 0 ? round($numero, 6) : null;
+    }
+
+    /**
+     * Factor canonico guardado en el formulario: unidades de stock por 1 unidad
+     * de compra. Si no hay unidad de compra distinta, devuelve 1.
+     */
+    public static function factorDesdeDatos(array $datos): float
+    {
+        if (empty($datos['id_unidadcompra'])) {
+            return 1.0;
+        }
+        $factor = (float)($datos['factor_conversion'] ?? 0);
+        return $factor > 0 ? round($factor, 6) : 1.0;
+    }
+
+    /**
+     * Indica si la MP se compra en una unidad distinta a la de stock y tiene
+     * un factor valido.
+     */
+    public static function tieneConversion(array $mp): bool
+    {
+        if (empty($mp['id_unidadcompra'])) {
+            return false;
+        }
+        if ((int)$mp['id_unidadcompra'] === (int)($mp['id_unidadmedida'] ?? 0)) {
+            return false;
+        }
+        return (float)($mp['factor_conversion'] ?? 0) > 0;
+    }
+
+    /**
+     * Unidades de stock que entran en 1 unidad de compra. Sin conversion: 1.
+     */
+    public static function factorCompra(array $mp): float
+    {
+        return self::tieneConversion($mp) ? (float)$mp['factor_conversion'] : 1.0;
+    }
+
+    /**
+     * Convierte una cantidad comprada (kg, barras, rollos, bolsas) a la unidad
+     * de stock/produccion.
+     */
+    public static function cantidadStockDesdeCompra(array $mp, float $cantidadCompra): float
+    {
+        return round($cantidadCompra * self::factorCompra($mp), 6);
+    }
+
+    /**
+     * Convierte una cantidad de stock a la unidad de compra (para generar OC
+     * desde faltantes de produccion).
+     */
+    public static function cantidadCompraDesdeStock(array $mp, float $cantidadStock): float
+    {
+        $factor = self::factorCompra($mp);
+        return $factor > 0 ? round($cantidadStock / $factor, 6) : $cantidadStock;
+    }
+
+    /**
+     * Convierte un precio por unidad de compra a precio por unidad de stock.
+     * Ej: $1000/kg con factor 1.0101 m/kg -> $990/m.
+     */
+    public static function precioStockDesdeCompra(array $mp, float $precioCompra): float
+    {
+        $factor = self::factorCompra($mp);
+        return $factor > 0 ? round($precioCompra / $factor, 6) : $precioCompra;
+    }
+
+    /**
+     * Desglosa una cantidad de stock en paquetes completos y resto, usando la
+     * presentacion de la ficha tecnica (ej: 6 m por barra).
+     * Es solo una referencia: el stock sigue siendo la cantidad continua.
+     */
+    public static function desglosePresentacion(float $cantidad, ?float $presentacion): array
+    {
+        $cantidad = max(0, $cantidad);
+        if ($presentacion === null || $presentacion <= 0) {
+            return ['paquetes' => null, 'resto' => $cantidad, 'presentacion' => null];
+        }
+
+        $paquetes = (int)floor(round($cantidad / $presentacion, 6));
+        $resto = round($cantidad - ($paquetes * $presentacion), 6);
+        if (abs($resto) < 0.000001) {
+            $resto = 0.0;
+        }
+
+        return [
+            'paquetes' => $paquetes,
+            'resto' => $resto,
+            'presentacion' => (float)$presentacion,
+        ];
+    }
+
+    /**
+     * Texto de referencia del desglose: "9 × 6 M" o "8 × 6 M + 3 M".
+     */
+    public static function textoDesglosePresentacion(float $cantidad, ?float $presentacion, string $unidad = ''): string
+    {
+        $desglose = self::desglosePresentacion($cantidad, $presentacion);
+        if ($desglose['presentacion'] === null) {
+            return '';
+        }
+
+        $formato = static function (float $valor, int $decimales): string {
+            $texto = number_format($valor, $decimales, ',', '.');
+            return rtrim(rtrim($texto, '0'), ',');
+        };
+
+        $unidad = $unidad !== '' ? ' ' . $unidad : '';
+        $texto = $desglose['paquetes'] . ' × ' . $formato($desglose['presentacion'], 2) . $unidad;
+        if ($desglose['resto'] > 0) {
+            $texto .= ' + ' . $formato($desglose['resto'], 3) . $unidad;
+        }
+        return $texto;
+    }
+
     public function update(int $id, array $d, ?string $imagen = null): bool
     {
         try {
             $this->db->beginTransaction();
-            $sql = "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u, categoria = :c, usa_serie = :us";
-            $params = ['n'=>$d['nombre'],'s'=>$d['sku'],'u'=>$d['unidad_medida'],'c'=>$d['categoria'],'us'=>!empty($d['usa_serie']) ? 1 : 0,'id'=>$id];
+            $unidad = $d['id_unidadmedida'] ?? $d['unidad_medida'] ?? null;
+            $tipoGestion = Materiaprimaespecificacion::normalizarTipoGestion($d['tipo_gestion'] ?? null);
+            $unidadCompra = !empty($d['id_unidadcompra']) ? (int)$d['id_unidadcompra'] : null;
+            $sql = "UPDATE materias_primas SET nombre = :n, sku = :s, id_unidadmedida = :u,
+                    id_unidadcompra = :uc, factor_conversion = :fc, categoria = :c,
+                    usa_serie = :us, tipo_gestion = :tg";
+            $params = [
+                'n' => $d['nombre'],
+                's' => $d['sku'],
+                'u' => $unidad,
+                'uc' => $unidadCompra,
+                'fc' => self::factorDesdeDatos($d),
+                'c' => !empty($d['categoria']) ? $d['categoria'] : null,
+                'us' => !empty($d['usa_serie']) ? 1 : 0,
+                'tg' => $tipoGestion,
+                'id' => $id
+            ];
 
             if ($imagen !== null) {
                 $sql .= ", imagen = :imagen";
@@ -88,6 +291,11 @@ class MateriaPrima extends Model
 
             $sql .= " WHERE id = :id";
             $this->db->prepare($sql)->execute($params);
+
+            if (Materiaprimaespecificacion::camposPresentes($d)) {
+                (new Materiaprimaespecificacion())->guardar($id, $d);
+            }
+
             $this->db->commit();
             $_SESSION['success'] = "Materia Prima actualizada correctamente.";
             error_log('Materia Prima ID ' . $id . ' actualizada con éxito en ' . __FILE__ . ':' . __LINE__);
@@ -96,6 +304,25 @@ class MateriaPrima extends Model
             $this->db->rollBack();
             error_log("Error al actualizar materia prima ID $id: " . $e->getMessage() . " in " . __FILE__ . ":" . __LINE__);
             $_SESSION['error'] = "Error al actualizar la materia prima. Por favor, inténtalo de nuevo.";
+            return false;
+        }
+    }
+
+    /**
+     * Baja lógica de la materia prima (activo = 0). No se borra físicamente
+     * porque puede tener movimientos, recetas y códigos asociados.
+     */
+    public function delete(int $id): bool
+    {
+        try {
+            $stmt = $this->db->prepare("UPDATE materias_primas SET activo = 0 WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+            $_SESSION['success'] = "Materia Prima inactivada correctamente.";
+            error_log('Materia Prima ID ' . $id . ' inactivada en ' . __FILE__ . ':' . __LINE__);
+            return true;
+        } catch (Exception $e) {
+            error_log("Error al inactivar materia prima ID $id: " . $e->getMessage() . " in " . __FILE__ . ":" . __LINE__);
+            $_SESSION['error'] = "Error al inactivar la materia prima. Por favor, inténtalo de nuevo.";
             return false;
         }
     }
@@ -224,14 +451,17 @@ class MateriaPrima extends Model
     }
 
     /**
-     * Obtener el ultimo precio de compra de una materia prima desde ordenes de compra
+     * Obtener el ultimo precio de compra de una materia prima desde ordenes de compra,
+     * convertido a precio por unidad de STOCK (ver factor_conversion).
      */
     public function getUltimoPrecioCompra(int $materiaPrimaId): ?float
     {
         $stmt = $this->db->prepare("
-            SELECT ocd.precio_unitario
+            SELECT ocd.precio_unitario,
+                   mp.id_unidadmedida, mp.id_unidadcompra, mp.factor_conversion
             FROM ordenes_compra_detalle ocd
             JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+            JOIN materias_primas mp ON mp.id = ocd.materia_prima_id
             WHERE ocd.materia_prima_id = :mp_id
               AND oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
             ORDER BY oc.created_at DESC
@@ -239,11 +469,15 @@ class MateriaPrima extends Model
         ");
         $stmt->execute([':mp_id' => $materiaPrimaId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result ? (float)$result['precio_unitario'] : null;
+        if (!$result) {
+            return null;
+        }
+        return self::precioStockDesdeCompra($result, (float)$result['precio_unitario']);
     }
 
     /**
-     * Obtener ultimos precios de compra para multiples materias primas (batch)
+     * Obtener ultimos precios de compra para multiples materias primas (batch),
+     * convertidos a precio por unidad de STOCK.
      */
     public function getUltimosPreciosCompra(array $materiaPrimaIds): array
     {
@@ -251,9 +485,11 @@ class MateriaPrima extends Model
 
         $placeholders = implode(',', array_fill(0, count($materiaPrimaIds), '?'));
         $stmt = $this->db->prepare("
-            SELECT ocd.materia_prima_id, ocd.precio_unitario
+            SELECT ocd.materia_prima_id, ocd.precio_unitario,
+                   mp.id_unidadmedida, mp.id_unidadcompra, mp.factor_conversion
             FROM ordenes_compra_detalle ocd
             JOIN ordenes_compra oc ON oc.id = ocd.orden_compra_id
+            JOIN materias_primas mp ON mp.id = ocd.materia_prima_id
             WHERE ocd.materia_prima_id IN ($placeholders)
               AND oc.estado IN ('APROBADA','RECIBIDA','PARCIAL')
             ORDER BY oc.created_at DESC
@@ -265,7 +501,7 @@ class MateriaPrima extends Model
         foreach ($rows as $row) {
             $mpId = (int)$row['materia_prima_id'];
             if (!isset($precios[$mpId])) {
-                $precios[$mpId] = (float)$row['precio_unitario'];
+                $precios[$mpId] = self::precioStockDesdeCompra($row, (float)$row['precio_unitario']);
             }
         }
         return $precios;
@@ -287,8 +523,8 @@ class MateriaPrima extends Model
         try {
             $this->db->beginTransaction();
             $stmt = $this->db->prepare(
-                "INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen)
-                 VALUES (:nombre, :sku, :id_unidadmedida, :categoria, :imagen)"
+                "INSERT INTO materias_primas (nombre, sku, id_unidadmedida, categoria, imagen, tipo_gestion)
+                 VALUES (:nombre, :sku, :id_unidadmedida, :categoria, :imagen, :tipo_gestion)"
             );
             $barcodeStmt = $this->db->prepare(
                 "INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo)
@@ -303,6 +539,7 @@ class MateriaPrima extends Model
                         'id_unidadmedida' => $row['id_unidadmedida'] ?? 1,
                         'categoria'      => $row['categoria'] ?? null,
                         'imagen'         => $imagen,
+                        'tipo_gestion'   => Materiaprimaespecificacion::normalizarTipoGestion($row['tipo_gestion'] ?? null),
                     ]);
                     $mpId = $this->db->lastInsertId();
                     if (!empty($row['barcode'])) {

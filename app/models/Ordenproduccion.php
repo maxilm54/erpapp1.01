@@ -1,4 +1,7 @@
 <?php
+require_once BASE_PATH . '/app/core/Model.php';
+require_once BASE_PATH . '/app/models/Receta.php';
+require_once BASE_PATH . '/app/models/Deposito.php';
 class OrdenProduccion extends Model
 {
     public function all(): array
@@ -31,7 +34,7 @@ class OrdenProduccion extends Model
 
             $ordenId = $this->db->lastInsertId();
 
-            $this->reservarMateriaPrima($ordenId); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
+            $this->reservarMateriaPrima($ordenId, $data['deposito_items'] ?? []); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
 
             $this->db->commit();
             return $ordenId;
@@ -43,13 +46,14 @@ class OrdenProduccion extends Model
         }
     }
     
-    private function reservarMateriaPrima(int $ordenId): void
+    private function reservarMateriaPrima(int $ordenId, array $depositosSeleccionados = []): void
     {
         $orden = $this->find($ordenId);
         $receta = (new Receta())->detalle($orden['receta_id']);
 
         foreach ($receta as $item) {
-            $cantidadNecesaria = $item['cantidad'] * $orden['cantidad']; //orden cantidad es la cantidad a producir, e tiem cantidad es la cantidad de ese item
+            $mpId = (int)$item['materia_prima_id'];
+            $cantidadNecesaria = (float)$item['cantidad'] * (float)$orden['cantidad'];
 
             // validar stock disponible si no esta disponible reservo en (--)?
             //Validar cuando ingrese la mercaderia enviar a reserva.
@@ -59,24 +63,296 @@ class OrdenProduccion extends Model
             //reservarMateriaPrima debe lanzar una excepcion si detecta que no hay stock suficiente para alguna de las materias 
             //primas necesarias para esa receta, y el metodo crear debe manejar esa excepcion mostrando el mensaje de 
             //error correspondiente al usuario.
-            if (!$this->stockDisponible($item['materia_prima_id'], $cantidadNecesaria)) {
+            if (!$this->stockDisponible($mpId, $cantidadNecesaria)) {
                 error_log(__FILE__.':'.__LINE__.'Se detecta una reserva de MP sin stock');
                 /*throw new Exception(
                     "Stock insuficiente de {$item['nombre']}"
                 );*/
             }
-            //inserto en reserva y descuento en stock, real!
-            $this->db->prepare("
-                INSERT INTO reservas_materia_prima
-                (orden_produccion_id, materia_prima_id, cantidad)
-                VALUES (?, ?, ?)
-            ")->execute([$ordenId,$item['materia_prima_id'],$cantidadNecesaria]);
-            $this->db->prepare("
-                INSERT INTO movimientos_stock
-                (tipo,origen,referencia_id,materia_prima_id,cantidad,observaciones,usuario_id,created_at)
-                values ('SALIDA','RESERVA',?,?,?,'Reserva de MP para Orden de Produccion',?,?)
-            ")->execute([$ordenId,$item['materia_prima_id'],$cantidadNecesaria,$_SESSION['user_id'],FECHA_ACTUAL]);
+
+            // El operario puede repartir la cantidad entre varios depositos:
+            // deposito_items[mpId][depositoId] = cantidad.
+            $asignaciones = $depositosSeleccionados[$mpId] ?? $depositosSeleccionados[(string)$mpId] ?? null;
+            $fuentes = $this->resolverFuentesReserva(
+                $mpId,
+                $cantidadNecesaria,
+                $asignaciones,
+                (string)($item['nombre'] ?? '')
+            );
+
+            // Una reserva y un movimiento de salida por cada deposito de origen.
+            foreach ($fuentes as $fuente) {
+                $depositoId = (int)$fuente['deposito_id'];
+                $cantidadFuente = (float)$fuente['cantidad'];
+                if ($cantidadFuente <= 0) continue;
+
+                $this->db->prepare("
+                    INSERT INTO reservas_materia_prima
+                    (orden_produccion_id, materia_prima_id, deposito_id, cantidad, cantidad_asignada)
+                    VALUES (?, ?, ?, ?, ?)
+                ")->execute([$ordenId, $mpId, $depositoId, $cantidadFuente, $cantidadFuente]);
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo,origen,referencia_id,materia_prima_id,deposito_id,cantidad,observaciones,usuario_id,created_at)
+                    values ('SALIDA','RESERVA',?,?,?,?,'Reserva de MP para Orden de Produccion',?,?)
+                ")->execute([$ordenId, $mpId, $depositoId, $cantidadFuente, $_SESSION['user_id'], FECHA_ACTUAL]);
+            }
         }
+    }
+
+    /**
+     * Stock actual de una MP en cada deposito activo (sin contar el de transito).
+     */
+    public function stockPorDepositoMP(int $mpId): array
+    {
+        $principalId = (new Deposito())->principalId();
+
+        $stmt = $this->db->prepare("
+            SELECT d.id, d.nombre, d.es_sobrante,
+                   COALESCE(SUM(
+                       CASE
+                           WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                           WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                       END
+                   ), 0) AS stock
+            FROM depositos d
+            LEFT JOIN movimientos_stock m
+                   ON m.materia_prima_id = ?
+                  AND (m.deposito_id = d.id OR (m.deposito_id IS NULL AND d.id = ?))
+            WHERE d.activo = 1 AND d.es_transito = 0
+            GROUP BY d.id, d.nombre, d.es_sobrante
+            ORDER BY d.es_sobrante ASC, (d.id = ?) DESC, d.nombre
+        ");
+        $stmt->execute([$mpId, $principalId, $principalId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Genera los movimientos automaticos de sobrante de presentacion para una OP.
+     *
+     * Cuando una MP se consume desde un unico deposito no sobrante y tiene
+     * presentacion (ej. barra de 6 M), se toma la cantidad necesaria de barras
+     * completas y el resto de la ultima barra se mueve al deposito "MP sobrante":
+     *   SALIDA  origen  -> sobrante
+     *   ENTRADA sobrante <- sobrante
+     * El stock total no cambia, solo se separa el resto.
+     *
+     * Es idempotente y ajustable: compara el sobrante objetivo con lo que ya se
+     * movio para esa OP/MP/deposito y mueve solo la diferencia. Asi tambien
+     * corrige una OP que se finalizo antes de confirmar todos los avances.
+     * Se aplica por cada deposito de origen que no sea el propio sobrante.
+     */
+    public function registrarSobrantesAutomaticos(int $ordenId): void
+    {
+        $stmt = $this->db->prepare("
+            SELECT r.materia_prima_id, r.deposito_id,
+                   SUM(r.cantidad) AS consumido,
+                   esp.presentacion
+            FROM reservas_materia_prima r
+            JOIN materias_primas mp ON mp.id = r.materia_prima_id
+            LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
+            WHERE r.orden_produccion_id = ? AND r.estado = 'CONSUMIDO'
+            GROUP BY r.materia_prima_id, r.deposito_id, esp.presentacion
+        ");
+        $stmt->execute([$ordenId]);
+        $consumos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($consumos)) {
+            return;
+        }
+
+        $depositoModel = new Deposito();
+        $sobranteId = $depositoModel->ensureSobrante();
+        $principalId = $depositoModel->principalId();
+        $usuarioId = $_SESSION['user_id'] ?? null;
+        $fecha = defined('FECHA_ACTUAL') ? FECHA_ACTUAL : date('Y-m-d H:i:s');
+
+        foreach ($consumos as $c) {
+            $mpId = (int)$c['materia_prima_id'];
+            $presentacion = (float)($c['presentacion'] ?? 0);
+            $consumido = (float)$c['consumido'];
+            if ($presentacion <= 0 || $consumido <= 0) {
+                continue;
+            }
+
+            $depositoId = $c['deposito_id'] !== null ? (int)$c['deposito_id'] : $principalId;
+            if ($depositoId <= 0 || $depositoId === $sobranteId) {
+                continue;
+            }
+
+            $paquetes = (int)ceil(($consumido / $presentacion) - 0.0000001);
+            $objetivo = round(($paquetes * $presentacion) - $consumido, 6);
+
+            // Neto ya movido entre este deposito y el sobrante para esta OP/MP.
+            $filtroDeposito = ($depositoId === $principalId)
+                ? '(deposito_id = ? OR deposito_id IS NULL)'
+                : 'deposito_id = ?';
+            $stmt = $this->db->prepare("
+                SELECT COALESCE(SUM(
+                    CASE WHEN tipo = 'SALIDA' THEN cantidad
+                         WHEN tipo = 'ENTRADA' THEN -cantidad END
+                ), 0)
+                FROM movimientos_stock
+                WHERE referencia_id = ? AND origen = 'SOBRANTE_MP'
+                  AND materia_prima_id = ? AND {$filtroDeposito}
+            ");
+            $stmt->execute([$ordenId, $mpId, $depositoId]);
+            $existente = (float)$stmt->fetchColumn();
+
+            $diferencia = round($objetivo - $existente, 6);
+            if (abs($diferencia) <= 0.000001) {
+                continue;
+            }
+
+            if ($diferencia > 0) {
+                // Falta mover resto desde el deposito de origen al sobrante.
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo, origen, referencia_id, materia_prima_id, deposito_id, cantidad, observaciones, usuario_id, created_at)
+                    VALUES ('SALIDA', 'SOBRANTE_MP', ?, ?, ?, ?, 'Sobrante automatico de presentacion enviado a MP sobrante', ?, ?)
+                ")->execute([$ordenId, $mpId, $depositoId, $diferencia, $usuarioId, $fecha]);
+
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo, origen, referencia_id, materia_prima_id, deposito_id, cantidad, observaciones, usuario_id, created_at)
+                    VALUES ('ENTRADA', 'SOBRANTE_MP', ?, ?, ?, ?, 'Sobrante automatico de presentacion recibido de produccion', ?, ?)
+                ")->execute([$ordenId, $mpId, $sobranteId, $diferencia, $usuarioId, $fecha]);
+            } else {
+                // Hay mas sobrante que el objetivo: devolver el exceso al origen.
+                $ajuste = abs($diferencia);
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo, origen, referencia_id, materia_prima_id, deposito_id, cantidad, observaciones, usuario_id, created_at)
+                    VALUES ('SALIDA', 'SOBRANTE_MP', ?, ?, ?, ?, 'Ajuste de sobrante automatico: devolucion al deposito de origen', ?, ?)
+                ")->execute([$ordenId, $mpId, $sobranteId, $ajuste, $usuarioId, $fecha]);
+
+                $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                    (tipo, origen, referencia_id, materia_prima_id, deposito_id, cantidad, observaciones, usuario_id, created_at)
+                    VALUES ('ENTRADA', 'SOBRANTE_MP', ?, ?, ?, ?, 'Ajuste de sobrante automatico recibido desde MP sobrante', ?, ?)
+                ")->execute([$ordenId, $mpId, $depositoId, $ajuste, $usuarioId, $fecha]);
+            }
+
+            error_log("[Produccion] OP {$ordenId} MP {$mpId}: sobrante objetivo {$objetivo}, movido antes {$existente}, ajuste {$diferencia}.");
+        }
+    }
+
+    /**
+     * Convierte las asignaciones del formulario (una o varias fuentes por MP) en
+     * una lista de [deposito_id, cantidad]. Valida que la suma coincida con lo
+     * necesario y que no se supere el stock de un deposito cuando hay stock total
+     * suficiente. Si no vienen asignaciones, reparte automaticamente.
+     */
+    private function resolverFuentesReserva(int $mpId, float $cantidadNecesaria, $asignaciones, string $nombreMp = ''): array
+    {
+        $depositos = $this->stockPorDepositoMP($mpId);
+        if (empty($depositos)) {
+            throw new Exception('No hay depositos activos para reservar ' . $nombreMp . '.');
+        }
+
+        $porId = [];
+        foreach ($depositos as $d) {
+            $porId[(int)$d['id']] = $d;
+        }
+
+        // Compatibilidad con el formato viejo: deposito_items[mpId] = idDeposito.
+        if (!is_array($asignaciones)) {
+            $asignaciones = !empty($asignaciones)
+                ? [(int)$asignaciones => $cantidadNecesaria]
+                : [];
+        }
+
+        $fuentes = [];
+        $totalAsignado = 0.0;
+        foreach ($asignaciones as $depId => $cantidad) {
+            $depId = (int)$depId;
+            $cantidad = round((float)str_replace(',', '.', (string)$cantidad), 6);
+            if ($cantidad <= 0) {
+                continue;
+            }
+            if (!isset($porId[$depId])) {
+                throw new Exception('El deposito seleccionado para ' . $nombreMp . ' no es valido.');
+            }
+            $fuentes[] = ['deposito_id' => $depId, 'cantidad' => $cantidad];
+            $totalAsignado += $cantidad;
+        }
+
+        // Sin asignaciones (por ejemplo, JS deshabilitado): repartir automaticamente.
+        if (empty($fuentes)) {
+            $fuentes = $this->distribuirFuentesReserva($depositos, $cantidadNecesaria);
+            $totalAsignado = array_sum(array_column($fuentes, 'cantidad'));
+        }
+
+        if (abs($totalAsignado - $cantidadNecesaria) > 0.0005) {
+            throw new Exception(
+                'Las fuentes de ' . $nombreMp . ' suman ' . number_format($totalAsignado, 3, ',', '.')
+                . ' y se necesitan ' . number_format($cantidadNecesaria, 3, ',', '.') . '.'
+            );
+        }
+
+        // Si el stock total alcanza, cada fuente debe caber en su deposito.
+        // Si no alcanza, se permite negativo para planificar la compra.
+        $stockTotal = 0.0;
+        foreach ($depositos as $d) {
+            $stockTotal += (float)$d['stock'];
+        }
+        if ($stockTotal + 0.0005 >= $cantidadNecesaria) {
+            foreach ($fuentes as $fuente) {
+                $disponible = (float)$porId[$fuente['deposito_id']]['stock'];
+                if ($fuente['cantidad'] > $disponible + 0.0005) {
+                    throw new Exception(
+                        'El deposito "' . $porId[$fuente['deposito_id']]['nombre'] . '" no tiene stock suficiente de '
+                        . $nombreMp . ' (asignado: ' . number_format($fuente['cantidad'], 3, ',', '.')
+                        . ', disponible: ' . number_format($disponible, 3, ',', '.') . ').'
+                    );
+                }
+            }
+        }
+
+        return $fuentes;
+    }
+
+    /**
+     * Reparte una cantidad entre depositos: primero el principal, luego los
+     * demas y por ultimo el sobrante. Si no alcanza, el resto va al principal
+     * (permite crear la OP para planificar la compra).
+     */
+    private function distribuirFuentesReserva(array $depositos, float $cantidad): array
+    {
+        $restante = $cantidad;
+        $fuentes = [];
+
+        foreach ($depositos as $d) {
+            if ($restante <= 0.000001) {
+                break;
+            }
+            $disponible = max(0, (float)$d['stock']);
+            $tomar = min($restante, $disponible);
+            if ($tomar > 0.000001) {
+                $fuentes[] = ['deposito_id' => (int)$d['id'], 'cantidad' => round($tomar, 6)];
+                $restante -= $tomar;
+            }
+        }
+
+        if ($restante > 0.000001) {
+            $principalId = (int)$depositos[0]['id'];
+            $agregado = false;
+            foreach ($fuentes as &$fuente) {
+                if ((int)$fuente['deposito_id'] === $principalId) {
+                    $fuente['cantidad'] = round((float)$fuente['cantidad'] + $restante, 6);
+                    $agregado = true;
+                    break;
+                }
+            }
+            unset($fuente);
+            if (!$agregado) {
+                $fuentes[] = [
+                    'deposito_id' => $principalId,
+                    'cantidad' => round($restante, 6),
+                ];
+            }
+        }
+
+        return $fuentes;
     }
 
     public function find(int $id): ?array //devuelve la info de la orden de produccion
@@ -113,6 +389,8 @@ class OrdenProduccion extends Model
                 mp.nombre,
                 r.cantidad,
                 r.estado,
+                r.deposito_id,
+                dep.nombre AS deposito_nombre,
                 um.nombre AS unidad_medida,
                 COALESCE(
                     (SELECT ocd.precio_unitario
@@ -128,6 +406,7 @@ class OrdenProduccion extends Model
             FROM reservas_materia_prima r
             JOIN materias_primas mp ON mp.id = r.materia_prima_id
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            LEFT JOIN depositos dep ON dep.id = r.deposito_id
             WHERE r.orden_produccion_id = ?
               AND r.estado = 'RESERVADO'
         ");
@@ -171,16 +450,18 @@ class OrdenProduccion extends Model
         $receta = (new Receta())->detalle($recetaId); //traigo los datos de la receta, que incluye la cantidad de cada materia prima necesaria para producir 1 unidad del producto final. Luego multiplico esa cantidad por la cantidad a producir que me pasan por parametro, y chequeo si hay stock disponible para cada materia prima. Devuelvo un array con el estado general (ok, warning o error) y un detalle de las materias primas faltantes si las hubiera.
 
         $faltantes = [];
+        $items = [];
         $ok = 0;
         error_log(print_r($receta, true));
         foreach ($receta as $item) {
-            $necesario = $item['cantidad'] * $cantidad; //cantidad a producir * cantidad de ese item que se necesita para producir 1 unidad del producto final, me da la cantidad total necesaria de ese item para producir la cantidad deseada del producto final
+            $necesario = (float)$item['cantidad'] * $cantidad; //cantidad a producir * cantidad de ese item que se necesita para producir 1 unidad del producto final, me da la cantidad total necesaria de ese item para producir la cantidad deseada del producto final
             $disponible = $this->stockDisponibleCantidad($item['materia_prima_id']);
 
             if ($disponible < $necesario) { //comprar lo disponible y mostrar lo faltante, o directamente mostrar que no hay stock suficiente para esa cantidad a producir?
                 $faltantes[] = [
                     'materia_prima_id' => $item['materia_prima_id'],
                     'materia_prima' => $item['nombre'],
+                    'unidad'        => $item['unidad_medida'] ?? '',
                     'necesario'     => $necesario,
                     'disponible'    => $disponible,
                     'faltante'      => $necesario - $disponible
@@ -188,7 +469,33 @@ class OrdenProduccion extends Model
             } else {
                 $ok++;
             }
-            
+
+            // Depositos con stock y sugerencia de reparto: primero el principal,
+            // luego los demas y por ultimo el sobrante. El operario puede modificarlo.
+            $depositos = $this->stockPorDepositoMP((int)$item['materia_prima_id']);
+            $faltanteSugerir = $necesario;
+            foreach ($depositos as &$d) {
+                $disponible = max(0, (float)$d['stock']);
+                $sugerido = min($faltanteSugerir, $disponible);
+                $d['sugerido'] = round($sugerido, 6);
+                $faltanteSugerir -= $sugerido;
+            }
+            unset($d);
+            // Si no alcanza el stock, el faltante queda sugerido en el primer deposito
+            // (permite crear la OP para planificar la compra).
+            if ($faltanteSugerir > 0.000001 && !empty($depositos)) {
+                $depositos[0]['sugerido'] = round((float)$depositos[0]['sugerido'] + $faltanteSugerir, 6);
+            }
+
+            $items[] = [
+                'materia_prima_id' => (int)$item['materia_prima_id'],
+                'materia_prima'    => $item['nombre'],
+                'unidad'           => $item['unidad_medida'] ?? '',
+                'necesario'        => $necesario,
+                'disponible'       => $disponible,
+                'presentacion'     => $item['presentacion'] ?? null,
+                'depositos'        => $depositos,
+            ];
         }
 
         $estado = 'ok'; // normalmente devuelve ok salvo no haya stock o si hay varios items y alguno no tiene stocks muestra warning.
@@ -200,7 +507,8 @@ class OrdenProduccion extends Model
 
         return [
             'estado'    => $estado,
-            'faltantes' => $faltantes
+            'faltantes' => $faltantes,
+            'items'     => $items
         ];
     }
     public function actualizarEstado(int $id, string $estado): void // aca tengo que cambiar para corregir cuando se tomas las reservas o se devuelven
@@ -212,6 +520,27 @@ class OrdenProduccion extends Model
             WHERE id = ?
         ");
         $stmt->execute([$estado, $id]);
+
+        if ($estado === 'FINALIZADA') {
+            $this->registrarSobrantesAutomaticos($id);
+        }
+    }
+
+    /**
+     * Suma de avances de una OP. Si $soloConfirmados = true, cuenta unicamente
+     * los avances ya confirmados (los que realmente produjeron).
+     */
+    private function totalAvances(int $ordenId, bool $soloConfirmados = false): float
+    {
+        $sql = "SELECT COALESCE(SUM(cantidad_producida), 0)
+                FROM orden_produccion_detalle
+                WHERE orden_id = ?";
+        if ($soloConfirmados) {
+            $sql .= " AND confirma_produccion IS NOT NULL";
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$ordenId]);
+        return (float)$stmt->fetchColumn();
     }
 
     public function avances(array $data){ //llamo desde controlador avances para registrar producciones, aca solo inicio el
@@ -219,6 +548,31 @@ class OrdenProduccion extends Model
                                         //ahi es cuando hago los mov de stock producto.
         $this->db->beginTransaction();
         try {
+            $ordenId = (int)$data['orden_id'];
+            $nuevaCantidad = (float)$data['cantidad_producida'];
+            if ($nuevaCantidad <= 0) {
+                throw new Exception('La cantidad producida debe ser mayor a cero.');
+            }
+
+            $orden = $this->find($ordenId);
+            if (!$orden) {
+                throw new Exception('La orden de produccion no existe.');
+            }
+
+            // No permitir cargar mas avances que lo pedido, contando tanto los
+            // confirmados como los pendientes de confirmar.
+            $comprometido = $this->totalAvances($ordenId, false);
+            $pedido = (float)$orden['cantidad'];
+            if ($comprometido + $nuevaCantidad > $pedido + 0.0005) {
+                $disponible = max(0, $pedido - $comprometido);
+                throw new Exception(
+                    'La cantidad supera lo pedido. La OP pide ' . number_format($pedido, 3, ',', '.')
+                    . ', ya hay ' . number_format($comprometido, 3, ',', '.')
+                    . ' cargado/confirmado y quedan ' . number_format($disponible, 3, ',', '.')
+                    . ' disponibles para cargar.'
+                );
+            }
+
             //pasos:
             //1 registrar el avance en la tabla de detalle de OP, esto me permite llevar un historial de los avances registrados
                 //con fecha y hora, cantidad producida, observaciones, etc.
@@ -281,7 +635,7 @@ class OrdenProduccion extends Model
             $pedidas=$this->find($id_orden);
             $stmt = $this->db->prepare("
                 SELECT SUM(cantidad_producida) FROM orden_produccion_detalle
-                WHERE orden_id=?
+                WHERE orden_id=? AND confirma_produccion IS NOT NULL
             ");
             $stmt->execute([$id_orden]);
             $producidas= (float)$stmt->fetchColumn();
@@ -295,6 +649,7 @@ class OrdenProduccion extends Model
                     WHERE id = ?
                 ");
                 $stmt->execute(['FINALIZADA',FECHA_ACTUAL, $id_orden]);
+                $this->registrarSobrantesAutomaticos($id_orden);
             }
             return true;
         }catch(Exception $e){
@@ -334,6 +689,68 @@ $this->db->prepare("
             throw $e;
         }
     }
+    /**
+     * Reservas vigentes de una MP agrupadas por deposito de origen.
+     */
+    private function fuentesReservadas(int $ordenId, int $mpId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT deposito_id, SUM(cantidad) AS cantidad
+            FROM reservas_materia_prima
+            WHERE orden_produccion_id = ? AND materia_prima_id = ? AND estado = 'RESERVADO'
+            GROUP BY deposito_id
+            ORDER BY deposito_id
+        ");
+        $stmt->execute([$ordenId, $mpId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Reparte una cantidad entre las fuentes reservadas, en proporcion a lo
+     * reservado en cada deposito. Devuelve [deposito_id, cantidad].
+     */
+    private function distribuirCantidadFuentes(array $fuentes, float $cantidad): array
+    {
+        if (empty($fuentes) || $cantidad <= 0) {
+            return [];
+        }
+
+        $totalReservado = 0.0;
+        foreach ($fuentes as $f) {
+            $totalReservado += (float)$f['cantidad'];
+        }
+        if ($totalReservado <= 0.000001) {
+            return [];
+        }
+
+        $asignaciones = [];
+        $restante = $cantidad;
+        $ultimo = count($fuentes) - 1;
+
+        foreach ($fuentes as $i => $f) {
+            $cant = ($i === $ultimo)
+                ? $restante
+                : round($cantidad * ((float)$f['cantidad'] / $totalReservado), 6);
+            $cant = min($cant, $restante);
+            if ($cant > 0.000001) {
+                $asignaciones[] = [
+                    'deposito_id' => $f['deposito_id'] !== null ? (int)$f['deposito_id'] : null,
+                    'cantidad' => round($cant, 6),
+                ];
+                $restante -= $cant;
+            }
+        }
+
+        if ($restante > 0.000001) {
+            $asignaciones[] = [
+                'deposito_id' => $fuentes[0]['deposito_id'] !== null ? (int)$fuentes[0]['deposito_id'] : null,
+                'cantidad' => round($restante, 6),
+            ];
+        }
+
+        return $asignaciones;
+    }
+
     //cancelamos un op, esto implica cambiar el estado de la OP a cancelada, eliminar las reservas de MP y 
     //devolver al stock la cantidad reservada, y si habia avances registrados cambiar el estado de esos avances a cancelados 
     //o eliminarlos segun como se quiera manejar el historial.
@@ -370,15 +787,34 @@ $this->db->prepare("
             foreach ($recetadetalle as $item) { //recorro cada item de la receta
                 $cantidad_mp=$item['cantidad']*$faltante;// obtengo cuanto es la cantidad que voy a devoler al cancelar la op.
                 error_log("MP id: ".print_r($item['materia_prima_id'],true)." Cantidad a devolver: ".print_r($cantidad_mp,true)." - ".__FILE__.":".__LINE__);
-                //inserto en movimientos de stock la devolucion de la materia prima no utilizada
-                $this->db->prepare("
-                    INSERT INTO movimientos_stock
-                    (tipo, origen, materia_prima_id, cantidad, observaciones, usuario_id,referencia_id)
-                    VALUES ('ENTRADA', 'CANCELACION_OP', ?, ?, 'Devolucion de MP no utilizada por cancelacion de OP', ?,?)
-                ")->execute([$item['materia_prima_id'],$cantidad_mp,$_SESSION['user_id'],$id]);
-                $this->db->prepare("INSERT INTO reservas_materia_prima (orden_produccion_id, materia_prima_id,cantidad, estado) VALUES (?, ?, ?, 'LIBERADO')
-                ")->execute([$id, $item['materia_prima_id'], $cantidad_mp]);
+
+                // Devolver a cada deposito de origen, en proporcion a lo reservado.
+                $fuentes = $this->fuentesReservadas($id, (int)$item['materia_prima_id']);
+                $devoluciones = $this->distribuirCantidadFuentes($fuentes, (float)$cantidad_mp);
+                if (empty($devoluciones)) {
+                    $devoluciones = [['deposito_id' => null, 'cantidad' => (float)$cantidad_mp]];
+                }
+
+                foreach ($devoluciones as $devolucion) {
+                    $depositoId = $devolucion['deposito_id'];
+                    $cantidadDevolver = (float)$devolucion['cantidad'];
+                    if ($cantidadDevolver <= 0) continue;
+
+                    //inserto en movimientos de stock la devolucion de la materia prima no utilizada
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, materia_prima_id, deposito_id, cantidad, observaciones, usuario_id,referencia_id)
+                        VALUES ('ENTRADA', 'CANCELACION_OP', ?, ?, ?, 'Devolucion de MP no utilizada por cancelacion de OP', ?,?)
+                    ")->execute([$item['materia_prima_id'], $depositoId, $cantidadDevolver, $_SESSION['user_id'], $id]);
+                    $this->db->prepare("INSERT INTO reservas_materia_prima (orden_produccion_id, materia_prima_id, deposito_id, cantidad, estado) VALUES (?, ?, ?, ?, 'LIBERADO')
+                    ")->execute([$id, $item['materia_prima_id'], $depositoId, $cantidadDevolver]);
+                }
             }
+
+            // Si la OP se cancela despues de producir una parte, el resto de la
+            // ultima presentacion de lo consumido queda en MP sobrante.
+            $this->registrarSobrantesAutomaticos($id);
+
             $this->db->commit();
             return true;
         } catch (Exception $e) {
@@ -394,7 +830,7 @@ $this->db->prepare("
         try {
             $stmt = $this->db->prepare("
                 SELECT SUM(cantidad_producida) FROM orden_produccion_detalle
-                WHERE orden_id=?
+                WHERE orden_id=? AND confirma_produccion IS NOT NULL
             ");
             $stmt->execute([$op_id]);
             return (float)$stmt->fetchColumn();
@@ -410,13 +846,54 @@ $this->db->prepare("
     public function confirmaravance(int $id_avance):bool{
         try {
             $this->db->beginTransaction();
+
+            // Leer el avance antes de confirmar para validar el tope de produccion
+            // y evitar dobles confirmaciones del mismo avance.
+            $stmt = $this->db->prepare("
+                SELECT id_tbl_ordendetalle, orden_id, producto_id, cantidad_producida, confirma_produccion
+                FROM orden_produccion_detalle
+                WHERE id_tbl_ordendetalle = ?
+                FOR UPDATE
+            ");
+            $stmt->execute([$id_avance]);
+            $filaAvance = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$filaAvance) {
+                $this->db->rollBack();
+                $_SESSION['error'] = 'El avance indicado no existe.';
+                return false;
+            }
+            if (!empty($filaAvance['confirma_produccion'])) {
+                // Ya estaba confirmado: no duplicar consumo ni stock de producto.
+                $this->db->rollBack();
+                return true;
+            }
+
+            $ordenId = (int)$filaAvance['orden_id'];
+            $cantidadAvance = (float)$filaAvance['cantidad_producida'];
+            $orden = $this->find($ordenId);
+            if (!$orden) {
+                $this->db->rollBack();
+                $_SESSION['error'] = 'La orden de produccion no existe.';
+                return false;
+            }
+
+            $confirmadoSinEste = $this->totalAvances($ordenId, true);
+            $pedido = (float)$orden['cantidad'];
+            if ($confirmadoSinEste + $cantidadAvance > $pedido + 0.0005) {
+                $disponible = max(0, $pedido - $confirmadoSinEste);
+                $this->db->rollBack();
+                $_SESSION['error'] = 'No se puede confirmar el avance: la OP pide '
+                    . number_format($pedido, 3, ',', '.') . ' y ya hay '
+                    . number_format($confirmadoSinEste, 3, ',', '.') . ' confirmado. '
+                    . 'Disponible para confirmar: ' . number_format($disponible, 3, ',', '.') . '.';
+                return false;
+            }
+
             $stmt=$this->db->prepare("UPDATE orden_produccion_detalle set confirma_produccion=? WHERE id_tbl_ordendetalle=?");//Solo confirmo que se ha cerrado un avance
             $stmt->execute([FECHA_ACTUAL,$id_avance]);
-            //debo insertar un registro con la inforacion de lo producido en la tabla reservas_materia_prima
-            //debo dar ingreso al producto que se acaba de producir en movimientos de stock
-            $stmt=$this->db->prepare("SELECT orden_id,producto_id,cantidad_producida FROM orden_produccion_detalle WHERE id_tbl_ordendetalle=?");
-            $stmt->execute([$id_avance]);
-            $avance = $stmt->fetchAll(PDO::FETCH_ASSOC);//OP_id y cantidad producida en ese avance
+
+            $avance = [$filaAvance];
             error_log('$avance:'.print_r($avance,true).' - '.__FILE__.":".__LINE__);
             $stmt=$this->db->prepare("SELECT receta_id FROM ordenes_produccion WHERE id=?");
             $stmt->execute([$avance[0]['orden_id']]);
@@ -431,16 +908,31 @@ $this->db->prepare("
                 error_log("MP ID: {$mp['materia_prima_id']} - Cantidad a consumir: $cantidad_mp. ".__FILE__.":".__LINE__);
                 //inserto el registro en movimientos de stock para descontar la materia prima consumida, con referencia a la OP y al avance, esto me permite tener el stock real actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
                 try {
-                    $this->db->prepare("
-                        INSERT INTO reservas_materia_prima
-                        (orden_produccion_id, materia_prima_id, cantidad, estado, procesado_at)
-                        VALUES (?, ?, ?, 'CONSUMIDO', ?)
-                    ")->execute([
-                        $avance[0]['orden_id'],
-                        $mp['materia_prima_id'],
-                        $cantidad_mp,
-                        FECHA_ACTUAL
-                    ]);
+                    // Conservar el deposito de origen de cada reserva, repartiendo
+                    // el consumo entre todas las fuentes de la MP.
+                    $fuentes = $this->fuentesReservadas((int)$avance[0]['orden_id'], (int)$mp['materia_prima_id']);
+                    $consumos = $this->distribuirCantidadFuentes($fuentes, (float)$cantidad_mp);
+                    if (empty($consumos)) {
+                        $consumos = [['deposito_id' => null, 'cantidad' => (float)$cantidad_mp]];
+                    }
+
+                    foreach ($consumos as $consumo) {
+                        $depositoId = $consumo['deposito_id'];
+                        $cantidadConsumo = (float)$consumo['cantidad'];
+                        if ($cantidadConsumo <= 0) continue;
+
+                        $this->db->prepare("
+                            INSERT INTO reservas_materia_prima
+                            (orden_produccion_id, materia_prima_id, deposito_id, cantidad, estado, procesado_at)
+                            VALUES (?, ?, ?, ?, 'CONSUMIDO', ?)
+                        ")->execute([
+                            $avance[0]['orden_id'],
+                            $mp['materia_prima_id'],
+                            $depositoId,
+                            $cantidadConsumo,
+                            FECHA_ACTUAL
+                        ]);
+                    }
                     //inserto el registro en la tabla reserva mp para generar el registro de uso de materia prima, con el estado consumido, esto me permite tener el registro de consumo de materia prima a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
                     error_log("RegistroOK - ".$avance[0]['orden_id']."-".$mp['materia_prima_id']."-".$cantidad_mp.' - '.__FILE__.":".__LINE__);
                 } catch (Exception $e) {
@@ -457,6 +949,9 @@ $this->db->prepare("
         } catch (Exception $e) {
             $this->db->rollBack();
             error_log("Error al intentar regitraar el cierre del avance $id_avance.". $e->getMessage().". ".__FILE__.":".__LINE__);
+            if (empty($_SESSION['error'])) {
+                $_SESSION['error'] = 'Error al confirmar el avance: ' . $e->getMessage();
+            }
             return false;
         }
     }

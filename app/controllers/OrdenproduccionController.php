@@ -35,7 +35,8 @@ class OrdenproduccionController extends Controller
                     'cantidad'    => $_POST['cantidad'],
                     'f_entrega'   => $_POST['fecha_entrega'],
                     'observaciones' => $_POST['observaciones'],
-                    'usuario_id'  => $_SESSION['user_id']
+                    'usuario_id'  => $_SESSION['user_id'],
+                    'deposito_items' => $_POST['deposito_items'] ?? []
                 ]);
 
                 $_SESSION['success'] = 'Orden de producción creada';
@@ -60,13 +61,14 @@ class OrdenproduccionController extends Controller
         $registro=$this->model->confirmaravance($id_avance); //id avance es el id en la tabla orden_produccion_detalle
         $id_op=$this->model->numeroOP((int) $id_avance);
         if($registro===true){
-            $_SESSION['SUCCESS']="Registro de avance confirmado!";
+            $_SESSION['success']="Registro de avance confirmado!";
             error_log("Confirmacion del registro de avance $id_avance. ".__FILE__.':'.__LINE__);
             header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id_op);
             exit;
         }else{
             error_log("Hubo un error al agregar la confirmacion del registro de avance $id_avance. ".__FILE__.':'.__LINE__);
-            header('Location: '.BASE_URL.'/ordenproduccion');
+            $destino = $id_op > 0 ? BASE_URL.'/ordenproduccion/avance/'.$id_op : BASE_URL.'/ordenproduccion';
+            header('Location: '.$destino);
             exit;
         }
     }

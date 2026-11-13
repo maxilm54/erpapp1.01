@@ -1,22 +1,37 @@
-<form method="POST" class="card p-4 col-md-6 mx-auto" enctype="multipart/form-data">
-    <h4><?= $title ?></h4>
+<form method="POST" action="<?= BASE_URL ?>/materiasprimas/create" class="card p-4 col-lg-8 mx-auto" enctype="multipart/form-data">
+    <h4><?= htmlspecialchars($title) ?></h4>
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
-    <input name="nombre" class="form-control mb-2" required placeholder="Nombre">
-    <input name="sku" class="form-control mb-2" required placeholder="SKU">
 
-    <select name="id_unidadmedida" class="form-control mb-3">
+    <div class="row">
+        <div class="col-md-6">
+            <label class="form-label" for="nombre">Nombre <span class="text-danger">*</span></label>
+            <input name="nombre" id="nombre" class="form-control mb-2" required maxlength="150" placeholder="Nombre">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="sku">SKU <span class="text-danger">*</span></label>
+            <input name="sku" id="sku" class="form-control mb-2" required maxlength="100" placeholder="SKU">
+        </div>
+    </div>
+
+    <label class="form-label" for="idUnidadMedida">Unidad de medida <span class="text-danger">*</span></label>
+    <select name="id_unidadmedida" id="idUnidadMedida" class="form-select mb-2" required>
         <option value="">Seleccionar Unidad de Medida</option>
         <?php foreach ($umedida as $um): ?>
-            <option value="<?= $um['id_medida'] ?>"><?= $um['nombre'].' ('.$um['detalle'].')' ?></option>
+            <option value="<?= (int)$um['id_medida'] ?>" data-nombre="<?= htmlspecialchars($um['nombre']) ?>"><?= htmlspecialchars($um['nombre'] . ' (' . $um['detalle'] . ')') ?></option>
         <?php endforeach; ?>
     </select>
 
-    <select name="categoria" class="form-control mb-3">
-        <option value="">Seleccionar Categoría</option>
+    <?php require __DIR__ . '/_compra.php'; ?>
+
+    <label class="form-label" for="categoria">Categoría</label>
+    <select name="categoria" id="categoria" class="form-select mb-3">
+        <option value="">Sin categoría</option>
         <?php foreach ($categorias as $cat): ?>
-            <option value="<?= $cat['id_categoria'] ?>"><?= $cat['categoria_nombre'] ?></option>
+            <option value="<?= (int)$cat['id_categoria'] ?>"><?= htmlspecialchars($cat['categoria_nombre']) ?></option>
         <?php endforeach; ?>
     </select>
+
+    <?php require __DIR__ . '/_especificaciones.php'; ?>
 
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="usa_serie" value="1" id="usaSerieMP">
@@ -25,7 +40,7 @@
         </label>
     </div>
 
-    <label>Imagen:</label>
+    <label class="form-label">Imagen:</label>
     <div class="row align-items-center mb-3">
         <div class="col-md-3 text-center">
             <img id="preview-imagen-mp" src="<?= empresaUploadUrl('materiasprimas') ?>/sin-imagen.jpg"
@@ -39,16 +54,18 @@
     </div>
 
     <div class="row">
-        <div class="col">
-            <input type="text" name="barcode" class="form-control mb-3" placeholder="Código de Barra (opcional)">
+        <div class="col-md-6">
+            <label class="form-label" for="barcode">Código de barras</label>
+            <input type="text" name="barcode" id="barcode" class="form-control mb-3" placeholder="Opcional">
         </div>
-        <div class="col">
-            <input type="text" name="tipo" class="form-control mb-3" placeholder="Tipo de Código (EAN, Interno, etc.)">
+        <div class="col-md-6">
+            <label class="form-label" for="tipoCodigo">Tipo de código</label>
+            <input type="text" name="tipo" id="tipoCodigo" class="form-control mb-3" placeholder="EAN, Interno, etc.">
         </div>
     </div>
-    <div class="col d-flex justify-content-end">
+
+    <div class="d-flex justify-content-end">
         <a class="btn btn-secondary me-2" href="<?= BASE_URL ?>/materiasprimas">Volver</a>
         <button class="btn btn-success me-2">Guardar</button>
     </div>
-    
 </form>

@@ -65,7 +65,16 @@
             <td><?= number_format($d['pedida'], 3,',','.') ?></td>
             <td><?= number_format($d['recibida'], 3,',','.') ?></td>
             <td><?= number_format($d['faltante'], 3,',','.') ?></td>
-            <td><?= htmlspecialchars($d['nombre_medida'] ?? $d['id_unidadmedida'] ?? '') ?></td>
+            <td>
+                <?= htmlspecialchars($d['nombre_medida'] ?? $d['id_unidadmedida'] ?? '') ?>
+                <?php if (!empty($d['id_unidadcompra']) && !empty($d['nombre_medida_stock']) && (float)($d['factor_conversion'] ?? 0) > 0): ?>
+                    <br><small class="text-muted">
+                        1 <?= htmlspecialchars($d['nombre_medida'] ?? '') ?> =
+                        <?= number_format((float)$d['factor_conversion'], 4, ',', '.') ?>
+                        <?= htmlspecialchars($d['nombre_medida_stock']) ?>
+                    </small>
+                <?php endif; ?>
+            </td>
             <td><?= number_format($d['precio_unitario'], 3,',','.') ?></td>
             <?php
                 // Subtotal de lo PEDIDO (independiente de lo recibido): siempre visible

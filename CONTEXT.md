@@ -260,6 +260,7 @@ public function delete(int $id): bool {
 | **Lote** | **lotes** | **Tenant** |
 | **Transferencia** | **transferencias_depositos** | **Tenant** |
 | **Serie** | **series** | **Tenant** |
+| **Materiaprimaespecificacion** | **materias_primas_especificaciones** | **Tenant** |
 
 ## Flujo de Datos Clave
 
@@ -403,6 +404,26 @@ La anulación revierte según el estado: si está en tránsito devuelve al orige
     - **Órdenes de pago (027, `/ordenespago`):** `OrdenPago::crear()` exige factura con saldo, usa el numerador `ORDEN_PAGO` (prefijo `OP-`) dentro de transacción y queda `BORRADOR`. Transiciones: `BORRADOR → APROBADA → PAGADA` o `ANULADA`; `PAGADA → ANULADA` revierte asiento y caja. Al pagar se revalida el saldo **excluyendo la orden propia** (`saldoFacturaExcluyendo()`), porque su monto ya está comprometido. El egreso de caja es `referencia_modulo = 'ORDENES_PAGO'`.
     - **Integración con Gastos:** `Gasto::getOCPendientes()` excluye OCs con factura `REGISTRADA` (esas se pagan por orden de pago) y solo trae `APROBADA/PARCIAL/RECIBIDA` (ya no `PENDIENTE`).
     - Los ids de la tabla `monedas` varían por tenant (en `tenant_pistachos` el peso es id 4, no 1): `FacturaCompra::monedaPorDefecto()` resuelve por `simbolo = '$'`, nunca hardcodear el id.
+
+22. **Tipo de gestión y ficha técnica de MP (migración 035)**: `materias_primas.tipo_gestion` (`varchar(30)`, NOT NULL, default `UNIDAD`) define cómo se mide/consume la MP: `UNIDAD`, `LINEAL` (metros/barras/rollos), `SUPERFICIE` (m²) o `GRANEL` (kg/L). La ficha técnica vive en `materias_primas_especificaciones` (relación **1:1 opcional** con la MP: `materia_prima_id` UNIQUE + nullable, `parametro_texto_1`, `parametro_numerico_1`, `parametro_numerico_2`, `presentacion`, `obs`). Los parámetros son genéricos; su significado lo sugiere el `tipo_gestion` en el formulario. Se guarda con `Materiaprimaespecificacion::guardar()` dentro de la transacción de `MateriaPrima::create/update`; si todos los campos están vacíos se borra la fila. `MateriaPrima::find()` hace LEFT JOIN y devuelve la ficha aplanada. Validar siempre `tipo_gestion` con `Materiaprimaespecificacion::normalizarTipoGestion()`.
+
+23. **Compra en unidad distinta al stock (migración 036)**: `materias_primas.id_unidadcompra` (nullable, FK `unidad_medida`) y `factor_conversion` (`decimal(18,6)`, default 1) permiten comprar en kg/barra/rollo/bolsa aunque el stock y las recetas sigan en la unidad de medida. `factor_conversion` es canónico: **unidades de stock por 1 unidad de compra**; el formulario de MP permite cargarlo en las dos direcciones y el servidor lo recalcula (`factor_modo` + `factor_valor`). Reglas:
+    - `id_unidadcompra` NULL o igual a `id_unidadmedida` → sin conversión (factor 1).
+    - OC e ingreso guardan `cantidad` y `precio_unitario` en **unidad de compra**. La OC y el ingreso muestran esa unidad.
+    - Al registrar el ingreso, el movimiento de stock usa `MateriaPrima::cantidadStockDesdeCompra($mp, $cantidad)`.
+    - Para costos/recetas, `MateriaPrima::getUltimosPreciosCompra()` devuelve el precio convertido a unidad de stock con `precioStockDesdeCompra()`.
+    - Para generar OC desde faltantes de producción, `MateriaPrima::cantidadCompraDesdeStock()` convierte el faltante a unidad de compra.
+    - `OrdenCompra::calcularStockProyectado()` convierte `en_compra` a unidad de stock antes de comparar.
+
+24. **MP sobrante y depósito de origen en Producción (migración 037)**: `depositos.es_sobrante` identifica el depósito "MP sobrante" (se crea en la migración). Los restos de barras/rollos se guardan ahí; en ese depósito no se calcula equivalencia de presentación. `presentacion` sigue siendo solo una referencia (`9 × 6 M equiv.`), nunca unidades físicas contadas.
+    - `reservas_materia_prima.deposito_id` guarda de qué depósito se tomó cada MP. Al crear una OP, el formulario muestra por cada MP el stock por depósito y el operario reparte la cantidad entre una o varias fuentes (`deposito_items[mpId][depositoId]`). La suma debe coincidir con lo necesario; si el stock total alcanza, ninguna fuente puede superar el stock de su depósito. Si no alcanza, se permite negativo para planificar la compra.
+    - Se inserta una reserva y un movimiento `SALIDA` con `deposito_id` por cada fuente. La cancelación y el consumo (`CONSUMIDO`) se reparten proporcionalmente entre las fuentes reservadas, así el stock vuelve/sale de cada depósito. `findreservas` muestra una fila por fuente.
+    - **Movimientos históricos con `deposito_id NULL`**: se imputan al depósito principal en las consultas por depósito (`Deposito::principalId()`). El stock total no cambia.
+    - `Deposito::allSeleccionables(false)` excluye el sobrante en ingresos de mercadería y remitos; en transferencias y ajustes sí está disponible.
+    - **Sobrante automático**: al finalizar o cancelar una OP, `OrdenProduccion::registrarSobrantesAutomaticos()` calcula el resto de la última presentación por cada MP con `presentacion` y cada fuente no sobrante, y lo mueve con `SALIDA` desde el origen + `ENTRADA` a "MP sobrante" (`origen = SOBRANTE_MP`). No cambia el stock total. Es idempotente/ajustable: recalcula el objetivo y mueve solo la diferencia, corrigiendo finalizaciones prematuras. El consumo desde el propio depósito sobrante no genera un nuevo sobrante.
+    - **Solo avances confirmados**: `estadoChange`, `cantidadProducidaOP` y los totales de las vistas de Producción deben sumar filas con `confirma_produccion IS NOT NULL`. Si se suman avances cargados sin confirmar, la OP se finaliza antes de tiempo y el sobrante automático se calcula mal.
+    - **Tope de producción**: no se puede cargar ni confirmar más de lo pedido. Al cargar un avance (`avances()`) se valida contra confirmados + pendientes; al confirmar (`confirmaravance()`) se valida contra los confirmados (sin contar el avance actual) y se rechaza con un mensaje claro. Reconfirmar un avance ya confirmado no duplica consumo ni stock. El formulario de avance limita el máximo a lo que queda por cargar.
+    - La columna **Equiv. stock total** de la vista de stock es solo el desglose del stock total (`665 × 6 M + 5 M`), **no** el sobrante de una OP. El sobrante real se ve en la columna **Sobrante** y en el depósito "MP sobrante".
 
 ## Cómo Agregar un Módulo Nuevo
 

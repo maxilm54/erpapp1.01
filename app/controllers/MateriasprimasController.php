@@ -1,6 +1,7 @@
 <?php
 require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Materiaprima.php';
+require_once BASE_PATH . '/app/models/Materiaprimaespecificacion.php';
 require_once BASE_PATH . '/app/models/Lote.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -17,7 +18,8 @@ class MateriasprimasController extends Controller
     {
         $this->view('materias_primas/index', [
             'title'=>'Materias Primas',
-            'items'=>$this->mp->all()
+            'items'=>$this->mp->all(),
+            'tiposGestion'=>Materiaprimaespecificacion::etiquetasTipoGestion()
         ]);
     }
 
@@ -50,21 +52,42 @@ class MateriasprimasController extends Controller
             'vencidos' => $vencidos,
             'proximos' => $proximos,
             'series' => $series,
-            'stock' => $stock
+            'stock' => $stock,
+            'tiposGestion' => Materiaprimaespecificacion::etiquetasTipoGestion()
         ]);
+    }
+
+    public function delete(int $id): void // Baja lógica de la materia prima
+    {
+        validarId($id, BASE_URL . '/materiasprimas');
+        if (!$this->mp->find($id)) {
+            $_SESSION['error'] = 'Materia prima no encontrada.';
+            header('Location: ' . BASE_URL . '/materiasprimas');
+            exit;
+        }
+        $this->mp->delete($id);
+        header('Location: ' . BASE_URL . '/materiasprimas');
+        exit;
     }
 
     public function create(): void // Crea una nueva materia prima
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if(!Csrf::validate($_POST['csrf_token'])) {
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')) {
                 $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
-                error_log('CSRF token validation failed for MateriasprimasController::create. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                error_log('CSRF token validation failed for MateriasprimasController::create. in ' . __FILE__ . ':' . __LINE__);
                 header('Location: ' . BASE_URL . '/materiasprimas');
                 exit;
             }
-            error_log('Crear MP: '.print_r($_POST, true).'-'. __FILE__ . ':' . __LINE__);
-            error_log('Archivo Adjunto: '.print_r($_FILES, true).'-'. __FILE__ . ':' . __LINE__);
+
+            $datos = $this->normalizarDatosPost($_POST);
+            $errores = $this->validarDatosPost($datos);
+            if (!empty($errores)) {
+                $_SESSION['error'] = implode(' ', $errores);
+                header('Location: ' . BASE_URL . '/materiasprimas/create');
+                exit;
+            }
+
             $imagen = null;
             if (!empty($_FILES['imagen_mp']['name'])) {
                 $imagen = $this->uploadImagenMP();
@@ -76,9 +99,9 @@ class MateriasprimasController extends Controller
                 $imagen = $this->copiarImagenPorDefecto();
             }
 
-            $barcode = $_POST['barcode'] ?? null;
-            $tipo = $_POST['tipo'] ?? null;
-            $this->mp->create($_POST, $imagen, $barcode, $tipo);
+            $barcode = trim((string)($_POST['barcode'] ?? '')) ?: null;
+            $tipo = trim((string)($_POST['tipo'] ?? '')) ?: null;
+            $this->mp->create($datos, $imagen, $barcode, $tipo);
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
@@ -87,7 +110,9 @@ class MateriasprimasController extends Controller
          $this->view('materias_primas/form', [
             'title'=>'Nueva Materia Prima',
             'categorias'=>$categorias,
-            'umedida'=>$umedida
+            'umedida'=>$umedida,
+            'tiposGestion'=>Materiaprimaespecificacion::etiquetasTipoGestion(),
+            'item'=>[]
         ]);
     }
 
@@ -155,7 +180,7 @@ class MateriasprimasController extends Controller
 
                 $header = array_map(fn($h) => mb_strtolower(trim($h)), $rows[0]);
                 $map = [];
-                $expected = ['nombre', 'sku', 'unidad_medida', 'categoria', 'barcode'];
+                $expected = ['nombre', 'sku', 'unidad_medida', 'categoria', 'barcode', 'tipo_gestion'];
                 foreach ($expected as $col) {
                     $idx = array_search($col, $header);
                     if ($idx !== false) $map[$col] = $idx;
@@ -187,9 +212,10 @@ class MateriasprimasController extends Controller
                     $r = $i + 1;
                     $nombre = trim($row[$map['nombre']] ?? '');
                     $sku = trim($row[$map['sku']] ?? '');
-                    $umedidaText = trim($row[$map['unidad_medida']] ?? '');
-                    $categoriaText = trim($row[$map['categoria']] ?? '');
-                    $barcode = trim($row[$map['barcode']] ?? '');
+                    $umedidaText = isset($map['unidad_medida']) ? trim($row[$map['unidad_medida']] ?? '') : '';
+                    $categoriaText = isset($map['categoria']) ? trim($row[$map['categoria']] ?? '') : '';
+                    $barcode = isset($map['barcode']) ? trim($row[$map['barcode']] ?? '') : '';
+                    $tipoGestionText = isset($map['tipo_gestion']) ? trim($row[$map['tipo_gestion']] ?? '') : '';
 
                     $item = [
                         '_row' => $r,
@@ -198,6 +224,8 @@ class MateriasprimasController extends Controller
                         'unidad_medida_text' => $umedidaText,
                         'categoria_text' => $categoriaText,
                         'barcode' => $barcode,
+                        'tipo_gestion' => Materiaprimaespecificacion::normalizarTipoGestion($tipoGestionText),
+                        'tipo_gestion_text' => $tipoGestionText !== '' ? $tipoGestionText : 'UNIDAD',
                         '_error' => '',
                         '_error_type' => '',
                     ];
@@ -294,10 +322,18 @@ class MateriasprimasController extends Controller
             exit;
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if(!Csrf::validate($_POST['csrf_token'])) {
+            if(!Csrf::validate($_POST['csrf_token'] ?? '')) {
                 $_SESSION['error'] = "Token CSRF inválido. Por favor, inténtalo de nuevo.";
-                error_log('CSRF token validation failed for MateriasprimasController::update. Provided token: ' . $_POST['csrf_token'] . ' in ' . __FILE__ . ':' . __LINE__);
+                error_log('CSRF token validation failed for MateriasprimasController::update. in ' . __FILE__ . ':' . __LINE__);
                 header('Location: ' . BASE_URL . '/materiasprimas');
+                exit;
+            }
+
+            $datos = $this->normalizarDatosPost($_POST);
+            $errores = $this->validarDatosPost($datos, (int)$id);
+            if (!empty($errores)) {
+                $_SESSION['error'] = implode(' ', $errores);
+                header('Location: ' . BASE_URL . '/materiasprimas/update/' . $id);
                 exit;
             }
 
@@ -307,7 +343,7 @@ class MateriasprimasController extends Controller
                 $imagen = $this->uploadImagenMP();
             }
 
-            $this->mp->update($id, $_POST, $imagen);
+            $this->mp->update((int)$id, $datos, $imagen);
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
@@ -316,9 +352,108 @@ class MateriasprimasController extends Controller
             'title'=>'Editar Materia Prima',
             'item'=>$item,
             'categorias'=>$categorias,
-            'umedida'=>$umedida
+            'umedida'=>$umedida,
+            'tiposGestion'=>Materiaprimaespecificacion::etiquetasTipoGestion()
         ]);
     }
+
+    /**
+     * Normaliza los datos del formulario de MP (campos comunes y ficha tecnica).
+     */
+    private function normalizarDatosPost(array $post): array
+    {
+        $post['nombre'] = trim((string)($post['nombre'] ?? ''));
+        $post['sku'] = trim((string)($post['sku'] ?? ''));
+        $post['id_unidadmedida'] = (int)($post['id_unidadmedida'] ?? $post['unidad_medida'] ?? 0);
+        $post['categoria'] = !empty($post['categoria']) ? (int)$post['categoria'] : null;
+        $post['tipo_gestion'] = Materiaprimaespecificacion::normalizarTipoGestion($post['tipo_gestion'] ?? null);
+
+        // Unidad de compra y factor canonico (unidades de stock por unidad de compra).
+        // El formulario permite cargar la equivalencia en cualquiera de las dos direcciones.
+        $unidadCompra = (int)($post['id_unidadcompra'] ?? 0);
+        if ($unidadCompra <= 0 || $unidadCompra === $post['id_unidadmedida']) {
+            $post['id_unidadcompra'] = null;
+            $post['factor_conversion'] = 1;
+        } else {
+            $post['id_unidadcompra'] = $unidadCompra;
+            $modo = ($post['factor_modo'] ?? 'compra_a_stock') === 'stock_a_compra'
+                ? 'stock_a_compra'
+                : 'compra_a_stock';
+            $valor = MateriaPrima::normalizarFactor($post['factor_valor'] ?? null);
+            if ($valor === null) {
+                $post['factor_conversion'] = 0;
+            } else {
+                $factor = $modo === 'stock_a_compra' ? 1 / $valor : $valor;
+                $post['factor_conversion'] = round($factor, 6);
+            }
+        }
+
+        return $post;
+    }
+
+    /**
+     * Valida los datos antes de guardar. Devuelve una lista de errores legibles.
+     */
+    private function validarDatosPost(array $datos, ?int $idExcluir = null): array
+    {
+        $errores = [];
+
+        if ($datos['nombre'] === '') {
+            $errores[] = 'El nombre es obligatorio.';
+        } elseif (mb_strlen($datos['nombre']) > 150) {
+            $errores[] = 'El nombre no puede superar los 150 caracteres.';
+        }
+
+        if ($datos['sku'] === '') {
+            $errores[] = 'El SKU es obligatorio.';
+        } elseif (mb_strlen($datos['sku']) > 100) {
+            $errores[] = 'El SKU no puede superar los 100 caracteres.';
+        } elseif ($this->mp->skuExiste($datos['sku'], $idExcluir)) {
+            $errores[] = 'Ya existe una materia prima con ese SKU.';
+        }
+
+        if ($datos['id_unidadmedida'] <= 0) {
+            $errores[] = 'La unidad de medida es obligatoria.';
+        }
+
+        if (!in_array($datos['tipo_gestion'], Materiaprimaespecificacion::TIPOS_GESTION, true)) {
+            $errores[] = 'El tipo de gestión seleccionado no es válido.';
+        }
+
+        if (!empty($datos['id_unidadcompra']) && (float)($datos['factor_conversion'] ?? 0) <= 0) {
+            $errores[] = 'La equivalencia de compra debe ser un número mayor a cero.';
+        }
+
+        if (!empty($datos['usa_serie']) && !empty($datos['id_unidadcompra'])) {
+            $errores[] = 'Una materia prima con control de N° de serie no puede tener una unidad de compra distinta a la unidad de medida.';
+        }
+
+        $numericos = [
+            'parametro_numerico_1' => 'Parámetro numérico 1',
+            'parametro_numerico_2' => 'Parámetro numérico 2',
+            'presentacion'         => 'Presentación',
+        ];
+        foreach ($numericos as $campo => $etiqueta) {
+            $raw = trim((string)($datos[$campo] ?? ''));
+            if ($raw === '') {
+                continue;
+            }
+            $raw = str_replace(',', '.', $raw);
+            if (!is_numeric($raw) || (float)$raw < 0) {
+                $errores[] = $etiqueta . ' debe ser un número mayor o igual a cero.';
+            }
+        }
+
+        if (mb_strlen(trim((string)($datos['parametro_texto_1'] ?? ''))) > 50) {
+            $errores[] = 'El parámetro de texto no puede superar los 50 caracteres.';
+        }
+        if (mb_strlen(trim((string)($datos['obs'] ?? ''))) > 255) {
+            $errores[] = 'Las observaciones no pueden superar los 255 caracteres.';
+        }
+
+        return $errores;
+    }
+
     private function uploadImagenMP(): ?string
     {
         if (empty($_FILES['imagen_mp']['name'])) {

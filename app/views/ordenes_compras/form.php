@@ -50,6 +50,7 @@
                 <tr>
                     <th>Tipo</th>
                     <th>Nombre</th>
+                    <th>Unidad</th>
                     <th>Cantidad</th>
                     <th>Precio Unitario</th>
                     <th>Moneda</th>
@@ -59,6 +60,11 @@
             <tbody id="detalle">
             </tbody>
         </table>
+    </div>
+
+    <div class="form-text mb-3">
+        Las cantidades y precios de materias primas se cargan en su <strong>unidad de compra</strong>
+        (kg, barra, rollo...). Al registrar el ingreso, el stock se convierte automáticamente a la unidad de medida.
     </div>
     
     <div id="items-container">
@@ -90,6 +96,24 @@ let itemsCache = [];
 let itemSeleccionado = null;
 let itemCount = <?= isset($detalle) && is_array($detalle) ? count($detalle) : 0 ?>;
 
+// Unidad de compra (si la MP se compra en otra unidad) y equivalencia con el stock.
+function datosUnidad(item) {
+    const tipo = item.tipo || 'materia_prima';
+    const esMateria = tipo === 'materia_prima';
+    const unidad = esMateria
+        ? (item.nombre_medida_compra || item.nombre_medida || '')
+        : (item.nombre_medida || '');
+    const stockUnit = esMateria
+        ? (item.nombre_medida_stock || item.nombre_medida || '')
+        : '';
+    const factor = parseFloat(item.factor_conversion || 0);
+    let detalle = '';
+    if (esMateria && item.id_unidadcompra && stockUnit && factor > 0) {
+        detalle = '1 ' + unidad + ' = ' + factor.toLocaleString('es-AR', { maximumFractionDigits: 6 }) + ' ' + stockUnit;
+    }
+    return { unidad: unidad, detalle: detalle };
+}
+
 // 📥 Cargar items existentes al iniciar (para modo edición)
 <?php if (isset($detalle) && is_array($detalle)): ?>
 document.addEventListener('DOMContentLoaded', function() {
@@ -102,7 +126,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function agregarLineaExistente(item) {
     const tbody = document.getElementById('detalle');
-    const nombreMedida = (item.nombre_medida || '').toLowerCase();
+    const unidad = datosUnidad(item);
+    const nombreMedida = (unidad.unidad || '').toLowerCase();
     const esUnidadEntera = ['u', 'un', 'unidad', 'unidades'].includes(nombreMedida);
     const stepCantidad = esUnidadEntera ? '1' : '0.01';
     const minCantidad = esUnidadEntera ? '1' : '0.01';
@@ -116,6 +141,7 @@ function agregarLineaExistente(item) {
     tr.innerHTML = `
         <td><span class="badge bg-${tipo === 'producto' ? 'info' : 'warning'}">${tipoLabel}</span></td>
         <td>${item.nombre}</td>
+        <td>${unidad.unidad}${unidad.detalle ? '<br><small class="text-muted">' + unidad.detalle + '</small>' : ''}</td>
         <td>
             <input type="number" step="${stepCantidad}" min="${minCantidad}" class="form-control cantidad-input"
                 data-index="${itemCount}" value="${item.pedida || ''}">
@@ -230,7 +256,7 @@ function agregarLinea(item) {
         return;
     }
 
-    const nombreMedida = (item.nombre_medida || '').toLowerCase();
+    const nombreMedida = (datosUnidad(item).unidad || '').toLowerCase();
     const esUnidadEntera = ['u', 'un', 'unidad', 'unidades'].includes(nombreMedida);
     const stepCantidad = esUnidadEntera ? '1' : '0.01';
     const minCantidad = esUnidadEntera ? '1' : '0.01';
@@ -238,9 +264,11 @@ function agregarLinea(item) {
     const tr = document.createElement('tr');
     tr.id = 'item-' + uniqueId;
 
+    const unidad = datosUnidad(item);
     tr.innerHTML = `
         <td><span class="badge bg-${tipo === 'producto' ? 'info' : 'warning'}">${tipoLabel}</span></td>
         <td>${item.nombre}</td>
+        <td>${unidad.unidad}${unidad.detalle ? '<br><small class="text-muted">' + unidad.detalle + '</small>' : ''}</td>
         <td>
             <input type="number" step="${stepCantidad}" min="${minCantidad}" class="form-control cantidad-input" required>
         </td>

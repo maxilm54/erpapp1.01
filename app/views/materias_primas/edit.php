@@ -1,31 +1,43 @@
-<form method="POST" class="card p-4 col-md-6 mx-auto" enctype="multipart/form-data">
-    <h4><?= $title ?></h4>
+<form method="POST" action="<?= BASE_URL ?>/materiasprimas/update/<?= (int)$item['id'] ?>" class="card p-4 col-lg-8 mx-auto" enctype="multipart/form-data">
+    <h4><?= htmlspecialchars($title) ?></h4>
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
-    <span class="small">Nombre:</span>
-        <input name="nombre" class="form-control mb-2" required value="<?= htmlspecialchars($item['nombre'] ?? '') ?>">
-    
-    <span class="small">SKU:</span>
-    <input name="sku" class="form-control mb-2" required value="<?= htmlspecialchars($item['sku'] ?? '') ?>">
 
-    <span class="small">Categoría:</span>
-    <select name="categoria" class="form-control mb-2" required>
-        <option value="">Seleccione una categoría</option>
+    <div class="row">
+        <div class="col-md-6">
+            <label class="form-label" for="nombre">Nombre <span class="text-danger">*</span></label>
+            <input name="nombre" id="nombre" class="form-control mb-2" required maxlength="150"
+                   value="<?= htmlspecialchars($item['nombre'] ?? '') ?>">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="sku">SKU <span class="text-danger">*</span></label>
+            <input name="sku" id="sku" class="form-control mb-2" required maxlength="100"
+                   value="<?= htmlspecialchars($item['sku'] ?? '') ?>">
+        </div>
+    </div>
+
+    <label class="form-label" for="idUnidadMedida">Unidad de medida <span class="text-danger">*</span></label>
+    <select name="id_unidadmedida" id="idUnidadMedida" class="form-select mb-2" required>
+        <option value="">Seleccione una unidad de medida</option>
+        <?php foreach ($umedida as $um): ?>
+            <option value="<?= (int)$um['id_medida'] ?>" data-nombre="<?= htmlspecialchars($um['nombre']) ?>" <?= ($item['id_unidadmedida'] ?? '') == $um['id_medida'] ? 'selected' : '' ?>>
+                <?= htmlspecialchars($um['nombre']) ?> (<?= htmlspecialchars($um['detalle']) ?>)
+            </option>
+        <?php endforeach; ?>
+    </select>
+
+    <?php require __DIR__ . '/_compra.php'; ?>
+
+    <label class="form-label" for="categoria">Categoría</label>
+    <select name="categoria" id="categoria" class="form-select mb-3">
+        <option value="">Sin categoría</option>
         <?php foreach ($categorias as $cat): ?>
-            <option value="<?= htmlspecialchars($cat['id_categoria']) ?>" <?= ($item['categoria'] ?? '') == $cat['id_categoria'] ? 'selected' : '' ?>>
+            <option value="<?= (int)$cat['id_categoria'] ?>" <?= ($item['categoria'] ?? '') == $cat['id_categoria'] ? 'selected' : '' ?>>
                 <?= htmlspecialchars($cat['categoria_nombre']) ?>
             </option>
         <?php endforeach; ?>
     </select>
 
-    <span class="small">Unidad de Medida:</span>
-    <select name="unidad_medida" class="form-control mb-3" required>
-        <option value="">Seleccione una unidad de medida</option>
-        <?php foreach ($umedida as $um): ?>
-            <option value="<?= htmlspecialchars($um['id_medida']) ?>" <?= ($item['id_unidadmedida'] ?? '') == $um['id_medida'] ? 'selected' : '' ?>>
-                <?= htmlspecialchars($um['nombre']) ?> (<?= htmlspecialchars($um['detalle']) ?>)
-            </option>
-        <?php endforeach; ?>
-    </select>
+    <?php require __DIR__ . '/_especificaciones.php'; ?>
 
     <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" name="usa_serie" value="1" id="usaSerieMP"
@@ -35,7 +47,7 @@
         </label>
     </div>
 
-    <label>Imagen:</label>
+    <label class="form-label">Imagen:</label>
     <div class="row align-items-center mb-3">
         <div class="col-md-3 text-center">
             <?php
@@ -53,7 +65,7 @@
         <div class="col-md-9">
             <input type="file" name="imagen_mp" class="form-control" accept="image/*"
                    onchange="document.getElementById('preview-imagen-mp').src = window.URL.createObjectURL(this.files[0])">
-            <small class="text-muted">JPG, PNG o WebP. Max 5MB. Dejar vacio para mantener actual.</small>
+            <small class="text-muted">JPG, PNG o WebP. Max 5MB. Dejar vacío para mantener la actual.</small>
         </div>
     </div>
 

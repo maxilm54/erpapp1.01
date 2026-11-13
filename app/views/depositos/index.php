@@ -18,7 +18,15 @@
         <?php foreach ($depositos as $d): ?>
         <tr>
             <td><?= $d['id'] ?></td>
-            <td><?= htmlspecialchars($d['nombre']) ?></td>
+            <td>
+                <?= htmlspecialchars($d['nombre']) ?>
+                <?php if (!empty($d['es_sobrante'])): ?>
+                    <span class="badge bg-info text-dark">MP sobrante</span>
+                <?php endif; ?>
+                <?php if (!empty($d['es_transito'])): ?>
+                    <span class="badge bg-secondary">En tránsito</span>
+                <?php endif; ?>
+            </td>
             <td><?= htmlspecialchars($d['descripcion'] ?? '') ?></td>
             <td>
                 <a href="<?= BASE_URL ?>/depositos/edit/<?= $d['id'] ?>" class="btn btn-sm btn-warning">Editar</a>

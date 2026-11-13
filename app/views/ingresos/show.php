@@ -14,6 +14,7 @@
         <thead>
             <tr>
                 <th>Materia Prima</th>
+                <th>Unidad</th>
                 <th>Pedida</th>
                 <th>Ingresado</th>
                 <th>Ingreso OC-<?= $ingreso['orden_compra_id'] ?> Ing #-<?=$ingreso['ing_num_indicador'] ?></th>
@@ -26,6 +27,7 @@
             foreach ($ingreso['detalle'] as $d): ?>
             <tr>
                 <td><?= $d['nombre'] ?></td>
+                <td><?= htmlspecialchars($d['nombre_medida'] ?? '') ?></td>
                 <td><?= number_format($d['pedida'],2,',','.') ?></td>
                 <td><?= number_format(($faltante[$i]['total_cantidad'] ?? '0.000'),3,',','.') ?></td>
                 <td><?= number_format($d['ingresada'],2,',','.') ?></td>

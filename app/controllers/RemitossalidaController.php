@@ -188,7 +188,7 @@ class RemitosSalidaController extends Controller
 
         $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
             'np' => $np,
-            'depositos' => (new Deposito())->allSeleccionables(),
+            'depositos' => (new Deposito())->allSeleccionables(false),
             'cpCampos' => (new Campopersonalizado())->porModulo('REMITO_SALIDA'),
             'cpValores' => []
         ]);
@@ -254,7 +254,7 @@ class RemitosSalidaController extends Controller
         $this->view('remitos_salida/form_manual', [
             'clientes' => $clientes,
             'productos' => $productos,
-            'depositos' => (new Deposito())->allSeleccionables()
+            'depositos' => (new Deposito())->allSeleccionables(false)
         ]);
     }
 

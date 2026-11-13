@@ -3,6 +3,7 @@
 use function Safe\error_log;
 
 require_once BASE_PATH.'/app/models/Ordencompra.php';
+require_once BASE_PATH.'/app/models/Materiaprima.php';
 class IngresoMercaderia extends Model
 {
     public function all()
@@ -99,9 +100,19 @@ class IngresoMercaderia extends Model
                 $mpId = $item['materia_prima_id'] ?? null;
                 $prodId = $item['producto_id'] ?? null;
                 $cantidad = (float)$item['cantidad'];
-                
+
                 if ($cantidad <= 0) {
                     continue;
+                }
+
+                // La cantidad del ingreso viene en la unidad de COMPRA (kg, barra, rollo...).
+                // El movimiento de stock siempre se registra en la unidad de STOCK.
+                $cantidadStock = $cantidad;
+                if ($tipo === 'materia_prima' && !empty($mpId)) {
+                    $mpDatos = (new MateriaPrima())->find((int)$mpId);
+                    if ($mpDatos) {
+                        $cantidadStock = MateriaPrima::cantidadStockDesdeCompra($mpDatos, $cantidad);
+                    }
                 }
                 
                 // Validar faltante según tipo
@@ -161,11 +172,11 @@ class IngresoMercaderia extends Model
                     $prodId,
                     $item['deposito_id'] ?? null,
                     $item['lote_id'] ?? null,
-                    $cantidad,
+                    $cantidadStock,
                     $usuario_id
                 ]);
                 
-                error_log("Ingreso mercadería: Ingreso #$ingreso_id - Tipo: $tipo - ID: " . ($mpId ?? $prodId) . " - Cantidad: $cantidad -- ".__FILE__.' - '.__LINE__);
+                error_log("Ingreso mercadería: Ingreso #$ingreso_id - Tipo: $tipo - ID: " . ($mpId ?? $prodId) . " - Cantidad compra: $cantidad - Cantidad stock: $cantidadStock -- ".__FILE__.' - '.__LINE__);
             }
 
             // 4️⃣ Commit
@@ -203,6 +214,7 @@ class IngresoMercaderia extends Model
         $stmt = $this->db->prepare("
             SELECT 
                 COALESCE(mp.nombre, pr.nombre) AS nombre,
+                COALESCE(umc_mp.nombre, um_mp.nombre, um_pr.nombre) AS nombre_medida,
                 MAX(d.cantidad) AS pedida,
                 idt.materia_prima_id,
                 idt.producto_id,
@@ -212,7 +224,10 @@ class IngresoMercaderia extends Model
             JOIN ordenes_compra_detalle d ON d.orden_compra_id = idt.oc_id
                 AND (d.materia_prima_id = idt.materia_prima_id OR d.producto_id = idt.producto_id)
             LEFT JOIN materias_primas mp ON mp.id = idt.materia_prima_id
+            LEFT JOIN unidad_medida umc_mp ON umc_mp.id_medida = mp.id_unidadcompra
+            LEFT JOIN unidad_medida um_mp ON um_mp.id_medida = mp.id_unidadmedida
             LEFT JOIN productos pr ON pr.id = idt.producto_id
+            LEFT JOIN unidad_medida um_pr ON um_pr.id_medida = pr.unidad_medida
             WHERE idt.ingreso_id = ?
             GROUP BY idt.materia_prima_id, idt.producto_id
         ");

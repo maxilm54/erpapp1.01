@@ -57,10 +57,11 @@ class Receta extends Model
     public function detalle(int $recetaId): array
     {
         $stmt = $this->db->prepare("
-            SELECT rd.*, mp.nombre, um.nombre AS unidad_medida
+            SELECT rd.*, mp.nombre, mp.tipo_gestion, um.nombre AS unidad_medida, esp.presentacion
             FROM recetas_detalle rd
             JOIN materias_primas mp ON mp.id = rd.materia_prima_id
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
             WHERE rd.receta_id = ?
         ");
         $stmt->execute([$recetaId]);

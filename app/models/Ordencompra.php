@@ -132,7 +132,10 @@ class OrdenCompra extends Model
                 mon.simbolo AS moneda,
                 COALESCE(mp.nombre, pr.nombre) AS nombre,
                 COALESCE(mp.id_unidadmedida, pr.unidad_medida) AS id_unidadmedida,
-                COALESCE(um_mp.nombre, um_pr.nombre) AS nombre_medida,
+                COALESCE(mp.id_unidadcompra, pr.unidad_medida) AS id_unidadcompra,
+                COALESCE(mp.factor_conversion, 1) AS factor_conversion,
+                COALESCE(umc_mp.nombre, um_mp.nombre, um_pr.nombre) AS nombre_medida,
+                um_mp.nombre AS nombre_medida_stock,
                 COALESCE(mp.usa_serie, pr.usa_serie, 0) AS usa_serie,
                 d.cantidad AS pedida,
                 COALESCE(SUM(idt.cantidad), 0) AS recibida,
@@ -144,6 +147,7 @@ class OrdenCompra extends Model
             FROM ordenes_compra_detalle d
             LEFT JOIN materias_primas mp ON mp.id = d.materia_prima_id
             LEFT JOIN unidad_medida um_mp ON um_mp.id_medida = mp.id_unidadmedida
+            LEFT JOIN unidad_medida umc_mp ON umc_mp.id_medida = mp.id_unidadcompra
             LEFT JOIN productos pr ON pr.id = d.producto_id
             LEFT JOIN unidad_medida um_pr ON um_pr.id_medida = pr.unidad_medida
             LEFT JOIN ingresos_mercaderia i ON i.orden_compra_id = d.orden_compra_id
@@ -250,10 +254,18 @@ class OrdenCompra extends Model
                         ),0) AS reservado,
 
                         IFNULL((
-                            SELECT SUM(ocd.cantidad)
+                            SELECT SUM(ocd.cantidad * CASE
+                                WHEN mp2.id_unidadcompra IS NOT NULL
+                                 AND mp2.id_unidadcompra <> mp2.id_unidadmedida
+                                 AND mp2.factor_conversion > 0
+                                THEN mp2.factor_conversion
+                                ELSE 1
+                            END)
                             FROM ordenes_compra_detalle ocd
                             JOIN ordenes_compra oc
                                 ON oc.id = ocd.orden_compra_id
+                            JOIN materias_primas mp2
+                                ON mp2.id = ocd.materia_prima_id
                             WHERE ocd.materia_prima_id = mp.id
                             AND oc.estado IN ('BORRADOR','PENDIENTE')
                         ),0) AS en_compra

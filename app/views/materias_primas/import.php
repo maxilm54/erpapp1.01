@@ -6,9 +6,9 @@
 
     <div class="alert alert-info">
         <strong>Formato esperado del archivo (columnas):</strong>
-        <code>nombre</code>, <code>sku</code>, <code>unidad_medida</code> (opcional), <code>categoria</code> (opcional), <code>barcode</code> (opcional).
+        <code>nombre</code>, <code>sku</code>, <code>unidad_medida</code> (opcional), <code>categoria</code> (opcional), <code>barcode</code> (opcional), <code>tipo_gestion</code> (opcional).
         <br>
-        <small>La primera fila debe ser el encabezado. La <strong>unidad_medida</strong> se matchea por nombre (ej: "kg", "un"). Si no coincide, usa "Unidad" por defecto. La <strong>categoria</strong> se matchea por nombre (ej: "alimenticia"). Si no coincide, queda vacía.</small>
+        <small>La primera fila debe ser el encabezado. La <strong>unidad_medida</strong> se matchea por nombre (ej: "kg", "un"). Si no coincide, usa "Unidad" por defecto. La <strong>categoria</strong> se matchea por nombre (ej: "alimenticia"). Si no coincide, queda vacía. El <strong>tipo_gestion</strong> acepta UNIDAD (default), LINEAL, SUPERFICIE o GRANEL. La ficha técnica se carga después desde el formulario de cada materia prima.</small>
     </div>
 
     <form method="POST" enctype="multipart/form-data">
@@ -62,6 +62,7 @@
                     <th>SKU</th>
                     <th>Unidad Medida</th>
                     <th>Categoría</th>
+                    <th>Tipo gestión</th>
                     <th>Barcode</th>
                     <th>Estado</th>
                 </tr>
@@ -74,6 +75,7 @@
                     <td><?= htmlspecialchars($p['sku']) ?></td>
                     <td><?= htmlspecialchars($p['unidad_medida_text'] ?? '-') ?></td>
                     <td><?= htmlspecialchars($p['categoria_text'] ?? '-') ?></td>
+                    <td><?= htmlspecialchars($p['tipo_gestion_text'] ?? 'UNIDAD') ?></td>
                     <td><?= htmlspecialchars($p['barcode'] ?? '-') ?></td>
                     <td>
                         <?php if (empty($p['_error'])): ?>

@@ -62,12 +62,17 @@ class Transferencia extends Model
 
     public function stockPorDeposito(int $depositoId, ?int $productoId = null, ?int $materiaPrimaId = null): float
     {
+        $principalId = (new Deposito())->principalId();
+        $filtroDeposito = ((int)$depositoId === $principalId)
+            ? '(deposito_id = ? OR deposito_id IS NULL)'
+            : 'deposito_id = ?';
+
         $sql = "SELECT COALESCE(SUM(
                     CASE WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
                          WHEN tipo = 'SALIDA' THEN -cantidad END
                 ), 0) AS stock
                 FROM movimientos_stock
-                WHERE deposito_id = ?";
+                WHERE {$filtroDeposito}";
         $params = [$depositoId];
 
         if ($productoId) {

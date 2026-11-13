@@ -5,13 +5,19 @@
 </div>
 
 <?php
-// Calcular total producido
+// Calcular totales: solo los avances confirmados cuentan como producidos.
 $totalProducido = 0;
+$totalPendiente = 0;
 foreach ($orden_det as $r) {
-    $totalProducido += $r['cantidad_producida'];
+    if (!empty($r['confirma_produccion'])) {
+        $totalProducido += (float)$r['cantidad_producida'];
+    } else {
+        $totalPendiente += (float)$r['cantidad_producida'];
+    }
 }
-$cantidadPedida = $orden['cantidad'];
-$faltante = $cantidadPedida - $totalProducido;
+$cantidadPedida = (float)$orden['cantidad'];
+$faltanteParaCargar = max(0, $cantidadPedida - $totalProducido - $totalPendiente);
+$produccionCompleta = $totalProducido >= $cantidadPedida - 0.0005;
 ?>
 
 <!-- Bloque de dos columnas: info izquierda | botón/leyenda derecha -->
@@ -26,7 +32,10 @@ $faltante = $cantidadPedida - $totalProducido;
             </strong>
         </p>
         <p><strong>Estado:</strong> <?= $orden['estado'] ?></p>
-        <p><strong>Cantidad Producida: </strong><?= $totalProducido ?></p>
+        <p><strong>Cantidad Producida (confirmada): </strong><?= number_format($totalProducido, 2, ',', '.') ?></p>
+        <?php if ($totalPendiente > 0): ?>
+            <p><strong>Pendiente de confirmar: </strong><?= number_format($totalPendiente, 2, ',', '.') ?></p>
+        <?php endif; ?>
 
         <?php if ($orden['observaciones']): ?>
         <p><strong>Observaciones:</strong><br>
@@ -37,14 +46,19 @@ $faltante = $cantidadPedida - $totalProducido;
 
     <!-- Columna derecha: botón o leyenda -->
     <div class="col-md-4 d-flex align-items-center justify-content-center">
-        <?php if ($faltante > 0): ?>
+        <?php if ($produccionCompleta): ?>
+            <div class="alert alert-success text-center w-100">
+                ✅ <strong>Producción Completa</strong><br>
+                <small>Se alcanzó la cantidad pedida.</small>
+            </div>
+        <?php elseif ($faltanteParaCargar > 0.0005): ?>
             <button type="button" class="btn btn-primary btn-sm btn-lg w-50" data-bs-toggle="modal" data-bs-target="#modalProduccion">
                 &#10010; Iniciar Producción
             </button>
         <?php else: ?>
-            <div class="alert alert-success text-center w-100">
-                ✅ <strong>Producción Completa</strong><br>
-                <small>Se alcanzó la cantidad pedida.</small>
+            <div class="alert alert-warning text-center w-100">
+                ⚠ <strong>Hay avances pendientes</strong><br>
+                <small>Confirmá los avances cargados antes de agregar otro.</small>
             </div>
         <?php endif ?>
     </div>
@@ -66,11 +80,11 @@ $faltante = $cantidadPedida - $totalProducido;
                     <input type="hidden" name="receta_id" value="<?= $orden['receta_id'] ?>">
                     <input type="hidden" name="csrf" value="<?= $csrf ?>">
                     <input type="hidden" name="producto_id" value="<?= $orden['producto_id'] ?>">
-                    <input type="hidden" name="cantidad_faltante" value="<?= number_format($faltante, 3, '.', '') ?>">
+                    <input type="hidden" name="cantidad_faltante" value="<?= number_format($faltanteParaCargar, 3, '.', '') ?>">
 
                     <div class="mb-3">
-                        <label class="form-label" for="cantidad_producida">Cantidad Producida <span class="text-muted">(máx: <?= number_format($faltante, 2, ',', '.') ?>)</span></label>
-                        <input id="cantidad_producida" name="cantidad_producida" type="number" step="0.001" min="0.001" max="<?= number_format($faltante, 3, '.', '') ?>" class="form-control" required                  >
+                        <label class="form-label" for="cantidad_producida">Cantidad a cargar <span class="text-muted">(máx: <?= number_format($faltanteParaCargar, 3, ',', '.') ?>)</span></label>
+                        <input id="cantidad_producida" name="cantidad_producida" type="number" step="0.001" min="0.001" max="<?= number_format($faltanteParaCargar, 3, '.', '') ?>" class="form-control" required>
                     </div>
 
                     <div class="mb-3">
@@ -134,12 +148,16 @@ $faltante = $cantidadPedida - $totalProducido;
             </tr>
             <?php endforeach ?>
             <tr>
-                <td colspan="6" class="text-end"><strong>Total Producido:</strong></td>
+                <td colspan="6" class="text-end"><strong>Total Producido (confirmado):</strong></td>
                 <td><strong><?= number_format($totalProducido, 2, ',', '.') ?></strong></td>
             </tr>
             <tr>
-                <td colspan="6" class="text-end"><strong>Faltante de Producir:</strong></td>
-                <td><strong><?= number_format($faltante, 2, ',', '.') ?></strong></td>
+                <td colspan="6" class="text-end"><strong>Pendiente de confirmar:</strong></td>
+                <td><strong><?= number_format($totalPendiente, 2, ',', '.') ?></strong></td>
+            </tr>
+            <tr>
+                <td colspan="6" class="text-end"><strong>Disponible para cargar:</strong></td>
+                <td><strong><?= number_format($faltanteParaCargar, 2, ',', '.') ?></strong></td>
             </tr>
         </tbody>
     </table>

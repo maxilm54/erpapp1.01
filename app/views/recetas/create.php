@@ -46,7 +46,7 @@ function agregarLinea() {
     const tr = document.createElement('tr');
 
     let options = materias.map(m =>
-        `<option value="${m.id}">${m.nombre} - (${m.unidad_medida})</option>`
+        `<option value="${m.id}">${m.nombre} - (${m.nombre_unidad || ''})</option>`
     ).join('');
 
     tr.innerHTML = `

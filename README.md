@@ -252,7 +252,7 @@ app/
 - **Clientes**: Razón social, CUIT, email, teléfono, dirección, localidad, distribuidor, observaciones financieras. Soporte para cliente ocasional (id=9999).
 - **Proveedores**: Razón social, CUIT, email, teléfono, dirección.
 - **Productos**: Nombre, SKU, precio de venta, stock mínimo/máximo/crítico, tipo (BASE/PRESENTACIÓN), imágenes. Soporte para códigos de barras (EAN, CODE128, CODE39, UPC, INTERNO).
-- **Materias Primas**: Nombre, SKU, precio actual, stock mínimo/máximo/crítico, categoría, unidad de medida. Soporte para códigos de barras.
+- **Materias Primas**: Nombre, SKU, precio actual, stock mínimo/máximo/crítico, categoría, unidad de medida. **Tipo de gestión** (`tipo_gestion`: `UNIDAD` por defecto, `LINEAL`, `SUPERFICIE` o `GRANEL`) que define cómo se mide/consume, y **ficha técnica opcional** 1:1 (`materias_primas_especificaciones`: parámetro de texto, dos parámetros numéricos, presentación y observaciones). **Unidad de compra y factor de conversión**: una MP puede comprarse en kg, barras, rollos o bolsas aunque su stock/producción siga en metros, unidades o kg; `factor_conversion` indica cuántas unidades de stock entran en 1 unidad de compra. Soporte para códigos de barras.
 
 ### 2. Flujo de Ventas
 
@@ -310,6 +310,7 @@ Orden de Compra → Ingreso de Mercadería → Stock
 
 - **Órdenes de Compra**: Solicitudes a proveedores. Soportan MP o productos, moneda (ARS/USD/EUR). Estados: PENDIENTE → APROBADA → RECIBIDA/PARCIAL → ANULADA. La aprobación registra `aprobada_at` y `aprobado_por` (migración 025); solo se aprueban OCs PENDIENTE.
 - **Ingresos de Mercadería**: Recepción física contra OC. Verificación de cantidades. Impacto automático de stock.
+- **Compra en otra unidad**: si la MP tiene `id_unidadcompra` + `factor_conversion`, la OC y el ingreso se cargan en la **unidad de compra** (kg, barra, rollo, bolsa) con su precio en esa unidad; al registrar el ingreso el movimiento de stock se convierte a la **unidad de medida** de la MP (`cantidad_stock = cantidad_compra × factor_conversion`). El stock, las recetas, los ajustes y las transferencias siguen en la unidad de medida.
 - **Facturas de Compra** (`/facturascompra`, migración 026): registro de la factura del proveedor, contra una OC (o sin OC). Montos neto + IVA + total, tipo (A/B/C/...) y número del proveedor (único por proveedor). Al registrar genera el asiento Debe 5100 + IVA / Haber 2100 Proveedores; no toca caja.
 - **Órdenes de Pago** (`/ordenespago`, migración 027): documento formal de pago de una factura de compra. Numerador `ORDEN_PAGO` (prefijo OP-). Estados: BORRADOR → APROBADA (reserva saldo de la factura) → PAGADA (egreso de caja/banco + asiento Debe 2100 / Haber caja) o ANULADA (revierte si estaba pagada). Una factura puede pagarse en varias órdenes; el saldo facturado = total − órdenes APROBADA/PAGADA.
 - Las OCs con factura registrada dejan de aparecer en Gastos → "OC pendientes" (`Gasto::getOCPendientes`), que además ahora solo trae OCs APROBADA/PARCIAL/RECIBIDA: esas se pagan por el circuito factura → orden de pago.
@@ -325,6 +326,9 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
 
 - **Recetas**: Listas de materiales (BOM). Cada receta tiene detalle de materias primas con cantidades.
 - **Órdenes de Producción**: Vinculadas a receta. Reservan MP automáticamente. Permiten avances parciales (producción incrementales). Estados: PENDIENTE → EN_PRODUCCION → FINALIZADA/CANCELADA.
+- **Avances confirmados**: el total producido y el cierre de la OP cuentan **solo avances confirmados**. Cargar dos avances sin confirmar no cierra la OP ni dispara el sobrante automático sobre una cantidad incompleta.
+- **Tope de producción**: no se puede cargar ni confirmar más de la cantidad pedida. El formulario limita el máximo a lo que queda por cargar y el backend rechaza tanto la carga como la confirmación que exceda la OP.
+- **Depósito de origen**: al crear la OP se elige, para cada MP de la receta, de qué depósito se reserva. La cantidad se puede **repartir entre varios depósitos** (ej. 3 M de **MP sobrante** + 6 M del principal); la suma debe coincidir con lo necesario. La reserva y los movimientos de salida quedan asociados a cada depósito.
 - El sistema verifica disponibilidad de MP antes de iniciar y al confirmar producción.
 
 ### 5. Stock
@@ -336,6 +340,7 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   ```
 - **Orígenes de movimientos**: REMITO_SALIDA, NOTA_PEDIDO, ORDEN_COMPRA, INGRESO_MERCADERIA, AJUSTE, PRODUCCION, DEVOLUCION, TRANSFERENCIA, etc.
 - **Depósitos (nuevo)**: Stock desglosado por depósito físico. Cada movimiento de stock ahora puede asociarse a un depósito (`deposito_id`) mediante las columnas agregadas en migración 016.
+- **MP sobrante (migración 037)**: los restos de MP (barras, rollos o bultos parciales) se guardan en el depósito marcado con `es_sobrante = 1`. La ficha técnica (`presentacion`, ej. 6 m por barra) se muestra como **equivalencia de referencia** (`9 × 6 M equiv.`), pero el stock sigue siendo continuo en la unidad de medida. Al **finalizar o cancelar** una OP, el resto de la última presentación de cada fuente no sobrante se mueve automáticamente desde el depósito de origen a **MP sobrante** (MP con presentación). La columna **Equiv. stock total** es el desglose de todo el stock, no el sobrante de una OP; el sobrante real se ve en la columna **Sobrante** y en el depósito **MP sobrante**.
 - **Lotes y Vencimientos (nuevo)**: Cada movimiento puede asociarse a un lote (`lote_id`) con código de lote, fecha de vencimiento y fecha de producción. Tabla `lotes` vinculada a `productos` o `materias_primas`.
 - **Control de N° de Serie por unidad (nuevo)**: Flag `usa_serie` en productos y materias primas (migración 020). Cuando está activo:
   - El producto/MP se **recepciona y remite unidad a unidad**: la tabla `series` registra cada unidad con su `numero_serie` único, estado (`DISPONIBLE` → `REMITIDO` → `EN_DEVOLUCION`/`BAJA`), depósito, lote e ingreso/remito asociados.
@@ -465,7 +470,7 @@ Reemplaza al viejo `tareas.json` de la raíz del repo (eliminado). Vive en la ta
 
 | Categoría | Tablas |
 |-----------|--------|
-| **ABM** | `clientes`, `proveedores`, `productos`, `materias_primas`, `categorias_mp_id`, `unidad_medida`, `monedas` |
+| **ABM** | `clientes`, `proveedores`, `productos`, `materias_primas`, `materias_primas_especificaciones`, `categorias_mp_id`, `unidad_medida`, `monedas` |
 | **Códigos** | `producto_codigos`, `materiaprima_codigos`, `conversiones` |
 | **Ventas** | `presupuestos`, `presupuestos_detalle`, `notas_pedido`, `notas_pedido_detalle`, `remitos_salida`, `remitos_salida_detalle`, `devoluciones`, `devoluciones_detalle`, `devoluciones_reembolsos` |
 | **Compras** | `ordenes_compra`, `ordenes_compra_detalle`, `ingresos_mercaderia`, `ingresos_mercaderia_detalle`, `compras`, `compras_detalle` |
@@ -522,6 +527,10 @@ El `MigrationManager.php` controla la versión del schema por tenant. Cada tenan
 | 019 | `019_lotes_serie.sql` | Columna `numero_serie` en `lotes` |
 | 020 | `020_serie_unidades.sql` | Columna `usa_serie` en `productos` y `materias_primas`, tabla `series` (unidades individuales con control de N° de serie) |
 | 021 | `021_cuenta_corriente_empresa.sql` | Tablas `categorias_gastos_ingresos` y `cuentas_corrientes_empresa` (ctacte de la empresa, con deuda por proveedor) |
+| 022..034 | `022` a `034_*.sql` | Productos libres, cheques/endosos, facturas de compra, órdenes de pago, configuraciones, adjuntos, campos personalizados y fecha de entrega. Detalle en `AGENTS.md`. |
+| 035 | `035_mp_tipo_gestion_especificaciones.sql` | `materias_primas.tipo_gestion` (`UNIDAD`/`LINEAL`/`SUPERFICIE`/`GRANEL`) + tabla `materias_primas_especificaciones` (ficha técnica opcional 1:1) |
+| 036 | `036_mp_unidad_compra_factor.sql` | `materias_primas.id_unidadcompra` + `factor_conversion` (compra en unidad distinta a la de stock, con conversión al ingresar) |
+| 037 | `037_mp_sobrante_produccion_deposito.sql` | `depositos.es_sobrante` + depósito "MP sobrante" + `reservas_materia_prima.deposito_id` (Producción elige el depósito de origen de cada MP) |
 
 ### Migraciones de la BD Master
 

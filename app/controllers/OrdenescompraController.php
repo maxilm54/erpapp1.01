@@ -284,8 +284,8 @@ class OrdenesCompraController extends Controller
                 $ordenCompraId = null;
                 error_log('datos de cada item faltante->'.print_r($item,true));
                 $materiaId = (int)$item['materia_prima_id'];
-                $cantidadNecesaria=(int)$item['necesario'];
-                $cantidadFaltante=(int)$item['faltante'];
+                $cantidadNecesaria=(float)$item['necesario'];
+                $cantidadFaltante=(float)$item['faltante'];
                 error_log('maeriaprima: '.$materiaId.' - Cantidad Necesaria: '.$cantidadNecesaria.' - Cant Faltante: '.$cantidadFaltante);
                 if($item['materia_prima_id'] <= 0){ //el id de mp debe ser mayor que sero
                     error_log("if id mp=0");
@@ -302,7 +302,10 @@ class OrdenesCompraController extends Controller
                     throw new Exception("El stock proyectado es mayor al solicitado.");
                 }
                 // CORREGIR ACA LA EVALUCION DEL STOCK Y VALIDACION DE CANTIDADES A COMPRAR
-                $cantidadAComprar = abs($cantidadFaltante);
+                // El faltante viene en unidad de STOCK: se convierte a unidad de COMPRA
+                // para que la OC pida kg/barras/rollos y no metros.
+                $mpDatos = $this->materiaPrima->find($materiaId);
+                $cantidadAComprar = MateriaPrima::cantidadCompraDesdeStock($mpDatos ?: [], abs($cantidadFaltante));
                 // 🔹 2️⃣ Buscar OC editable (NO APROBADA), aca no tengo que buscar cualquier oc, tengo que buscar una que ya tenga esa materia prima, ya que si elijo cualier oc , puede que me cree un pedido de compra en un proveedor que no vende esa materia prima.
                 //Cambio de planes! siempre que se haga una OP la OC va a ser una nueva OC punto! NUEVO!
                 //por cada una de las materias primas se crea una nueva oc

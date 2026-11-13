@@ -147,7 +147,7 @@ class IngresosMercaderiaController extends Controller
             'detalle'=>$orden['detalle'],
             'proveedor'=>$orden['razon_social'],
             'orden_compra_id'=>$ordenCompraId,
-            'depositos' => (new Deposito())->allSeleccionables()
+            'depositos' => (new Deposito())->allSeleccionables(false)
         ]);
     }
 

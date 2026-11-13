@@ -38,6 +38,7 @@
             <tr>
                 <th>Tipo</th>
                 <th>Nombre</th>
+                <th>Unidad</th>
                 <th>Cant. Pedida</th>
                 <th>Ya Recibida</th>
                 <th>Faltante</th>
@@ -64,6 +65,7 @@
                     <span class="badge bg-danger">SERIE</span>
                 </td>
                 <td><?= htmlspecialchars($item['nombre']) ?></td>
+                <td><?= htmlspecialchars($item['nombre_medida'] ?? '') ?></td>
                 <td><?= number_format($item['pedida'], 0) ?></td>
                 <td><?= number_format($item['recibida'], 0) ?></td>
                 <td><?= number_format($faltante, 0) ?></td>
@@ -96,6 +98,7 @@
                     </span>
                 </td>
                 <td><?= htmlspecialchars($item['nombre']) ?></td>
+                <td><?= htmlspecialchars($item['nombre_medida'] ?? '') ?></td>
                 <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
                 <td><?= number_format($item['recibida'], 3, ',', '.') ?></td>
                 <td><?= number_format($faltante, 3, ',', '.') ?></td>

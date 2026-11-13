@@ -1,4 +1,6 @@
 <?php
+require_once BASE_PATH . '/app/core/Model.php';
+require_once BASE_PATH . '/app/models/Deposito.php';
 class Stock extends Model
 {
     public function stockProductos(?int $depositoId = null): array
@@ -6,7 +8,10 @@ class Stock extends Model
         $depositoFilter = '';
         $params = [];
         if ($depositoId) {
-            $depositoFilter = ' AND m.deposito_id = :deposito_id';
+            $principalId = (new Deposito())->principalId();
+            $depositoFilter = ((int)$depositoId === $principalId)
+                ? ' AND (m.deposito_id = :deposito_id OR m.deposito_id IS NULL)'
+                : ' AND m.deposito_id = :deposito_id';
             $params[':deposito_id'] = $depositoId;
         }
 
@@ -61,7 +66,10 @@ class Stock extends Model
         $depositoFilter = '';
         $params = [];
         if ($depositoId) {
-            $depositoFilter = ' AND m.deposito_id = :deposito_id';
+            $principalId = (new Deposito())->principalId();
+            $depositoFilter = ((int)$depositoId === $principalId)
+                ? ' AND (m.deposito_id = :deposito_id OR m.deposito_id IS NULL)'
+                : ' AND m.deposito_id = :deposito_id';
             $params[':deposito_id'] = $depositoId;
         }
 
@@ -70,6 +78,7 @@ class Stock extends Model
                 mp.id,
                 mp.nombre,
                 um.nombre AS unidad_medida,
+                esp.presentacion,
                 mp.stock_minimo,
                 mp.stock_maximo,
                 mp.stock_critico,
@@ -92,6 +101,17 @@ class Stock extends Model
                     FROM reservas_materia_prima r
                     WHERE r.materia_prima_id = mp.id
                 ) AS stockreserva,
+                (
+                    SELECT COALESCE(SUM(
+                        CASE
+                            WHEN m2.tipo IN ('ENTRADA','AJUSTE') THEN m2.cantidad
+                            WHEN m2.tipo = 'SALIDA' THEN -m2.cantidad
+                        END
+                    ), 0)
+                    FROM movimientos_stock m2
+                    JOIN depositos d2 ON d2.id = m2.deposito_id AND d2.es_sobrante = 1 AND d2.activo = 1
+                    WHERE m2.materia_prima_id = mp.id
+                ) AS stock_sobrante,
                 CASE
                     WHEN mp.stock_critico > 0
                         AND COALESCE(SUM(
@@ -121,6 +141,7 @@ class Stock extends Model
                 END AS estado
             FROM materias_primas mp
             LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
+            LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
             LEFT JOIN movimientos_stock m ON m.materia_prima_id = mp.id{$depositoFilter}
             GROUP BY mp.id
             ORDER BY

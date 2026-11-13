@@ -1,7 +1,12 @@
 <?php
 $totalProducido = 0;
+$totalPendiente = 0;
 foreach ($orden_det as $r) {
-    $totalProducido += $r['cantidad_producida'];
+    if (!empty($r['confirma_produccion'])) {
+        $totalProducido += (float)$r['cantidad_producida'];
+    } else {
+        $totalPendiente += (float)$r['cantidad_producida'];
+    }
 }
 ?>
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -21,6 +26,9 @@ foreach ($orden_det as $r) {
         </p>
         <p><strong>Estado:</strong> <?= $orden['estado'] ?></p>
         <p><strong>Producido:</strong> <?= number_format($totalProducido, 2, ',', '.') ?> / <?= number_format($orden['cantidad'], 2, ',', '.') ?></p>
+        <?php if ($totalPendiente > 0): ?>
+            <p><strong>Pendiente de confirmar:</strong> <?= number_format($totalPendiente, 2, ',', '.') ?></p>
+        <?php endif; ?>
 
         <?php if ($orden['observaciones']): ?>
         <p><strong>Observaciones:</strong><br>
@@ -67,6 +75,7 @@ foreach ($orden_det as $r) {
                 <th>Materia Prima</th>
                 <th class="text-end">Cantidad</th>
                 <th>Un. Medida</th>
+                <th>Depósito</th>
                 <th class="text-end">Precio Unit.</th>
                 <th class="text-end">Subtotal</th>
             </tr>
@@ -82,17 +91,18 @@ foreach ($orden_det as $r) {
                 <td><?= htmlspecialchars($r['nombre']) ?></td>
                 <td class="text-end"><?= number_format($r['cantidad'], 3, ',', '.') ?></td>
                 <td><?= htmlspecialchars($r['unidad_medida']) ?></td>
+                <td><?= htmlspecialchars($r['deposito_nombre'] ?? '—') ?></td>
                 <td class="text-end">$ <?= number_format($r['precio_unitario'] ?? 0, 2, ',', '.') ?></td>
                 <td class="text-end"><strong>$ <?= number_format($subtotal, 2, ',', '.') ?></strong></td>
             </tr>
             <?php endforeach ?>
             <?php if (empty($reservas)): ?>
-            <tr><td colspan="5" class="text-center text-muted">No hay materia prima reservada.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted">No hay materia prima reservada.</td></tr>
             <?php endif; ?>
         </tbody>
         <tfoot class="table-secondary">
             <tr>
-                <td colspan="4" class="text-end"><strong>Total Materiales:</strong></td>
+                <td colspan="5" class="text-end"><strong>Total Materiales:</strong></td>
                 <td class="text-end"><strong class="fs-5">$ <?= number_format($total, 2, ',', '.') ?></strong></td>
             </tr>
         </tfoot>
