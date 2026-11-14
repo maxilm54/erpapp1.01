@@ -2,6 +2,7 @@
 require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/models/Receta.php';
 require_once BASE_PATH . '/app/models/Deposito.php';
+require_once BASE_PATH . '/app/models/Serie.php';
 class OrdenProduccion extends Model
 {
     public function all(): array
@@ -135,7 +136,7 @@ class OrdenProduccion extends Model
                 $proceso['nombre'],
                 (float)($proceso['horas_por_unidad'] ?? 0),
                 (int)($proceso['secuencia'] ?? 0),
-                $primero ? $cantidad : 0,
+                0,
             ]);
             $primero = false;
         }
@@ -182,6 +183,91 @@ class OrdenProduccion extends Model
     }
 
     /**
+     * Inicia la produccion cargando piezas en el primer proceso.
+     * Se puede llamar varias veces para cargar tandas; la primera vez
+     * registra la fecha/hora de inicio de produccion.
+     */
+    public function iniciarPiezasProceso(int $ordenId, float $cantidad, int $usuarioId, string $observaciones = ''): bool
+    {
+        if ($cantidad <= 0) {
+            $_SESSION['error'] = 'La cantidad a iniciar debe ser mayor a cero.';
+            return false;
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) $this->db->beginTransaction();
+
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM ordenes_produccion WHERE id = ? FOR UPDATE");
+            $stmt->execute([$ordenId]);
+            $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$orden) throw new Exception('La orden de produccion no existe.');
+            if (in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true)) {
+                throw new Exception('La orden ya esta cerrada.');
+            }
+
+            $procesos = $this->procesosOP($ordenId);
+            if (empty($procesos)) throw new Exception('La orden no tiene procesos cargados.');
+            $primerProceso = $procesos[0];
+
+            $totalFinalizado = $this->totalFinalizado($ordenId);
+            $totalEnProceso = 0.0;
+            foreach ($procesos as $proceso) {
+                $totalEnProceso += (float)$proceso['cantidad_en_proceso'];
+            }
+            $pendiente = max(0, (float)$orden['cantidad'] - $totalFinalizado - $totalEnProceso);
+            if ($cantidad > $pendiente + 0.0005) {
+                throw new Exception(
+                    'No se pueden iniciar ' . number_format($cantidad, 3, ',', '.')
+                    . ' piezas: quedan ' . number_format($pendiente, 3, ',', '.')
+                    . ' pendientes de cargar.'
+                );
+            }
+
+            $checkProductos = $this->validarStockProductosOP($ordenId, $totalEnProceso + $cantidad);
+            if ($checkProductos['estado'] !== 'ok') {
+                throw new Exception(
+                    'Stock insuficiente de productos componentes: '
+                    . $this->resumenFaltantesProductos($checkProductos)
+                );
+            }
+
+            $this->db->prepare("
+                UPDATE ordenes_produccion_procesos
+                SET cantidad_en_proceso = cantidad_en_proceso + ?
+                WHERE id = ?
+            ")->execute([$cantidad, (int)$primerProceso['id']]);
+
+            $this->db->prepare("
+                UPDATE ordenes_produccion
+                SET estado = CASE WHEN estado = 'PENDIENTE' THEN 'EN_PRODUCCION' ELSE estado END,
+                    produccion_inicio_at = COALESCE(produccion_inicio_at, NOW())
+                WHERE id = ?
+            ")->execute([$ordenId]);
+
+            $this->db->prepare("
+                INSERT INTO ordenes_produccion_procesos_movimientos
+                (orden_produccion_id, proceso_origen_id, proceso_destino_id, cantidad, tipo, usuario_id, observaciones)
+                VALUES (?, NULL, ?, ?, 'INICIO', ?, ?)
+            ")->execute([
+                $ordenId,
+                (int)$primerProceso['id'],
+                $cantidad,
+                $usuarioId ?: null,
+                $observaciones ?: null,
+            ]);
+
+            if (!$inTransaction) $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            if (!$inTransaction) $this->db->rollBack();
+            $_SESSION['error'] = 'No se pudo iniciar la produccion: ' . $e->getMessage();
+            error_log('Error al iniciar piezas de OP ' . $ordenId . ': ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Mueve piezas de un proceso al siguiente. No consume MP ni suma producto:
      * solo actualiza el tablero de procesos.
      */
@@ -202,6 +288,14 @@ class OrdenProduccion extends Model
             if ($estado === false) throw new Exception('La orden de produccion no existe.');
             if (in_array($estado, ['FINALIZADA', 'CANCELADA'], true)) {
                 throw new Exception('La orden ya esta cerrada.');
+            }
+
+            $checkProductos = $this->validarStockProductosOP($ordenId, $cantidad);
+            if ($checkProductos['estado'] !== 'ok') {
+                throw new Exception(
+                    'Stock insuficiente de productos componentes: '
+                    . $this->resumenFaltantesProductos($checkProductos)
+                );
             }
 
             $procesos = $this->procesosOP($ordenId);
@@ -243,8 +337,10 @@ class OrdenProduccion extends Model
             ")->execute([$ordenId, (int)$origen['id'], (int)$destino['id'], $cantidad, $usuarioId ?: null, $observaciones ?: null]);
 
             $this->db->prepare("
-                UPDATE ordenes_produccion SET estado = 'EN_PRODUCCION'
-                WHERE id = ? AND estado = 'PENDIENTE'
+                UPDATE ordenes_produccion
+                SET estado = CASE WHEN estado = 'PENDIENTE' THEN 'EN_PRODUCCION' ELSE estado END,
+                    produccion_inicio_at = COALESCE(produccion_inicio_at, NOW())
+                WHERE id = ?
             ")->execute([$ordenId]);
 
             if (!$inTransaction) $this->db->commit();
@@ -279,6 +375,14 @@ class OrdenProduccion extends Model
             if (!$orden) throw new Exception('La orden de produccion no existe.');
             if (in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true)) {
                 throw new Exception('La orden ya esta cerrada.');
+            }
+
+            $checkProductos = $this->validarStockProductosOP($ordenId, $cantidad);
+            if ($checkProductos['estado'] !== 'ok') {
+                throw new Exception(
+                    'Stock insuficiente de productos componentes: '
+                    . $this->resumenFaltantesProductos($checkProductos)
+                );
             }
 
             $procesos = $this->procesosOP($ordenId);
@@ -347,8 +451,10 @@ class OrdenProduccion extends Model
             ")->execute([$ordenId, (int)$proceso['id'], $cantidad, $usuarioId ?: null, $observaciones ?: null]);
 
             $this->db->prepare("
-                UPDATE ordenes_produccion SET estado = 'EN_PRODUCCION'
-                WHERE id = ? AND estado = 'PENDIENTE'
+                UPDATE ordenes_produccion
+                SET estado = CASE WHEN estado = 'PENDIENTE' THEN 'EN_PRODUCCION' ELSE estado END,
+                    produccion_inicio_at = COALESCE(produccion_inicio_at, NOW())
+                WHERE id = ?
             ")->execute([$ordenId]);
 
             if (!$inTransaction) $this->db->commit();
@@ -706,6 +812,120 @@ class OrdenProduccion extends Model
         return (float)$stmt->fetchColumn();
     }
 
+    /**
+     * Stock disponible de un producto componente. Si el producto usa series,
+     * la fuente de verdad es la cantidad de series DISPONIBLES.
+     */
+    public function stockDisponibleProductoCantidad(int $productoId): float
+    {
+        if ($this->productoUsaSerie($productoId)) {
+            return (new Serie())->countDisponiblesProducto($productoId);
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                    WHEN tipo = 'SALIDA' THEN -cantidad
+                END
+            ), 0)
+            FROM movimientos_stock
+            WHERE producto_id = ?
+        ");
+        $stmt->execute([$productoId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    public function productoUsaSerie(int $productoId): bool
+    {
+        $stmt = $this->db->prepare("SELECT usa_serie FROM productos WHERE id = ?");
+        $stmt->execute([$productoId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Valida el stock de los productos que integran la receta para una
+     * cantidad a producir. Devuelve el detalle de faltantes y el maximo
+     * producible segun el componente mas limitante.
+     */
+    public function validarStockProductosReceta(int $recetaId, float $cantidad): array
+    {
+        $productos = (new Receta())->detalleProductos($recetaId);
+        $faltantes = [];
+        $items = [];
+        $maxProducible = null;
+
+        foreach ($productos as $producto) {
+            $porUnidad = (float)$producto['cantidad'];
+            $necesario = $porUnidad * $cantidad;
+            $disponible = $this->stockDisponibleProductoCantidad((int)$producto['producto_id']);
+            $faltante = max(0, $necesario - $disponible);
+
+            if ($porUnidad > 0) {
+                $maxItem = floor(($disponible + 0.0000001) / $porUnidad);
+                $maxProducible = $maxProducible === null ? $maxItem : min($maxProducible, $maxItem);
+            }
+
+            $item = [
+                'producto_id' => (int)$producto['producto_id'],
+                'producto'    => $producto['nombre'],
+                'sku'         => $producto['sku'] ?? null,
+                'unidad'      => $producto['unidad_medida'] ?? '',
+                'necesario'   => $necesario,
+                'disponible'  => $disponible,
+                'faltante'    => $faltante,
+            ];
+            $items[] = $item;
+
+            if ($faltante > 0.0000001) {
+                $faltantes[] = $item;
+            }
+        }
+
+        return [
+            'estado'         => empty($faltantes) ? 'ok' : 'error',
+            'faltantes'      => $faltantes,
+            'items'          => $items,
+            'max_producible' => $maxProducible,
+        ];
+    }
+
+    /**
+     * Valida los productos componentes de una OP. Si no se indica cantidad,
+     * se valida lo que queda por producir (pedido - finalizado).
+     */
+    public function validarStockProductosOP(int $ordenId, ?float $cantidad = null): array
+    {
+        $orden = $this->find($ordenId);
+        if (!$orden) {
+            return ['estado' => 'error', 'faltantes' => [], 'items' => [], 'max_producible' => null];
+        }
+
+        if ($cantidad === null) {
+            $cantidad = max(0, (float)$orden['cantidad'] - $this->totalFinalizado($ordenId));
+        }
+
+        return $this->validarStockProductosReceta((int)$orden['receta_id'], (float)$cantidad);
+    }
+
+    /**
+     * Texto corto con los faltantes de productos componentes.
+     */
+    public function resumenFaltantesProductos(array $check): string
+    {
+        if (empty($check['faltantes'])) {
+            return '';
+        }
+
+        $partes = [];
+        foreach ($check['faltantes'] as $f) {
+            $partes[] = $f['producto'] . ' (faltan '
+                . number_format((float)$f['faltante'], 3, ',', '.')
+                . ' ' . ($f['unidad'] ?? '') . ')';
+        }
+        return implode(', ', $partes);
+    }
+
     public function chequearStockReceta(int $recetaId, float $cantidad): array //chequeo de receta con la cantidad a producir de esa receta.
     {
         $receta = (new Receta())->detalle($recetaId); //traigo los datos de la receta, que incluye la cantidad de cada materia prima necesaria para producir 1 unidad del producto final. Luego multiplico esa cantidad por la cantidad a producir que me pasan por parametro, y chequeo si hay stock disponible para cada materia prima. Devuelvo un array con el estado general (ok, warning o error) y un detalle de las materias primas faltantes si las hubiera.
@@ -760,27 +980,50 @@ class OrdenProduccion extends Model
         }
 
         $estado = 'ok'; // normalmente devuelve ok salvo no haya stock o si hay varios items y alguno no tiene stocks muestra warning.
-        if (count($faltantes) === count($receta)) {
+        if (count($receta) > 0 && count($faltantes) === count($receta)) {
             $estado = 'error';
         } elseif (count($faltantes) > 0) {
             $estado = 'warning';
         }
 
+        // Los productos que integran la receta tambien deben tener stock.
+        $productosCheck = $this->validarStockProductosReceta($recetaId, $cantidad);
+        if ($productosCheck['estado'] !== 'ok') {
+            $estado = 'error';
+        }
+
         return [
-            'estado'    => $estado,
-            'faltantes' => $faltantes,
-            'items'     => $items
+            'estado'              => $estado,
+            'faltantes'           => $faltantes,
+            'items'               => $items,
+            'faltantes_productos' => $productosCheck['faltantes'],
+            'productos'           => $productosCheck['items'],
+            'max_producible'      => $productosCheck['max_producible'],
         ];
     }
     public function actualizarEstado(int $id, string $estado): void // aca tengo que cambiar para corregir cuando se tomas las reservas o se devuelven
     {
         error_log($id.'-'.$estado);
-        $stmt = $this->db->prepare("
-            UPDATE ordenes_produccion
-            SET estado = ?
-            WHERE id = ?
-        ");
-        $stmt->execute([$estado, $id]);
+        if ($estado === 'EN_PRODUCCION') {
+            $this->db->prepare("
+                UPDATE ordenes_produccion
+                SET estado = ?, produccion_inicio_at = COALESCE(produccion_inicio_at, NOW())
+                WHERE id = ?
+            ")->execute([$estado, $id]);
+        } elseif ($estado === 'FINALIZADA') {
+            $this->db->prepare("
+                UPDATE ordenes_produccion
+                SET estado = ?, finalizada_at = COALESCE(finalizada_at, NOW())
+                WHERE id = ?
+            ")->execute([$estado, $id]);
+        } else {
+            $stmt = $this->db->prepare("
+                UPDATE ordenes_produccion
+                SET estado = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$estado, $id]);
+        }
 
         if ($estado === 'FINALIZADA') {
             $this->registrarSobrantesAutomaticos($id);
@@ -823,6 +1066,14 @@ class OrdenProduccion extends Model
             $orden = $this->find($ordenId);
             if (!$orden) {
                 throw new Exception('La orden de produccion no existe.');
+            }
+
+            $checkProductos = $this->validarStockProductosOP($ordenId, $nuevaCantidad);
+            if ($checkProductos['estado'] !== 'ok') {
+                throw new Exception(
+                    'Stock insuficiente de productos componentes: '
+                    . $this->resumenFaltantesProductos($checkProductos)
+                );
             }
 
             // No permitir cargar mas avances que lo pedido, contando tanto los
@@ -911,10 +1162,10 @@ class OrdenProduccion extends Model
                 error_log('If si la producida es = a la pedida, solo si el avance creado es el que completa lo OP'.' - '.__FILE__.":".__LINE__);
                 $stmt = $this->db->prepare("
                     UPDATE ordenes_produccion
-                    SET estado = ?,finalizada_at=?
+                    SET estado = ?, finalizada_at = NOW()
                     WHERE id = ?
                 ");
-                $stmt->execute(['FINALIZADA',FECHA_ACTUAL, $id_orden]);
+                $stmt->execute(['FINALIZADA', $id_orden]);
                 $this->registrarSobrantesAutomaticos($id_orden);
             }
             return true;
@@ -1046,7 +1297,7 @@ $this->db->prepare("
             $stmt->execute([$id]);
             $receta=(int)$stmt->fetchColumn();
             error_log("Pedido: ".print_r($pedido,true)." Producida: ".print_r($producido,true)." Faltante: ".print_r($faltante,true)." Receta id: ".print_r($receta,true)." - ".__FILE__.":".__LINE__);
-            $stmt=$this->db->prepare("SELECT * FROM recetas_detalle WHERE receta_id= ?");
+            $stmt=$this->db->prepare("SELECT * FROM recetas_detalle WHERE receta_id= ? AND materia_prima_id IS NOT NULL");
             $stmt->execute([$receta]);
             $recetadetalle=$stmt->fetchALL(PDO::FETCH_ASSOC);
             error_log(print_r($recetadetalle,true)." - ".__FILE__.":".__LINE__);
@@ -1125,7 +1376,15 @@ $this->db->prepare("
         $stmt->execute([$ordenId]);
         $recetaId = $stmt->fetchColumn();
 
-        $stmt = $this->db->prepare("SELECT materia_prima_id, cantidad FROM recetas_detalle WHERE receta_id=?");
+        $checkProductos = $this->validarStockProductosReceta((int)$recetaId, $cantidadProducida);
+        if ($checkProductos['estado'] !== 'ok') {
+            throw new Exception(
+                'Stock insuficiente de productos componentes: '
+                . $this->resumenFaltantesProductos($checkProductos)
+            );
+        }
+
+        $stmt = $this->db->prepare("SELECT materia_prima_id, cantidad FROM recetas_detalle WHERE receta_id=? AND materia_prima_id IS NOT NULL");
         $stmt->execute([$recetaId]);
         $materiasPrimas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -1174,7 +1433,58 @@ $this->db->prepare("
             $ordenId
         );
 
+        $this->consumirProductosComponentes($ordenId, (int)$recetaId, $cantidadProducida);
+
         $this->estadoChange($ordenId);
+    }
+
+    /**
+     * Descuenta del stock los productos que integran la receta (componentes).
+     * Las series de esos productos pasan a CONSUMIDO. Se ejecuta dentro de la
+     * transaccion de confirmacion de produccion.
+     */
+    private function consumirProductosComponentes(int $ordenId, int $recetaId, float $cantidadProducida): void
+    {
+        $stmt = $this->db->prepare("
+            SELECT producto_id, cantidad
+            FROM recetas_detalle
+            WHERE receta_id = ? AND producto_id IS NOT NULL
+        ");
+        $stmt->execute([$recetaId]);
+        $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($productos)) {
+            return;
+        }
+
+        $serieModel = null;
+        $usuarioId = $_SESSION['user_id'] ?? null;
+
+        foreach ($productos as $producto) {
+            $productoId = (int)$producto['producto_id'];
+            $cantidad = (float)$producto['cantidad'] * $cantidadProducida;
+            if ($cantidad <= 0.0000001) {
+                continue;
+            }
+
+            if ($this->productoUsaSerie($productoId)) {
+                if ($serieModel === null) {
+                    $serieModel = new Serie();
+                }
+                $serieModel->consumirDisponibles($productoId, $cantidad, $ordenId);
+            }
+
+            $this->db->prepare("
+                INSERT INTO movimientos_stock
+                (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, observaciones, usuario_id)
+                VALUES ('SALIDA', 'OP', ?, ?, ?, NULL, ?, ?)
+            ")->execute([
+                $ordenId,
+                $productoId,
+                $cantidad,
+                'Consumo de producto componente por produccion OP ID: ' . $ordenId,
+                $usuarioId,
+            ]);
+        }
     }
 
     public function confirmaravance(int $id_avance):bool{
@@ -1209,6 +1519,14 @@ $this->db->prepare("
             if (!$orden) {
                 $this->db->rollBack();
                 $_SESSION['error'] = 'La orden de produccion no existe.';
+                return false;
+            }
+
+            $checkProductos = $this->validarStockProductosOP($ordenId, $cantidadAvance);
+            if ($checkProductos['estado'] !== 'ok') {
+                $this->db->rollBack();
+                $_SESSION['error'] = 'No se puede confirmar el avance: stock insuficiente de productos componentes. '
+                    . $this->resumenFaltantesProductos($checkProductos);
                 return false;
             }
 
@@ -1282,15 +1600,23 @@ $this->db->prepare("
         }
 
         $estado = 'ok'; // normalmente devuelve ok salvo no haya stock o si hay varios items y alguno no tiene stocks muestra warning.
-        if (count($faltantes) === count($receta)) {
+        if (count($receta) > 0 && count($faltantes) === count($receta)) {
             $estado = 'error';
         } elseif (count($faltantes) > 0) {
             $estado = 'warning';
         }
 
+        $productosCheck = $this->validarStockProductosReceta($recetaId, $cantidad);
+        if ($productosCheck['estado'] !== 'ok') {
+            $estado = 'error';
+        }
+
         return [
-            'estado'    => $estado,
-            'faltantes' => $faltantes
+            'estado'              => $estado,
+            'faltantes'           => $faltantes,
+            'faltantes_productos' => $productosCheck['faltantes'],
+            'productos'           => $productosCheck['items'],
+            'max_producible'      => $productosCheck['max_producible'],
         ];
     }
     //Devuelvo de la reserva de MP para un OP la cantidad Reservada - Consumida para tener el stock real que me queda para producir

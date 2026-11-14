@@ -40,6 +40,7 @@ class ConfiguracionesController extends Controller
             'usarAdjuntos' => $config->activa('usar_adjuntos', false),
             'usarAdjuntosCompra' => $config->activa('usar_adjuntos_compra', false),
             'npAprobadaAuto' => $config->activa('np_automatica_aprobada', false),
+            'usarProductosRecetas' => $config->activa('usar_productos_recetas', false),
             'camposPorModulo' => $camposPorModulo,
         ]);
     }
@@ -74,6 +75,9 @@ class ConfiguracionesController extends Controller
                     break;
                 case 'np_automatica_aprobada':
                     $config->set('np_automatica_aprobada', !empty($_POST['np_automatica_aprobada']) ? '1' : '0');
+                    break;
+                case 'usar_productos_recetas':
+                    $config->set('usar_productos_recetas', !empty($_POST['usar_productos_recetas']) ? '1' : '0');
                     break;
             }
 

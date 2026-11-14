@@ -18,6 +18,15 @@ foreach ($orden_det as $r) {
 $cantidadPedida = (float)$orden['cantidad'];
 $faltanteParaCargar = max(0, $cantidadPedida - $totalProducido - $totalPendiente);
 $produccionCompleta = $totalProducido >= $cantidadPedida - 0.0005;
+
+$valProd = $validacionProductos ?? ['faltantes' => [], 'max_producible' => null];
+$faltantesProd = $valProd['faltantes'] ?? [];
+$maxProd = $valProd['max_producible'] ?? null;
+$topeCarga = $faltanteParaCargar;
+if ($maxProd !== null) {
+    $topeCarga = min($topeCarga, max(0, (float)$maxProd));
+}
+$sinStockProductos = !empty($faltantesProd) && $topeCarga <= 0.0005;
 ?>
 
 <!-- Bloque de dos columnas: info izquierda | botón/leyenda derecha -->
@@ -51,10 +60,15 @@ $produccionCompleta = $totalProducido >= $cantidadPedida - 0.0005;
                 ✅ <strong>Producción Completa</strong><br>
                 <small>Se alcanzó la cantidad pedida.</small>
             </div>
-        <?php elseif ($faltanteParaCargar > 0.0005): ?>
+        <?php elseif ($faltanteParaCargar > 0.0005 && !$sinStockProductos): ?>
             <button type="button" class="btn btn-primary btn-sm btn-lg w-50" data-bs-toggle="modal" data-bs-target="#modalProduccion">
                 &#10010; Iniciar Producción
             </button>
+        <?php elseif ($sinStockProductos): ?>
+            <div class="alert alert-danger text-center w-100 mb-0">
+                ⛔ <strong>Sin stock de productos componentes</strong><br>
+                <small>Reponé el stock para poder producir.</small>
+            </div>
         <?php else: ?>
             <div class="alert alert-warning text-center w-100">
                 ⚠ <strong>Hay avances pendientes</strong><br>
@@ -63,6 +77,29 @@ $produccionCompleta = $totalProducido >= $cantidadPedida - 0.0005;
         <?php endif ?>
     </div>
 </div>
+
+<?php if (!empty($faltantesProd)): ?>
+<div class="alert alert-<?= $sinStockProductos ? 'danger' : 'warning' ?> mt-3">
+    <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Stock de productos componentes</h6>
+    <ul class="mb-2">
+        <?php foreach ($faltantesProd as $faltante): ?>
+            <li>
+                <strong><?= htmlspecialchars($faltante['producto']) ?></strong>:
+                faltan <?= number_format((float)$faltante['faltante'], 3, ',', '.') ?>
+                <?= htmlspecialchars($faltante['unidad'] ?? '') ?>
+                (necesario <?= number_format((float)$faltante['necesario'], 3, ',', '.') ?>,
+                disponible <?= number_format((float)$faltante['disponible'], 3, ',', '.') ?>)
+            </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php if ($maxProd !== null): ?>
+        <p class="mb-0 small">
+            Con el stock actual de productos componentes se pueden producir como máximo
+            <strong><?= number_format((float)$maxProd, 3, ',', '.') ?></strong> unidades.
+        </p>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 <!-- Modal Iniciar Producción -->
 <div class="modal fade" id="modalProduccion" tabindex="-1" aria-labelledby="modalProduccionLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -83,8 +120,8 @@ $produccionCompleta = $totalProducido >= $cantidadPedida - 0.0005;
                     <input type="hidden" name="cantidad_faltante" value="<?= number_format($faltanteParaCargar, 3, '.', '') ?>">
 
                     <div class="mb-3">
-                        <label class="form-label" for="cantidad_producida">Cantidad a cargar <span class="text-muted">(máx: <?= number_format($faltanteParaCargar, 3, ',', '.') ?>)</span></label>
-                        <input id="cantidad_producida" name="cantidad_producida" type="number" step="0.001" min="0.001" max="<?= number_format($faltanteParaCargar, 3, '.', '') ?>" class="form-control" required>
+                        <label class="form-label" for="cantidad_producida">Cantidad a cargar <span class="text-muted">(máx: <?= number_format($topeCarga, 3, ',', '.') ?>)</span></label>
+                        <input id="cantidad_producida" name="cantidad_producida" type="number" step="0.001" min="0.001" max="<?= number_format($topeCarga, 3, '.', '') ?>" class="form-control" required>
                     </div>
 
                     <div class="mb-3">

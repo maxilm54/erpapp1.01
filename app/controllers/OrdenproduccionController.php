@@ -107,6 +107,13 @@ class OrdenproduccionController extends Controller
                 error_log('Resultado control stock MP para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
                 //error=sin stock, warnign stock insuficiente, niguno permite producir.
                 //die();
+                if (!empty($stockCheck['faltantes_productos'])) {
+                    $_SESSION['error'] = 'No hay stock suficiente de productos componentes: '
+                        . $this->model->resumenFaltantesProductos($stockCheck);
+                    error_log('stockcheck productos para avance OP '.$id.': '.print_r($stockCheck['faltantes_productos'],true).' - '.__FILE__.':'.__LINE__);
+                    header('Location: '.BASE_URL.'/ordenproduccion/avance/'.$id);
+                    exit;
+                }
                 if ($stockCheck['estado'] === 'error') { // tengo 0 stock reservado de todas las mp
                     $_SESSION['error'] = 'No hay stock de Materia Prima para producir la cantidad solicitada.';
                     error_log('stockcheck: '.$stockCheck['estado'].', para avance OP '.$id.': '.print_r($stockCheck,true).' - '.__FILE__.':'.__LINE__);
@@ -158,7 +165,12 @@ class OrdenproduccionController extends Controller
             exit;
         }
 
-        $this->view('produccion/avance', ['orden'=>$orden,'orden_det'=>$orden_det,'csrf' => Csrf::generate()]);
+        $this->view('produccion/avance', [
+            'orden' => $orden,
+            'orden_det' => $orden_det,
+            'csrf' => Csrf::generate(),
+            'validacionProductos' => $this->model->validarStockProductosOP((int)$id),
+        ]);
     }
 
 
@@ -186,7 +198,39 @@ class OrdenproduccionController extends Controller
             'procesos' => $this->model->procesosOP((int)$id),
             'movimientos' => $this->model->movimientosProcesos((int)$id, 40),
             'totalFinalizado' => $this->model->totalFinalizado((int)$id),
+            'validacionProductos' => $this->model->validarStockProductosOP((int)$id),
         ]);
+    }
+
+    public function iniciarProceso(int $id): void
+    {
+        validarId($id, BASE_URL . '/ordenproduccion');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+
+        $cantidad = (float)str_replace(',', '.', (string)($_POST['cantidad'] ?? '0'));
+        $observaciones = trim((string)($_POST['observaciones'] ?? ''));
+
+        $ok = $this->model->iniciarPiezasProceso(
+            (int)$id,
+            $cantidad,
+            (int)($_SESSION['user_id'] ?? 0),
+            $observaciones
+        );
+        if ($ok) {
+            $_SESSION['success'] = 'Producción iniciada. Piezas cargadas en el primer proceso.';
+        }
+
+        header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+        exit;
     }
 
     public function moverProceso(int $id): void
@@ -267,11 +311,29 @@ class OrdenproduccionController extends Controller
             exit;
         }
 
+        $productosReceta = [];
+        $totalProductos = 0;
+        $recetaModel = new Receta();
+        foreach ($recetaModel->detalleProductos((int)$orden['receta_id']) as $prod) {
+            $cantidadTotal = (float)$prod['cantidad'] * (float)$orden['cantidad'];
+            $precioUnitario = (float)($prod['precio_venta'] ?? 0);
+            $subtotal = $precioUnitario * $cantidadTotal;
+            $totalProductos += $subtotal;
+            $productosReceta[] = array_merge($prod, [
+                'cantidad_total'  => $cantidadTotal,
+                'precio_unitario' => $precioUnitario,
+                'subtotal'        => $subtotal,
+            ]);
+        }
+
         $this->view('produccion/show', [
             'orden' => $orden,
             'reservas' => $reservas,
             'orden_det' => $orden_det,
             'tieneProcesos' => $this->model->tieneProcesos((int)$id),
+            'productos_receta' => $productosReceta,
+            'total_productos' => $totalProductos,
+            'validacionProductos' => $this->model->validarStockProductosOP((int)$id),
         ]);
     }
 
@@ -297,6 +359,20 @@ class OrdenproduccionController extends Controller
     public function producir($id) // habilita el proceso de produccion de x cantidad solicitada en la OP
     {
         validarId($id, BASE_URL . '/ordenproduccion');
+
+        $checkProductos = $this->model->validarStockProductosOP((int)$id);
+        if ($checkProductos['estado'] !== 'ok') {
+            $mensaje = 'No se puede iniciar la produccion: faltan productos componentes. '
+                . $this->model->resumenFaltantesProductos($checkProductos);
+            if ($checkProductos['max_producible'] !== null) {
+                $mensaje .= ' Maximo producible con el stock actual: '
+                    . number_format((float)$checkProductos['max_producible'], 3, ',', '.') . '.';
+            }
+            $_SESSION['error'] = $mensaje;
+            header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);
+            exit;
+        }
+
         $this->model->actualizarEstado((int)$id, 'EN_PRODUCCION');
         $_SESSION['success'] = 'Orden de producción en estado "En Producción"';
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);

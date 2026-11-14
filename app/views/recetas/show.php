@@ -27,10 +27,10 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Materia Prima</th>
+                                <th>Insumo</th>
                                 <th class="text-end">Cantidad</th>
                                 <th>Unidad</th>
-                                <th class="text-end">Precio Compra</th>
+                                <th class="text-end">Precio Unit.</th>
                                 <th class="text-end">Subtotal</th>
                             </tr>
                         </thead>
@@ -38,7 +38,15 @@
                             <?php foreach ($rec_det as $d): ?>
                             <tr>
                                 <td>
+                                    <?php if (($d['tipo'] ?? 'MATERIA_PRIMA') === 'PRODUCTO'): ?>
+                                        <span class="badge bg-info text-dark">Producto</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">MP</span>
+                                    <?php endif; ?>
                                     <strong><?= htmlspecialchars($d['nombre']) ?></strong>
+                                    <?php if (!empty($d['sku'])): ?>
+                                        <small class="text-muted">(<?= htmlspecialchars($d['sku']) ?>)</small>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-end"><?= number_format($d['cantidad'], 3, ',', '.') ?></td>
                                 <td><?= htmlspecialchars($d['unidad_medida'] ?? '-') ?></td>
@@ -61,13 +69,28 @@
                         </tbody>
                         <tfoot class="table-dark">
                             <tr>
-                                <td colspan="4" class="text-end"><strong>Costo Total Receta:</strong></td>
+                                <td colspan="4" class="text-end"><strong>Costo Total Insumos:</strong></td>
                                 <td class="text-end">
-                                    <strong class="fs-5">$ <?= number_format($costo_total_receta, 2, ',', '.') ?></strong>
+                                    <strong>$ <?= number_format($costo_total_receta, 2, ',', '.') ?></strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="text-end"><strong>Costo Fijo de Procesos:</strong></td>
+                                <td class="text-end">
+                                    <strong>$ <?= number_format($costo_procesos ?? 0, 2, ',', '.') ?></strong>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="text-end"><strong>Costo Total Fabricación:</strong></td>
+                                <td class="text-end">
+                                    <strong class="fs-5">$ <?= number_format($costo_total_fabricacion ?? $costo_total_receta, 2, ',', '.') ?></strong>
                                 </td>
                             </tr>
                         </tfoot>
                     </table>
+                </div>
+                <div class="px-3 py-2 text-muted small border-top">
+                    En los productos componentes se usa el <strong>precio de venta</strong> del ABM de producto como costo.
                 </div>
             </div>
         </div>
@@ -85,22 +108,33 @@
                                 <th width="50">#</th>
                                 <th>Proceso</th>
                                 <th class="text-end">Horas por pieza</th>
+                                <th class="text-end">Costo fijo</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (empty($procesos)): ?>
-                                <tr><td colspan="3" class="text-center text-muted">Sin procesos cargados.</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted">Sin procesos cargados.</td></tr>
                             <?php else: ?>
                                 <?php foreach ($procesos as $i => $proceso): ?>
                                 <tr>
                                     <td><?= $i + 1 ?></td>
                                     <td><?= htmlspecialchars($proceso['nombre']) ?></td>
                                     <td class="text-end"><?= number_format((float)$proceso['horas_por_unidad'], 4, ',', '.') ?> h</td>
+                                    <td class="text-end">$ <?= number_format((float)($proceso['costo'] ?? 0), 2, ',', '.') ?></td>
                                 </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="text-end"><strong>Total procesos:</strong></td>
+                                <td class="text-end"><strong>$ <?= number_format($costo_procesos ?? 0, 2, ',', '.') ?></strong></td>
+                            </tr>
+                        </tfoot>
                     </table>
+                </div>
+                <div class="px-3 py-2 text-muted small border-top">
+                    El costo de cada proceso es <strong>fijo por pieza</strong> y no se multiplica por la cantidad producida.
                 </div>
             </div>
         </div>
@@ -125,8 +159,18 @@
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <small class="text-muted">Costo Materiales (Receta)</small>
-                    <div class="fs-4 fw-bold text-primary">$ <?= number_format($costo_total_receta, 2, ',', '.') ?></div>
+                    <small class="text-muted">Costo Insumos (Receta)</small>
+                    <div class="fs-5 fw-bold text-primary">$ <?= number_format($costo_total_receta, 2, ',', '.') ?></div>
+                </div>
+
+                <div class="mb-3">
+                    <small class="text-muted">Costo Procesos (fijo)</small>
+                    <div class="fs-5 fw-bold text-primary">$ <?= number_format($costo_procesos ?? 0, 2, ',', '.') ?></div>
+                </div>
+
+                <div class="mb-3">
+                    <small class="text-muted">Costo Total Fabricación (por pieza)</small>
+                    <div class="fs-4 fw-bold text-dark">$ <?= number_format($costo_total_fabricacion ?? $costo_total_receta, 2, ',', '.') ?></div>
                 </div>
 
                 <div class="mb-3">
@@ -138,12 +182,13 @@
 
                 <?php
                 $precioVenta = (float)($receta['precio_venta'] ?? 0);
-                $gananciaSimple = $precioVenta - $costo_total_receta;
+                $costoFabricacion = $costo_total_fabricacion ?? $costo_total_receta;
+                $gananciaSimple = $precioVenta - $costoFabricacion;
                 $margenSimple = $precioVenta > 0 ? ($gananciaSimple / $precioVenta * 100) : 0;
                 ?>
                 <hr>
                 <div class="mb-3">
-                    <small class="text-muted">Ganancia (Venta - Materiales)</small>
+                    <small class="text-muted">Ganancia (Venta - Fabricación)</small>
                     <div class="fs-5 fw-bold <?= $gananciaSimple >= 0 ? 'text-success' : 'text-danger' ?>">
                         $ <?= number_format($gananciaSimple, 2, ',', '.') ?>
                         <small>(<?= number_format($margenSimple, 1) ?>%)</small>

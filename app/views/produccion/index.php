@@ -11,6 +11,9 @@
                 <th>Producto</th>
                 <th>Cantidad</th>
                 <th>Estado</th>
+                <th>Inicio</th>
+                <th>Fin</th>
+                <th>Horas</th>
                 <th>Acciones</th>
             </tr>
         </thead>
@@ -30,6 +33,17 @@
                         <span class="badge bg-secondary"><?= $o['estado'] ?></span>
                     <?php } ?>
                 </td>
+                <?php
+                $inicioProd = $o['produccion_inicio_at'] ?? null;
+                $finProd = $o['finalizada_at'] ?? null;
+                $horasProd = null;
+                if ($inicioProd && $finProd) {
+                    $horasProd = (strtotime($finProd) - strtotime($inicioProd)) / 3600;
+                }
+                ?>
+                <td><?= $inicioProd ? date('d/m/Y H:i', strtotime($inicioProd)) : '—' ?></td>
+                <td><?= $finProd ? date('d/m/Y H:i', strtotime($finProd)) : '—' ?></td>
+                <td><?= $horasProd !== null ? number_format($horasProd, 2, ',', '.') . ' h' : '—' ?></td>
                 <td>
                     <a href="<?= BASE_URL ?>/ordenproduccion/show/<?= $o['id'] ?>"
                     class="btn btn-primary btn-sm">

@@ -105,6 +105,60 @@ class Serie extends Model
         return $stmt->execute(['r' => $remitoId, 'id' => $serieId]);
     }
 
+    /**
+     * Cantidad de series DISPONIBLES de un producto en toda la empresa.
+     */
+    public function countDisponiblesProducto(int $productoId): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM series
+            WHERE producto_id = ? AND estado = 'DISPONIBLE' AND activo = 1
+        ");
+        $stmt->execute([$productoId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    /**
+     * Consume unidades de un producto para una orden de produccion.
+     * Las series pasan a CONSUMIDO y quedan vinculadas a la OP.
+     * Debe llamarse dentro de una transaccion.
+     */
+    public function consumirDisponibles(int $productoId, float $cantidad, int $ordenId): int
+    {
+        $necesarias = (int)ceil($cantidad - 0.0000001);
+        if ($necesarias <= 0) {
+            return 0;
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT id FROM series
+            WHERE producto_id = ? AND estado = 'DISPONIBLE' AND activo = 1
+            ORDER BY created_at ASC, id ASC
+            LIMIT {$necesarias}
+            FOR UPDATE
+        ");
+        $stmt->execute([$productoId]);
+        $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+        if (count($ids) < $necesarias) {
+            throw new Exception(
+                'No hay series disponibles suficientes del producto #' . $productoId
+                . '. Necesarias: ' . $necesarias . ', disponibles: ' . count($ids) . '.'
+            );
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $upd = $this->db->prepare("
+            UPDATE series
+            SET estado = 'CONSUMIDO', orden_produccion_id = ?, updated_at = NOW()
+            WHERE id IN ({$placeholders}) AND estado = 'DISPONIBLE'
+        ");
+        // El orden de parametros es: primero la OP y luego los IDs.
+        $upd->execute(array_merge([$ordenId], $ids));
+
+        return $upd->rowCount();
+    }
+
     /** Marca una serie como EN_DEVOLUCION. */
     public function marcarEnDevolucion(int $serieId, int $devolucionId): bool
     {

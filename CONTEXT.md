@@ -318,6 +318,11 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
 
 - Órdenes: PENDIENTE → EN_PRODUCCION → FINALIZADA/CANCELADA
 - Reserva MP automáticamente. Avances parciales permitidos.
+- Con procesos, la OP nace con las piezas en 0. Se cargan al **proceso 1** desde el botón *Iniciar producción* (`iniciarPiezasProceso`), que registra `ordenes_produccion.produccion_inicio_at` la primera vez. Recién después aparecen los movimientos al proceso 2. El fin se guarda en `finalizada_at` y las vistas muestran inicio, fin y horas totales (migración 043).
+- La receta puede incluir **productos** como componentes además de materias primas, pero solo si la empresa activa *Configuraciones → Productos en recetas* (`configuraciones.usar_productos_recetas = 1`, migración 040). Se guardan en `recetas_detalle.producto_id`; `Receta::detalle()` y el flujo de reserva/consumo de MP siguen tomando únicamente las materias primas (`materia_prima_id`).
+- En la receta, el costo de un producto componente es su **precio de venta** (`productos.precio_venta`), porque no tiene precio de compra propio.
+- Cada proceso de fabricación tiene un **costo fijo por pieza** (`recetas_procesos.costo`, migración 042) que puede ser 0 y no se multiplica por la cantidad. La receta muestra el total de procesos y el **Costo Total Fabricación** = insumos + procesos.
+- Producción valida el stock de los productos componentes al crear la OP, al iniciarla y al mover/finalizar/confirmar piezas. Si falta stock, muestra el faltante y el máximo producible; no deja iniciar la OP con faltantes. Al confirmar producción descuenta esos productos con un movimiento `SALIDA` origen `OP`; si usan series, pasan a `CONSUMIDO` y quedan ligadas a la OP (`series.orden_produccion_id`, migración 041).
 
 ### Stock (Event-sourcing)
 

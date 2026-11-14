@@ -136,6 +136,37 @@
     </div>
 </div>
 
+<!-- Productos como componentes de recetas -->
+<div class="card mb-3">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-box-seam"></i> Productos en recetas de producción</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= BASE_URL ?>/configuraciones/guardar">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="guardar" value="usar_productos_recetas">
+
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="usar_productos_recetas"
+                       name="usar_productos_recetas" value="1" <?= $usarProductosRecetas ? 'checked' : '' ?>>
+                <label class="form-check-label fw-semibold" for="usar_productos_recetas">
+                    Permitir agregar productos como componentes de una receta
+                </label>
+            </div>
+            <p class="text-muted mb-0 small">
+                Con esta opción activa, al <strong>crear o editar</strong> una receta se puede sumar, además de
+                materias primas, <strong>productos</strong> (semielaborados, kits o componentes ya fabricados).
+                Si está desactivada, la receta solo acepta materias primas.
+            </p>
+
+            <div class="mt-3">
+                <button class="btn btn-success"><i class="bi bi-save"></i> Guardar</button>
+                <a href="<?= BASE_URL ?>/home" class="btn btn-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Campos personalizados por modulo -->
 <div class="card mb-3">
     <div class="card-header bg-dark text-white">

@@ -9,6 +9,19 @@ foreach ($procesos as $proceso) {
 }
 $pendiente = max(0, $cantidadPedida - $totalFinalizado - $totalEnProceso);
 $cerrada = in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true);
+$valProd = $validacionProductos ?? ['faltantes' => [], 'max_producible' => null];
+$faltantesProd = $valProd['faltantes'] ?? [];
+$maxProd = $valProd['max_producible'] ?? null;
+$inicioProd = $orden['produccion_inicio_at'] ?? null;
+$finProd = $orden['finalizada_at'] ?? null;
+$horasProd = null;
+if ($inicioProd && $finProd) {
+    $horasProd = (strtotime($finProd) - strtotime($inicioProd)) / 3600;
+}
+$maxInicio = $pendiente;
+if ($maxProd !== null) {
+    $maxInicio = min($maxInicio, max(0, (float)$maxProd - $totalEnProceso));
+}
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -51,14 +64,111 @@ $cerrada = in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true);
     </div>
 </div>
 
+<div class="row text-center mb-3">
+    <div class="col-md-4">
+        <div class="card p-2">
+            <small class="text-muted">Inicio de producción</small>
+            <strong class="fs-6">
+                <?= $inicioProd ? date('d/m/Y H:i', strtotime($inicioProd)) : '—' ?>
+            </strong>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-2">
+            <small class="text-muted">Fin de producción</small>
+            <strong class="fs-6">
+                <?= $finProd ? date('d/m/Y H:i', strtotime($finProd)) : '—' ?>
+            </strong>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-2">
+            <small class="text-muted">Horas totales de producción</small>
+            <strong class="fs-6">
+                <?= $horasProd !== null ? number_format($horasProd, 2, ',', '.') . ' h' : '—' ?>
+            </strong>
+        </div>
+    </div>
+</div>
+
 <?php if ($cerrada): ?>
     <div class="alert alert-info">
         La orden está <?= strtolower(htmlspecialchars($orden['estado'])) ?>. El tablero queda solo para consulta.
     </div>
 <?php elseif ($orden['estado'] === 'PENDIENTE'): ?>
     <div class="alert alert-warning py-2">
-        Las piezas están en el primer proceso. Al mover o finalizar la primera tanda, la OP pasa a <strong>EN_PRODUCCIÓN</strong>.
+        La orden está pendiente. Cargá la cantidad a producir en el <strong>proceso 1</strong> para iniciar la producción.
     </div>
+<?php endif; ?>
+
+<?php if (!empty($faltantesProd)): ?>
+<div class="alert alert-danger">
+    <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Faltan productos componentes</h6>
+    <p class="mb-2">No se puede iniciar la producción hasta reponer estos productos:</p>
+    <ul class="mb-2">
+        <?php foreach ($faltantesProd as $faltante): ?>
+            <li>
+                <strong><?= htmlspecialchars($faltante['producto']) ?></strong>:
+                faltan <?= number_format((float)$faltante['faltante'], 3, ',', '.') ?>
+                <?= htmlspecialchars($faltante['unidad'] ?? '') ?>
+                (necesario <?= number_format((float)$faltante['necesario'], 3, ',', '.') ?>,
+                disponible <?= number_format((float)$faltante['disponible'], 3, ',', '.') ?>)
+            </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php if ($maxProd !== null): ?>
+        <p class="mb-0 small">
+            Con el stock actual se pueden producir como máximo
+            <strong><?= number_format((float)$maxProd, 3, ',', '.') ?></strong> unidades.
+        </p>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if (!$cerrada && !empty($procesos) && $pendiente > 0.0005): ?>
+<div class="card border-primary mb-3">
+    <div class="card-header bg-primary text-white">
+        <strong><i class="bi bi-play-circle"></i> Iniciar producción / cargar piezas al proceso 1</strong>
+    </div>
+    <div class="card-body">
+        <p class="mb-2 small text-muted">
+            Elegí cuántas piezas querés iniciar en el primer proceso (<strong><?= htmlspecialchars($procesos[0]['nombre']) ?></strong>).
+            La primera carga registra la fecha y hora de inicio de producción.
+            Pendientes de cargar: <strong><?= number_format($pendiente, 3, ',', '.') ?></strong>.
+            <?php if ($maxProd !== null && $maxInicio < $pendiente - 0.0005): ?>
+                Por stock de productos componentes podés iniciar como máximo
+                <strong><?= number_format($maxInicio, 3, ',', '.') ?></strong>.
+            <?php endif; ?>
+        </p>
+
+        <?php if ($maxInicio > 0.0005): ?>
+        <form method="POST" action="<?= BASE_URL ?>/ordenproduccion/iniciar-proceso/<?= (int)$orden['id'] ?>"
+              class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <div class="col-auto">
+                <label class="form-label small mb-0">Cantidad a iniciar</label>
+                <input type="number" name="cantidad" class="form-control" style="width: 150px;"
+                       step="0.001" min="0.001" max="<?= number_format($maxInicio, 3, '.', '') ?>"
+                       placeholder="Cantidad" required>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Observaciones</label>
+                <input type="text" name="observaciones" class="form-control" style="width: 240px;"
+                       placeholder="Observaciones (opcional)">
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary">
+                    <i class="bi bi-play-fill"></i> Iniciar producción
+                </button>
+            </div>
+        </form>
+        <?php else: ?>
+            <div class="alert alert-danger mb-0 py-2">
+                No hay stock suficiente de productos componentes para iniciar la producción.
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
 <?php endif; ?>
 
 <div class="table-responsive">
@@ -152,6 +262,8 @@ $cerrada = in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true);
                         <td>
                             <?php if (($mov['tipo'] ?? '') === 'FINALIZAR'): ?>
                                 <span class="badge bg-success">FINALIZAR</span>
+                            <?php elseif (($mov['tipo'] ?? '') === 'INICIO'): ?>
+                                <span class="badge bg-dark">INICIO</span>
                             <?php else: ?>
                                 <span class="badge bg-primary">MOVER</span>
                             <?php endif; ?>

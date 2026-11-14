@@ -9,6 +9,8 @@ require_once BASE_PATH . '/app/core/Model.php';
  *
  * Claves actuales:
  *   - usar_nomenclador: '1' | '0' — activa el uso de nomencladores por cliente.
+ *   - usar_productos_recetas: '1' | '0' — permite agregar productos como
+ *     componentes de una receta (ademas de materias primas).
  */
 class Configuracion extends Model
 {

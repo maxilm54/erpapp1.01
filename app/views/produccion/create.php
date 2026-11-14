@@ -50,6 +50,7 @@
         <div id="detalle-mp">
             <div class="text-muted small">Seleccioná una receta y una cantidad para ver las materias primas.</div>
         </div>
+        <div id="detalle-productos" class="mt-3"></div>
     </div>
 
     <label class="mt-3">Observaciones</label>
@@ -225,6 +226,43 @@ function renderDepositos(items) {
     actualizarTotalesFuentes();
 }
 
+function renderProductos(items, maxProducible) {
+    const cont = document.getElementById('detalle-productos');
+    if (!items || !items.length) {
+        cont.innerHTML = '';
+        return;
+    }
+
+    let html = '<h6>Productos componentes de la receta</h6>';
+    if (maxProducible !== null && maxProducible !== undefined && maxProducible !== '') {
+        html += '<div class="alert alert-info py-2 small">Con el stock actual de productos componentes se pueden producir como máximo <strong>'
+            + formatearCantidad(maxProducible) + '</strong> unidades.</div>';
+    }
+    html += '<div class="table-responsive"><table class="table table-sm table-bordered align-middle">';
+    html += '<thead class="table-dark"><tr><th>Producto</th><th class="text-end">Necesario</th><th class="text-end">Disponible</th><th class="text-end">Estado</th></tr></thead><tbody>';
+
+    items.forEach(function (it) {
+        const necesario = parseFloat(it.necesario) || 0;
+        const disponible = parseFloat(it.disponible) || 0;
+        const faltante = parseFloat(it.faltante) || 0;
+        const unidad = escaparHtml(it.unidad || '');
+        const estado = faltante > 0.000001
+            ? '<span class="badge bg-danger">Faltan ' + formatearCantidad(faltante) + ' ' + unidad + '</span>'
+            : '<span class="badge bg-success">Stock OK</span>';
+        html += '<tr>'
+            + '<td><strong>' + escaparHtml(it.producto || '') + '</strong>'
+            + (it.sku ? ' <small class="text-muted">(' + escaparHtml(it.sku) + ')</small>' : '')
+            + '</td>'
+            + '<td class="text-end">' + formatearCantidad(necesario) + ' ' + unidad + '</td>'
+            + '<td class="text-end">' + formatearCantidad(disponible) + ' ' + unidad + '</td>'
+            + '<td class="text-end">' + estado + '</td>'
+            + '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    cont.innerHTML = html;
+}
+
 function chequearStock() {
     const recetaId = recetaSelect.value;
     const cantidad = cantidadInput.value;
@@ -233,6 +271,7 @@ function chequearStock() {
         indicador.className = 'badge bg-secondary';
         indicador.textContent = 'Stock pendiente';
         renderDepositos([]);
+        renderProductos([], null);
         return;
     }
 
@@ -258,8 +297,17 @@ function chequearStock() {
             indicador.textContent = '✖ Stock insuficiente'; // no existe stock para producir la cantidad solicitada, indicador en rojo y al hacer click muestra detalle de lo que falta para incentivar a generar orden de compra.
         }
 
-        indicador.dataset.detalle = JSON.stringify(data.faltantes);
+        const faltantesProductos = data.faltantes_productos || [];
+        if (faltantesProductos.length) {
+            indicador.classList.add('bg-danger');
+            indicador.classList.remove('bg-success', 'bg-warning');
+            indicador.textContent = '✖ Faltan productos componentes';
+        }
+
+        indicador.dataset.detalle = JSON.stringify(data.faltantes || []);
+        indicador.dataset.detalleProductos = JSON.stringify(faltantesProductos);
         renderDepositos(data.items || []);
+        renderProductos(data.productos || [], data.max_producible);
     });
 }
 
@@ -355,19 +403,47 @@ document.addEventListener('click', function(e) {
 
 <script>
 document.getElementById('modalStock').addEventListener('show.bs.modal', () => {
-    const data = JSON.parse(indicador.dataset.detalle || '[]');
-    let html = '<table class="table table-sm">';
-    html += '<tr><th>Materia Prima</th><th>Necesario</th><th>Disponible</th><th>Faltante</th></tr>';
-    data.forEach(i => {
-        html += `<tr class="table-danger">
-            <td>${i.materia_prima}</td>
-            <td>${i.necesario}</td>
-            <td>${i.disponible}</td>
-            <td>${i.faltante}</td>
-        </tr>`;
-    });
-    html += '</table>';
-    html += `<button id="generarOC" class="btn btn-warning">Generar Orden de Compra</button>`;
+    const faltantesMp = JSON.parse(indicador.dataset.detalle || '[]');
+    const faltantesProductos = JSON.parse(indicador.dataset.detalleProductos || '[]');
+    let html = '';
+
+    if (faltantesMp.length) {
+        html += '<h6>Materias primas faltantes</h6>';
+        html += '<table class="table table-sm">';
+        html += '<tr><th>Materia Prima</th><th>Necesario</th><th>Disponible</th><th>Faltante</th></tr>';
+        faltantesMp.forEach(i => {
+            html += `<tr class="table-danger">
+                <td>${escaparHtml(i.materia_prima)}</td>
+                <td>${formatearCantidad(i.necesario)}</td>
+                <td>${formatearCantidad(i.disponible)}</td>
+                <td>${formatearCantidad(i.faltante)}</td>
+            </tr>`;
+        });
+        html += '</table>';
+    }
+
+    if (faltantesProductos.length) {
+        html += '<h6>Productos componentes faltantes</h6>';
+        html += '<table class="table table-sm">';
+        html += '<tr><th>Producto</th><th>Necesario</th><th>Disponible</th><th>Faltante</th></tr>';
+        faltantesProductos.forEach(i => {
+            html += `<tr class="table-danger">
+                <td>${escaparHtml(i.producto)}${i.sku ? ' <small>(' + escaparHtml(i.sku) + ')</small>' : ''}</td>
+                <td>${formatearCantidad(i.necesario)}</td>
+                <td>${formatearCantidad(i.disponible)}</td>
+                <td>${formatearCantidad(i.faltante)}</td>
+            </tr>`;
+        });
+        html += '</table>';
+    }
+
+    if (!faltantesMp.length && !faltantesProductos.length) {
+        html = '<p class="text-success mb-0">No hay faltantes de stock para la cantidad indicada.</p>';
+    }
+
+    if (faltantesMp.length) {
+        html += `<button id="generarOC" class="btn btn-warning">Generar Orden de Compra</button>`;
+    }
     document.getElementById('stock-detalle').innerHTML = html;
 });
 </script>
