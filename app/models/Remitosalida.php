@@ -195,6 +195,8 @@ if (!$remito) {
                 r.nota_pedido_id,
                 r.usuario_id,
                 r.created_at,
+                r.entregado,
+                r.entregado_at,
                 COALESCE(r.cliente_nombre, c.razon_social) AS cliente,
                 u.nombre         AS usuario,
                 CASE WHEN r.nota_pedido_id IS NULL THEN 'MANUAL' ELSE 'NP' END AS tipo
@@ -571,15 +573,21 @@ if (!$remito) {
                 COALESCE(remsal.cliente_telefono, c.telefono) AS telefono,
                 COALESCE(remsal.cliente_localidad, c.localidad) AS localidad,
                 remsal.cliente_nombre, remsal.cliente_cuit, remsal.cliente_direccion,
-                remsal.cliente_email, remsal.cliente_telefono, remsal.cliente_localidad
+                remsal.cliente_email, remsal.cliente_telefono, remsal.cliente_localidad,
+                remsal.firmado, remsal.firmado_at,
+                remsal.entregado, remsal.entregado_at,
+                ue.nombre AS EntregadoPor
              FROM remitos_salida remsal
              LEFT JOIN notas_pedido np ON np.id = remsal.nota_pedido_id
              LEFT JOIN clientes c ON c.id = remsal.cliente_id OR (np.id IS NOT NULL AND c.id = np.cliente_id)
              JOIN users u ON u.id = remsal.usuario_id
+             LEFT JOIN users ue ON ue.id = remsal.entregado_por
              WHERE remsal.id = ?"
         );
         $stmt->execute([$id]);
         $remito = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$remito) return null;
 
         $stmt = $this->db->prepare(
             "SELECT remdet.remito_id AS NumRem, remdet.producto_id AS idProdRem, remdet.cantidad AS CantRem, remdet.precio_unitario AS precioUnitario, COALESCE(p.nombre, remdet.descripcion) AS ProdRem, remdet.descripcion
@@ -590,7 +598,6 @@ if (!$remito) {
         $stmt->execute([$id]);
         $remito['detalle'] = $stmt->fetchall(PDO::FETCH_ASSOC);
 
-        if (!$remito) return null;
         return $remito;
     }
     
@@ -603,6 +610,40 @@ if (!$remito) {
                 firmado_at = NOW()
             WHERE id = ?
         ")->execute([$usuarioId, $remitoId]);
+    }
+
+    /**
+     * Confirma la entrega del remito (el remito nace pendiente).
+     * Devuelve false si el remito no existe o ya estaba entregado.
+     */
+    public function confirmarEntrega(int $remitoId, int $usuarioId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE remitos_salida
+            SET entregado = 1,
+                entregado_por = :usuario,
+                entregado_at = NOW()
+            WHERE id = :id AND COALESCE(entregado, 0) = 0
+        ");
+        $stmt->execute(['usuario' => $usuarioId, 'id' => $remitoId]);
+        return $stmt->rowCount() > 0;
+    }
+
+    /**
+     * Revierte la confirmacion de entrega (vuelve a quedar pendiente).
+     * Devuelve false si el remito no existe o no estaba entregado.
+     */
+    public function revertirEntrega(int $remitoId): bool
+    {
+        $stmt = $this->db->prepare("
+            UPDATE remitos_salida
+            SET entregado = 0,
+                entregado_por = NULL,
+                entregado_at = NULL
+            WHERE id = :id AND COALESCE(entregado, 0) = 1
+        ");
+        $stmt->execute(['id' => $remitoId]);
+        return $stmt->rowCount() > 0;
     }
 
     public function findCompleto(int $id): ?array

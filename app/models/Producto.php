@@ -337,6 +337,321 @@ class Producto extends Model
     }
 
     /**
+     * 📋 Listado del ABM de productos con stock calculado y buscador
+     * (nombre, SKU, descripcion, precio y codigos de barra).
+     * Con $inactivos = true devuelve los dados de baja (para reactivarlos).
+     */
+    public function listadoAbm(?string $buscar = null, bool $inactivos = false): array
+    {
+        $sql = "
+            SELECT p.*, um.nombre AS nombre_medida, um.detalle AS detalle_medida,
+                (SELECT COALESCE(SUM(
+                    CASE
+                        WHEN m.tipo IN ('ENTRADA','AJUSTE') THEN m.cantidad
+                        WHEN m.tipo = 'SALIDA' THEN -m.cantidad
+                    END
+                ), 0)
+                 FROM movimientos_stock m
+                 WHERE m.producto_id = p.id) AS stock_total,
+                (SELECT GROUP_CONCAT(pc.codigo SEPARATOR ', ')
+                 FROM producto_codigos pc
+                 WHERE pc.producto_id = p.id) AS codigos_barra
+            FROM productos p
+            LEFT JOIN unidad_medida um ON um.id_medida = p.unidad_medida
+            WHERE p.activo = " . ($inactivos ? '0' : '1') . "
+        ";
+        $params = [];
+        $buscar = trim((string)$buscar);
+        if ($buscar !== '') {
+            $sql .= "
+              AND (p.nombre LIKE :q1
+                   OR p.sku LIKE :q2
+                   OR p.descripcion LIKE :q3
+                   OR CAST(p.precio_venta AS CHAR) LIKE :q4
+                   OR EXISTS (SELECT 1 FROM producto_codigos pc2
+                              WHERE pc2.producto_id = p.id AND pc2.codigo LIKE :q5)";
+            $like = '%' . $buscar . '%';
+            $params = [':q1' => $like, ':q2' => $like, ':q3' => $like, ':q4' => $like, ':q5' => $like];
+
+            // Precio escrito con separadores de miles o coma decimal (ej. 1.500,50)
+            $soloDigitos = preg_replace('/[.,\s]/', '', $buscar);
+            if ($soloDigitos !== '' && ctype_digit($soloDigitos)) {
+                $sql .= " OR REPLACE(CAST(p.precio_venta AS CHAR), '.', '') LIKE :q6";
+                $params[':q6'] = '%' . $soloDigitos . '%';
+            }
+            $sql .= ")";
+        }
+        $sql .= " ORDER BY p.nombre";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Cantidad de productos dados de baja (para el boton "Inactivos" del ABM).
+     */
+    public function contarInactivos(): int
+    {
+        return (int)$this->db->query("SELECT COUNT(*) FROM productos WHERE activo = 0")->fetchColumn();
+    }
+
+    /**
+     * Reactiva un producto dado de baja (activo = 1).
+     * No repone stock: el inventario sigue como se ajusto al inactivarlo.
+     */
+    public function reactivar(int $id): bool
+    {
+        try {
+            $stmt = $this->db->prepare(
+                "UPDATE productos SET activo = 1, last_user_updated = :usuario
+                 WHERE id = :id AND activo = 0"
+            );
+            $stmt->execute(['usuario' => (int)($_SESSION['user_id'] ?? 0), 'id' => $id]);
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            error_log('[Producto] Error al reactivar producto ID ' . $id . ': ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
+            return false;
+        }
+    }
+
+    /**
+     * Stock total del producto (event sourcing sobre movimientos_stock).
+     */
+    public function stockTotal(int $id): float
+    {
+        $stmt = $this->db->prepare("
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                    WHEN tipo = 'SALIDA' THEN -cantidad
+                END
+            ), 0)
+            FROM movimientos_stock
+            WHERE producto_id = :id
+        ");
+        $stmt->execute(['id' => $id]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    /**
+     * Motivos por los que un producto no puede inactivarse.
+     * Bloquea solo mientras exista compromiso real:
+     *  - presupuesto APROBADO cuya entrega sigue pendiente (sin NP o con NP no
+     *    remitida completa),
+     *  - NP APROBADA con entrega pendiente (`remitido` <> RemitidoCompleto),
+     *  - remito con entrega pendiente de confirmar (`entregado` = 0),
+     *  - OC APROBADA/PARCIAL con recepcion pendiente.
+     */
+    public function motivosBloqueoInactivacion(int $id): array
+    {
+        $motivos = [];
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT pr.id
+            FROM presupuestos_detalle d
+            JOIN presupuestos pr ON pr.id = d.presupuesto_id
+            WHERE d.producto_id = :id AND pr.estado = 'APROBADO'
+              AND NOT EXISTS (
+                  SELECT 1 FROM notas_pedido np2
+                  WHERE np2.presupuesto_id = pr.id
+                    AND np2.estado = 'APROBADA'
+                    AND np2.remitido = 'RemitidoCompleto'
+              )
+            ORDER BY pr.id
+        ");
+        $stmt->execute(['id' => $id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if ($ids) {
+            $motivos[] = 'Está en el/los presupuesto(s) aprobado(s) ' . self::formatearIds($ids)
+                . ' con entrega pendiente.';
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT np.id
+            FROM notas_pedido_detalle d
+            JOIN notas_pedido np ON np.id = d.nota_pedido_id
+            WHERE d.producto_id = :id
+              AND np.estado = 'APROBADA'
+              AND COALESCE(np.remitido, 'SinRemitir') <> 'RemitidoCompleto'
+            ORDER BY np.id
+        ");
+        $stmt->execute(['id' => $id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if ($ids) {
+            $motivos[] = 'Tiene entrega pendiente en la(s) NP ' . self::formatearIds($ids)
+                . ' (no están remitidas completas).';
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT r.id
+            FROM remitos_salida_detalle d
+            JOIN remitos_salida r ON r.id = d.remito_id
+            WHERE d.producto_id = :id AND COALESCE(r.entregado, 0) = 0
+            ORDER BY r.id
+        ");
+        $stmt->execute(['id' => $id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if ($ids) {
+            $motivos[] = 'Está en el/los remito(s) con entrega pendiente de confirmar ' . self::formatearIds($ids) . '.';
+        }
+
+        $stmt = $this->db->prepare("
+            SELECT DISTINCT oc.id
+            FROM ordenes_compra_detalle d
+            JOIN ordenes_compra oc ON oc.id = d.orden_compra_id
+            WHERE d.producto_id = :id AND oc.estado IN ('APROBADA','PARCIAL')
+            ORDER BY oc.id
+        ");
+        $stmt->execute(['id' => $id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        if ($ids) {
+            $motivos[] = 'Está en la(s) OC aprobada(s) con recepción pendiente ' . self::formatearIds($ids) . ' (primero debe anularse la OC).';
+        }
+
+        return $motivos;
+    }
+
+    /**
+     * Arma una lista corta de numeros de comprobante (#1, #2 y 3 mas).
+     */
+    private static function formatearIds(array $ids, int $max = 5): string
+    {
+        $ids = array_values(array_map('intval', $ids));
+        $texto = '#' . implode(', #', array_slice($ids, 0, $max));
+        if (count($ids) > $max) {
+            $texto .= ' y ' . (count($ids) - $max) . ' más';
+        }
+        return $texto;
+    }
+
+    /**
+     * Stock del producto desglosado por deposito y lote (solo filas distintas de 0).
+     */
+    public function stockPorUbicacion(int $productoId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT deposito_id, lote_id,
+                SUM(CASE
+                        WHEN tipo IN ('ENTRADA','AJUSTE') THEN cantidad
+                        WHEN tipo = 'SALIDA' THEN -cantidad
+                    END) AS stock
+            FROM movimientos_stock
+            WHERE producto_id = :id
+            GROUP BY deposito_id, lote_id
+            HAVING stock <> 0
+        ");
+        $stmt->execute(['id' => $productoId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Inactiva el producto (baja logica).
+     *
+     * - Bloquea la baja si hay compromiso (presupuesto aprobado, NP aprobada o con
+     *   entrega pendiente, remito sin confirmar, OC aprobada pendiente de recepcion).
+     * - Si hay stock y no se confirmo la baja, devuelve requiere_confirmacion para
+     *   que la vista vuelva a preguntar.
+     * - Al confirmar con stock, registra un ajuste de inventario a 0 por cada
+     *   deposito/lote y pasa las series DISPONIBLES a BAJA.
+     *
+     * @return array{ok:bool, mensaje:string, requiere_confirmacion?:bool, stock?:float}
+     */
+    public function inactivar(int $id, bool $confirmarStock = false): array
+    {
+        $producto = $this->find($id);
+        if (!$producto) {
+            return ['ok' => false, 'mensaje' => 'Producto no encontrado.'];
+        }
+        if ((int)$producto['activo'] === 0) {
+            return ['ok' => false, 'mensaje' => 'El producto ya se encuentra inactivo.'];
+        }
+
+        $bloqueos = $this->motivosBloqueoInactivacion($id);
+        if (!empty($bloqueos)) {
+            return [
+                'ok' => false,
+                'mensaje' => 'No se puede inactivar "' . $producto['nombre'] . '": ' . implode(' ', $bloqueos)
+                    . ' Anule o finalice esos documentos antes de inactivarlo.',
+            ];
+        }
+
+        $stock = $this->stockTotal($id);
+        if ($stock > 0 && !$confirmarStock) {
+            return [
+                'ok' => false,
+                'requiere_confirmacion' => true,
+                'stock' => $stock,
+                'mensaje' => 'El producto tiene stock (' . number_format($stock, 3, ',', '.') . '). '
+                    . 'Si lo inactiva igual, se registrará un ajuste de inventario a 0.',
+            ];
+        }
+
+        require_once BASE_PATH . '/app/models/Deposito.php';
+
+        try {
+            $this->db->beginTransaction();
+
+            $ajustes = 0;
+            if ($stock != 0) {
+                $principalId = (new Deposito())->principalId();
+                $motivo = 'Inactivación de producto: ajuste de inventario a 0';
+                $obs = 'Ajuste automático al inactivar el producto ' . $producto['sku'];
+                $usuarioId = (int)($_SESSION['user_id'] ?? 0);
+
+                $stmtMov = $this->db->prepare("
+                    INSERT INTO movimientos_stock
+                        (tipo, origen, producto_id, deposito_id, lote_id, cantidad, motivo, observaciones, usuario_id)
+                    VALUES
+                        (:tipo, 'AJUSTE_STOCK', :producto_id, :deposito_id, :lote_id, :cantidad, :motivo, :observaciones, :usuario_id)
+                ");
+
+                foreach ($this->stockPorUbicacion($id) as $fila) {
+                    $cant = (float)$fila['stock'];
+                    if ($cant == 0) {
+                        continue;
+                    }
+                    $stmtMov->execute([
+                        ':tipo'         => $cant > 0 ? 'SALIDA' : 'ENTRADA',
+                        ':producto_id'  => $id,
+                        ':deposito_id'  => $fila['deposito_id'] !== null ? (int)$fila['deposito_id'] : ($principalId ?: null),
+                        ':lote_id'      => $fila['lote_id'] !== null ? (int)$fila['lote_id'] : null,
+                        ':cantidad'     => abs($cant),
+                        ':motivo'       => $motivo,
+                        ':observaciones'=> $obs,
+                        ':usuario_id'   => $usuarioId,
+                    ]);
+                    $ajustes++;
+                }
+            }
+
+            // Las unidades con numero de serie que quedaban disponibles pasan a BAJA
+            $this->db->prepare(
+                "UPDATE series SET estado = 'BAJA', updated_at = NOW()
+                 WHERE producto_id = :id AND estado = 'DISPONIBLE' AND activo = 1"
+            )->execute(['id' => $id]);
+
+            $this->db->prepare(
+                "UPDATE productos SET activo = 0, last_user_updated = :usuario WHERE id = :id"
+            )->execute(['usuario' => (int)($_SESSION['user_id'] ?? 0), 'id' => $id]);
+
+            $this->db->commit();
+
+            $mensaje = 'Producto "' . $producto['nombre'] . '" inactivado correctamente.';
+            if ($ajustes > 0) {
+                $mensaje .= ' Se registró un ajuste de inventario a 0 en ' . $ajustes . ' ubicación(es).';
+            }
+            return ['ok' => true, 'mensaje' => $mensaje];
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log('[Producto] Error al inactivar producto ID ' . $id . ': ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
+            return ['ok' => false, 'mensaje' => 'Error al inactivar el producto: ' . $e->getMessage()];
+        }
+    }
+
+    /**
      * 🔍 Buscar productos para presupuestos / NP
      */
     public function search(string $q): array

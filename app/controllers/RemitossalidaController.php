@@ -23,8 +23,84 @@ class RemitosSalidaController extends Controller
         $remitos = $this->model->all();
 
         $this->view('remitos_salida/index', [
-            'remitos' => $remitos
+            'remitos' => $remitos,
+            'csrf' => Csrf::generate()
         ]);
+    }
+
+    /**
+     * Confirma la entrega de un remito (POST con CSRF).
+     * El remito nace con la entrega pendiente; confirmarla libera el
+     * compromiso de entrega para la baja de productos.
+     */
+    public function confirmarEntrega($id)
+    {
+        validarId($id, BASE_URL . '/remitossalida');
+        $volver = ($_POST['volver'] ?? '') === 'show' ? '/show/' . (int)$id : '';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para confirmar la entrega use el botón del remito.';
+            header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+            header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+            exit;
+        }
+
+        if (!$this->model->find((int)$id)) {
+            $_SESSION['error'] = 'El remito no existe.';
+            header('Location: ' . BASE_URL . '/remitossalida');
+            exit;
+        }
+
+        if ($this->model->confirmarEntrega((int)$id, (int)($_SESSION['user_id'] ?? 0))) {
+            $_SESSION['success'] = 'Entrega del remito #' . (int)$id . ' confirmada.';
+        } else {
+            $_SESSION['warning'] = 'El remito #' . (int)$id . ' ya tenía la entrega confirmada.';
+        }
+
+        header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+        exit;
+    }
+
+    /**
+     * Revierte la confirmacion de entrega del remito (POST con CSRF).
+     * El remito vuelve a quedar pendiente de entrega.
+     */
+    public function revertirEntrega($id)
+    {
+        validarId($id, BASE_URL . '/remitossalida');
+        $volver = ($_POST['volver'] ?? '') === 'show' ? '/show/' . (int)$id : '';
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para revertir la entrega use el botón del remito.';
+            header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+            header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+            exit;
+        }
+
+        if (!$this->model->find((int)$id)) {
+            $_SESSION['error'] = 'El remito no existe.';
+            header('Location: ' . BASE_URL . '/remitossalida');
+            exit;
+        }
+
+        if ($this->model->revertirEntrega((int)$id)) {
+            $_SESSION['success'] = 'Entrega del remito #' . (int)$id . ' revertida: vuelve a quedar pendiente.';
+        } else {
+            $_SESSION['warning'] = 'El remito #' . (int)$id . ' no estaba marcado como entregado.';
+        }
+
+        header('Location: ' . BASE_URL . '/remitossalida' . $volver);
+        exit;
     }
 
     /**
@@ -205,7 +281,8 @@ class RemitosSalidaController extends Controller
         } 
 
         $this->view('remitos_salida/show', [
-            'remito' => $remito
+            'remito' => $remito,
+            'csrf' => Csrf::generate()
         ]);
     }
 

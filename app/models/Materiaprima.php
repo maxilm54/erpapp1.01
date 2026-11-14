@@ -8,8 +8,17 @@ class MateriaPrima extends Model
 {
     public function all()
     {
-        return $this->db->query(
-            "SELECT mp.*, cat.categoria_nombre,
+        return $this->listadoAbm();
+    }
+
+    /**
+     * Listado del ABM de materias primas con stock calculado y buscador
+     * (nombre, SKU, descripcion/categoria/observaciones, precio y codigos de barra).
+     * Con $inactivos = true devuelve las dadas de baja (para reactivarlas).
+     */
+    public function listadoAbm(?string $buscar = null, bool $inactivos = false): array
+    {
+        $sql = "SELECT mp.*, cat.categoria_nombre,
                     um.nombre AS nombre_unidad,
                     umc.nombre AS nombre_unidad_compra,
                     esp.presentacion,
@@ -26,9 +35,65 @@ class MateriaPrima extends Model
              LEFT JOIN unidad_medida um ON um.id_medida = mp.id_unidadmedida
              LEFT JOIN unidad_medida umc ON umc.id_medida = mp.id_unidadcompra
              LEFT JOIN materias_primas_especificaciones esp ON esp.materia_prima_id = mp.id
-             WHERE mp.activo = 1
-             ORDER BY mp.nombre"
-        )->fetchAll();
+             WHERE mp.activo = " . ($inactivos ? '0' : '1');
+
+        $params = [];
+        $buscar = trim((string)$buscar);
+        if ($buscar !== '') {
+            $sql .= "
+                 AND (mp.nombre LIKE :q1
+                      OR mp.sku LIKE :q2
+                      OR cat.categoria_nombre LIKE :q3
+                      OR esp.obs LIKE :q4
+                      OR CAST(mp.precio_actual AS CHAR) LIKE :q5
+                      OR EXISTS (SELECT 1 FROM materiaprima_codigos mc
+                                 WHERE mc.materiaprima_id = mp.id AND mc.codigo LIKE :q6)";
+            $like = '%' . $buscar . '%';
+            $params = [
+                ':q1' => $like, ':q2' => $like, ':q3' => $like,
+                ':q4' => $like, ':q5' => $like, ':q6' => $like,
+            ];
+
+            // Precio escrito con separadores de miles o coma decimal (ej. 1.500,50)
+            $soloDigitos = preg_replace('/[.,\s]/', '', $buscar);
+            if ($soloDigitos !== '' && ctype_digit($soloDigitos)) {
+                $sql .= " OR REPLACE(CAST(mp.precio_actual AS CHAR), '.', '') LIKE :q7";
+                $params[':q7'] = '%' . $soloDigitos . '%';
+            }
+            $sql .= ")";
+        }
+
+        $sql .= " ORDER BY mp.nombre";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Cantidad de materias primas dadas de baja (para el boton "Inactivas" del ABM).
+     */
+    public function contarInactivas(): int
+    {
+        return (int)$this->db->query("SELECT COUNT(*) FROM materias_primas WHERE activo = 0")->fetchColumn();
+    }
+
+    /**
+     * Reactiva una materia prima dada de baja (activo = 1).
+     * No repone stock: el inventario sigue como se ajusto al inactivarla.
+     */
+    public function reactivar(int $id): bool
+    {
+        try {
+            $stmt = $this->db->prepare(
+                "UPDATE materias_primas SET activo = 1 WHERE id = :id AND activo = 0"
+            );
+            $stmt->execute(['id' => $id]);
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e) {
+            error_log("Error al reactivar materia prima ID $id: " . $e->getMessage() . " in " . __FILE__ . ":" . __LINE__);
+            return false;
+        }
     }
 
     public function find(int $id) // trae los datos de materia prima con categoria, unidad de medida y ficha tecnica

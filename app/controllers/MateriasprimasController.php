@@ -16,11 +16,53 @@ class MateriasprimasController extends Controller
 
     public function index()
     {
+        $buscar = trim((string)($_GET['q'] ?? ''));
+        $inactivos = (($_GET['estado'] ?? '') === 'inactivos');
         $this->view('materias_primas/index', [
             'title'=>'Materias Primas',
-            'items'=>$this->mp->all(),
+            'items'=>$this->mp->listadoAbm($buscar, $inactivos),
+            'buscar'=>$buscar,
+            'inactivos'=>$inactivos,
+            'cantInactivas'=>$this->mp->contarInactivas(),
+            'csrf'=>Csrf::generate(),
             'tiposGestion'=>Materiaprimaespecificacion::etiquetasTipoGestion()
         ]);
+    }
+
+    /**
+     * Reactiva una materia prima dada de baja (POST con CSRF).
+     */
+    public function reactivar(int $id): void
+    {
+        validarId($id, BASE_URL . '/materiasprimas');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para reactivar una materia prima use el botón del listado de inactivas.';
+            header('Location: ' . BASE_URL . '/materiasprimas?estado=inactivos');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+            header('Location: ' . BASE_URL . '/materiasprimas?estado=inactivos');
+            exit;
+        }
+
+        $item = $this->mp->find($id);
+        if (!$item) {
+            $_SESSION['error'] = 'Materia prima no encontrada.';
+            header('Location: ' . BASE_URL . '/materiasprimas?estado=inactivos');
+            exit;
+        }
+
+        if ($this->mp->reactivar($id)) {
+            $_SESSION['success'] = 'Materia prima "' . $item['nombre'] . '" reactivada correctamente.';
+        } else {
+            $_SESSION['warning'] = 'La materia prima ya se encontraba activa.';
+        }
+
+        header('Location: ' . BASE_URL . '/materiasprimas?estado=inactivos');
+        exit;
     }
 
     public function show(int $id): void

@@ -20,11 +20,87 @@ class ProductosController extends Controller
 
 public function index(): void
     {
-        $productos = $this->producto->all();
+        $buscar = trim((string)($_GET['q'] ?? ''));
+        $inactivos = (($_GET['estado'] ?? '') === 'inactivos');
+        $productos = $this->producto->listadoAbm($buscar, $inactivos);
         $this->view('productos/index', [
             'title' => 'Productos',
-            'productos' => $productos
+            'productos' => $productos,
+            'buscar' => $buscar,
+            'inactivos' => $inactivos,
+            'cantInactivos' => $this->producto->contarInactivos(),
+            'csrf' => Csrf::generate()
         ]);
+    }
+
+    /**
+     * Reactiva un producto dado de baja (POST con CSRF).
+     */
+    public function reactivar(int $id): void
+    {
+        validarId($id, BASE_URL . '/productos');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para reactivar un producto use el botón del listado de inactivos.';
+            header('Location: ' . BASE_URL . '/productos?estado=inactivos');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+            header('Location: ' . BASE_URL . '/productos?estado=inactivos');
+            exit;
+        }
+
+        if (!$this->producto->find($id)) {
+            $_SESSION['error'] = 'Producto no encontrado.';
+            header('Location: ' . BASE_URL . '/productos?estado=inactivos');
+            exit;
+        }
+
+        if ($this->producto->reactivar($id)) {
+            $producto = $this->producto->find($id);
+            $_SESSION['success'] = 'Producto "' . ($producto['nombre'] ?? '#' . $id) . '" reactivado correctamente.';
+        } else {
+            $_SESSION['warning'] = 'El producto ya se encontraba activo.';
+        }
+
+        header('Location: ' . BASE_URL . '/productos?estado=inactivos');
+        exit;
+    }
+
+    /**
+     * Baja logica del producto (no se borra). Valida compromisos y, si hay
+     * stock, exige confirmacion para ajustar el inventario a 0.
+     */
+    public function delete(int $id): void
+    {
+        validarId($id, BASE_URL . '/productos');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para inactivar un producto use el botón del listado.';
+            header('Location: ' . BASE_URL . '/productos');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Intente nuevamente.';
+            header('Location: ' . BASE_URL . '/productos');
+            exit;
+        }
+
+        $resultado = $this->producto->inactivar($id, !empty($_POST['forzar_stock']));
+
+        if ($resultado['ok']) {
+            $_SESSION['success'] = $resultado['mensaje'];
+        } elseif (!empty($resultado['requiere_confirmacion'])) {
+            $_SESSION['warning'] = $resultado['mensaje'];
+        } else {
+            $_SESSION['error'] = $resultado['mensaje'];
+        }
+
+        header('Location: ' . BASE_URL . '/productos');
+        exit;
     }
 
     public function show(int $id): void

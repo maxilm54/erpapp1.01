@@ -13,6 +13,25 @@ $esManual = empty($remito['idNpRem']);
             <i class="bi bi-file-text"></i> Ver NP #<?= $remito['idNpRem'] ?>
         </a>
     <?php endif; ?>
+    <?php if (empty($remito['entregado'])): ?>
+        <form method="post" action="<?= BASE_URL ?>/remitossalida/confirmarEntrega/<?= (int)$remito['NumRem'] ?>"
+              class="d-inline ms-2 js-entrega" data-accion="confirmar" data-remito="<?= (int)$remito['NumRem'] ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf ?? '') ?>">
+            <input type="hidden" name="volver" value="show">
+            <button type="submit" class="btn btn-sm btn-success">
+                <i class="bi bi-check2-circle"></i> Confirmar entrega
+            </button>
+        </form>
+    <?php else: ?>
+        <form method="post" action="<?= BASE_URL ?>/remitossalida/revertirEntrega/<?= (int)$remito['NumRem'] ?>"
+              class="d-inline ms-2 js-entrega" data-accion="revertir" data-remito="<?= (int)$remito['NumRem'] ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf ?? '') ?>">
+            <input type="hidden" name="volver" value="show">
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Revertir la entrega confirmada">
+                <i class="bi bi-arrow-counterclockwise"></i> Revertir entrega
+            </button>
+        </form>
+    <?php endif; ?>
 </div>
 
 <div class="row">
@@ -82,6 +101,20 @@ $esManual = empty($remito['idNpRem']);
                     <tr>
                         <td class="text-muted"><strong>Usuario:</strong></td>
                         <td><?= htmlspecialchars($remito['UserRem']) ?></td>
+                    </tr>
+                    <tr>
+                        <td class="text-muted"><strong>Entrega:</strong></td>
+                        <td>
+                            <?php if (!empty($remito['entregado'])): ?>
+                                <span class="badge bg-success">ENTREGADO</span>
+                                <small class="text-muted">
+                                    <?= $remito['entregado_at'] ? date('d/m/Y H:i', strtotime($remito['entregado_at'])) : '' ?>
+                                    <?= !empty($remito['EntregadoPor']) ? ' · ' . htmlspecialchars($remito['EntregadoPor']) : '' ?>
+                                </small>
+                            <?php else: ?>
+                                <span class="badge bg-warning text-dark">PENDIENTE DE ENTREGA</span>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -167,3 +200,26 @@ $esManual = empty($remito['idNpRem']);
        <i class="bi bi-envelope"></i> Reenviar por Email
     </a>
 </div>
+
+<script>
+document.querySelectorAll('.js-entrega').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var revertir = form.dataset.accion === 'revertir';
+        Swal.fire({
+            icon: revertir ? 'warning' : 'question',
+            title: revertir ? '¿Revertir la entrega?' : '¿Confirmar entrega?',
+            text: revertir
+                ? 'El remito #' + form.dataset.remito + ' volverá a quedar pendiente de entrega.'
+                : 'Se marcará el remito #' + form.dataset.remito + ' como entregado.',
+            showCancelButton: true,
+            confirmButtonColor: revertir ? '#d33' : '#198754',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: revertir ? 'Sí, revertir entrega' : 'Sí, confirmar entrega',
+            cancelButtonText: 'Cancelar'
+        }).then(function (result) {
+            if (result.isConfirmed) form.submit();
+        });
+    });
+});
+</script>
