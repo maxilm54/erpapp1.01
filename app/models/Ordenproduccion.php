@@ -7,7 +7,11 @@ class OrdenProduccion extends Model
     public function all(): array
     {
         return $this->db->query("
-            SELECT op.*, p.nombre AS producto
+            SELECT op.*, p.nombre AS producto,
+                   EXISTS(
+                       SELECT 1 FROM ordenes_produccion_procesos opp
+                       WHERE opp.orden_produccion_id = op.id
+                   ) AS tiene_procesos
             FROM ordenes_produccion op
             JOIN productos p ON p.id = op.producto_id
             ORDER BY op.id DESC
@@ -34,6 +38,7 @@ class OrdenProduccion extends Model
 
             $ordenId = $this->db->lastInsertId();
 
+            $this->crearProcesosOP((int)$ordenId, (int)$data['receta_id'], (float)$data['cantidad']);
             $this->reservarMateriaPrima($ordenId, $data['deposito_items'] ?? []); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
 
             $this->db->commit();
@@ -97,6 +102,262 @@ class OrdenProduccion extends Model
                     values ('SALIDA','RESERVA',?,?,?,?,'Reserva de MP para Orden de Produccion',?,?)
                 ")->execute([$ordenId, $mpId, $depositoId, $cantidadFuente, $_SESSION['user_id'], FECHA_ACTUAL]);
             }
+        }
+    }
+
+    /**
+     * Copia los procesos de la receta a la OP. Todas las piezas arrancan en el
+     * primer proceso y los demas quedan en cero.
+     */
+    private function crearProcesosOP(int $ordenId, int $recetaId, float $cantidad): void
+    {
+        $procesos = (new Receta())->procesos($recetaId);
+        if (empty($procesos)) {
+            $procesos = [[
+                'id' => null,
+                'nombre' => 'Proceso 1',
+                'horas_por_unidad' => 0,
+                'secuencia' => 1,
+            ]];
+        }
+
+        $stmt = $this->db->prepare("
+            INSERT INTO ordenes_produccion_procesos
+            (orden_produccion_id, receta_proceso_id, nombre, horas_por_unidad, secuencia, cantidad_en_proceso)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ");
+
+        $primero = true;
+        foreach ($procesos as $proceso) {
+            $stmt->execute([
+                $ordenId,
+                $proceso['id'] ?? null,
+                $proceso['nombre'],
+                (float)($proceso['horas_por_unidad'] ?? 0),
+                (int)($proceso['secuencia'] ?? 0),
+                $primero ? $cantidad : 0,
+            ]);
+            $primero = false;
+        }
+    }
+
+    public function procesosOP(int $ordenId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM ordenes_produccion_procesos
+            WHERE orden_produccion_id = ?
+            ORDER BY secuencia ASC, id ASC
+        ");
+        $stmt->execute([$ordenId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function tieneProcesos(int $ordenId): bool
+    {
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*) FROM ordenes_produccion_procesos WHERE orden_produccion_id = ?
+        ");
+        $stmt->execute([$ordenId]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
+
+    public function movimientosProcesos(int $ordenId, int $limite = 30): array
+    {
+        $limite = max(1, min(200, $limite));
+        $stmt = $this->db->prepare("
+            SELECT m.*,
+                   po.nombre AS origen_nombre,
+                   pd.nombre AS destino_nombre,
+                   u.nombre AS usuario
+            FROM ordenes_produccion_procesos_movimientos m
+            LEFT JOIN ordenes_produccion_procesos po ON po.id = m.proceso_origen_id
+            LEFT JOIN ordenes_produccion_procesos pd ON pd.id = m.proceso_destino_id
+            LEFT JOIN users u ON u.id = m.usuario_id
+            WHERE m.orden_produccion_id = ?
+            ORDER BY m.id DESC
+            LIMIT {$limite}
+        ");
+        $stmt->execute([$ordenId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Mueve piezas de un proceso al siguiente. No consume MP ni suma producto:
+     * solo actualiza el tablero de procesos.
+     */
+    public function moverPiezasProceso(int $ordenId, int $procesoId, float $cantidad, int $usuarioId, string $observaciones = ''): bool
+    {
+        if ($cantidad <= 0) {
+            $_SESSION['error'] = 'La cantidad a mover debe ser mayor a cero.';
+            return false;
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) $this->db->beginTransaction();
+
+        try {
+            $stmt = $this->db->prepare("SELECT estado FROM ordenes_produccion WHERE id = ? FOR UPDATE");
+            $stmt->execute([$ordenId]);
+            $estado = $stmt->fetchColumn();
+            if ($estado === false) throw new Exception('La orden de produccion no existe.');
+            if (in_array($estado, ['FINALIZADA', 'CANCELADA'], true)) {
+                throw new Exception('La orden ya esta cerrada.');
+            }
+
+            $procesos = $this->procesosOP($ordenId);
+            $indice = null;
+            foreach ($procesos as $i => $proceso) {
+                if ((int)$proceso['id'] === $procesoId) {
+                    $indice = $i;
+                    break;
+                }
+            }
+            if ($indice === null) throw new Exception('El proceso no pertenece a la orden.');
+            if (!isset($procesos[$indice + 1])) {
+                throw new Exception('Este es el ultimo proceso: usa Finalizar piezas.');
+            }
+
+            $origen = $procesos[$indice];
+            $destino = $procesos[$indice + 1];
+
+            $stmt = $this->db->prepare("
+                UPDATE ordenes_produccion_procesos
+                SET cantidad_en_proceso = cantidad_en_proceso - ?
+                WHERE id = ? AND cantidad_en_proceso >= ?
+            ");
+            $stmt->execute([$cantidad, (int)$origen['id'], $cantidad]);
+            if ($stmt->rowCount() === 0) {
+                throw new Exception('No hay suficientes piezas en el proceso ' . $origen['nombre'] . '.');
+            }
+
+            $this->db->prepare("
+                UPDATE ordenes_produccion_procesos
+                SET cantidad_en_proceso = cantidad_en_proceso + ?
+                WHERE id = ?
+            ")->execute([$cantidad, (int)$destino['id']]);
+
+            $this->db->prepare("
+                INSERT INTO ordenes_produccion_procesos_movimientos
+                (orden_produccion_id, proceso_origen_id, proceso_destino_id, cantidad, tipo, usuario_id, observaciones)
+                VALUES (?, ?, ?, ?, 'MOVER', ?, ?)
+            ")->execute([$ordenId, (int)$origen['id'], (int)$destino['id'], $cantidad, $usuarioId ?: null, $observaciones ?: null]);
+
+            $this->db->prepare("
+                UPDATE ordenes_produccion SET estado = 'EN_PRODUCCION'
+                WHERE id = ? AND estado = 'PENDIENTE'
+            ")->execute([$ordenId]);
+
+            if (!$inTransaction) $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            if (!$inTransaction) $this->db->rollBack();
+            $_SESSION['error'] = 'No se pudieron mover las piezas: ' . $e->getMessage();
+            error_log('Error al mover piezas de proceso OP ' . $ordenId . ': ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Finaliza piezas desde el ultimo proceso: las saca del tablero, registra
+     * el avance confirmado (consumo de MP + stock de producto) y deja la OP
+     * abierta hasta completar la cantidad pedida.
+     */
+    public function finalizarPiezasProceso(int $ordenId, int $procesoId, float $cantidad, int $usuarioId, string $observaciones = ''): bool
+    {
+        if ($cantidad <= 0) {
+            $_SESSION['error'] = 'La cantidad a finalizar debe ser mayor a cero.';
+            return false;
+        }
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) $this->db->beginTransaction();
+
+        try {
+            $stmt = $this->db->prepare("SELECT * FROM ordenes_produccion WHERE id = ? FOR UPDATE");
+            $stmt->execute([$ordenId]);
+            $orden = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$orden) throw new Exception('La orden de produccion no existe.');
+            if (in_array($orden['estado'], ['FINALIZADA', 'CANCELADA'], true)) {
+                throw new Exception('La orden ya esta cerrada.');
+            }
+
+            $procesos = $this->procesosOP($ordenId);
+            if (empty($procesos)) throw new Exception('La orden no tiene procesos cargados.');
+
+            $indice = null;
+            foreach ($procesos as $i => $proceso) {
+                if ((int)$proceso['id'] === $procesoId) {
+                    $indice = $i;
+                    break;
+                }
+            }
+            if ($indice === null) throw new Exception('El proceso no pertenece a la orden.');
+            if ($indice !== count($procesos) - 1) {
+                throw new Exception('Solo se pueden finalizar piezas desde el ultimo proceso.');
+            }
+
+            $proceso = $procesos[$indice];
+            $confirmado = $this->totalAvances($ordenId, true);
+            $pedido = (float)$orden['cantidad'];
+            if ($confirmado + $cantidad > $pedido + 0.0005) {
+                $disponible = max(0, $pedido - $confirmado);
+                throw new Exception(
+                    'No se pueden finalizar ' . number_format($cantidad, 3, ',', '.') . ' piezas: la OP pide '
+                    . number_format($pedido, 3, ',', '.') . ' y ya hay '
+                    . number_format($confirmado, 3, ',', '.') . ' finalizadas. Disponible: '
+                    . number_format($disponible, 3, ',', '.') . '.'
+                );
+            }
+
+            $stmt = $this->db->prepare("
+                UPDATE ordenes_produccion_procesos
+                SET cantidad_en_proceso = cantidad_en_proceso - ?
+                WHERE id = ? AND cantidad_en_proceso >= ?
+            ");
+            $stmt->execute([$cantidad, (int)$proceso['id'], $cantidad]);
+            if ($stmt->rowCount() === 0) {
+                throw new Exception('No hay suficientes piezas en el proceso ' . $proceso['nombre'] . '.');
+            }
+
+            $stmt = $this->db->prepare("
+                INSERT INTO orden_produccion_detalle
+                (orden_id, producto_id, registred_at, cantidad_producida, observaciones, user_id, confirma_produccion)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $ordenId,
+                (int)$orden['producto_id'],
+                defined('FECHA_ACTUAL') ? FECHA_ACTUAL : date('Y-m-d H:i:s'),
+                $cantidad,
+                'Finalizado desde proceso ' . $proceso['nombre'] . ($observaciones !== '' ? ': ' . $observaciones : ''),
+                $usuarioId ?: null,
+                defined('FECHA_ACTUAL') ? FECHA_ACTUAL : date('Y-m-d H:i:s'),
+            ]);
+
+            $this->aplicarAvanceConfirmado([
+                'orden_id' => $ordenId,
+                'producto_id' => (int)$orden['producto_id'],
+                'cantidad_producida' => $cantidad,
+            ]);
+
+            $this->db->prepare("
+                INSERT INTO ordenes_produccion_procesos_movimientos
+                (orden_produccion_id, proceso_origen_id, proceso_destino_id, cantidad, tipo, usuario_id, observaciones)
+                VALUES (?, ?, NULL, ?, 'FINALIZAR', ?, ?)
+            ")->execute([$ordenId, (int)$proceso['id'], $cantidad, $usuarioId ?: null, $observaciones ?: null]);
+
+            $this->db->prepare("
+                UPDATE ordenes_produccion SET estado = 'EN_PRODUCCION'
+                WHERE id = ? AND estado = 'PENDIENTE'
+            ")->execute([$ordenId]);
+
+            if (!$inTransaction) $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            if (!$inTransaction) $this->db->rollBack();
+            $_SESSION['error'] = 'No se pudieron finalizar las piezas: ' . $e->getMessage();
+            error_log('Error al finalizar piezas de proceso OP ' . $ordenId . ': ' . $e->getMessage());
+            return false;
         }
     }
 
@@ -543,6 +804,11 @@ class OrdenProduccion extends Model
         return (float)$stmt->fetchColumn();
     }
 
+    public function totalFinalizado(int $ordenId): float
+    {
+        return $this->totalAvances($ordenId, true);
+    }
+
     public function avances(array $data){ //llamo desde controlador avances para registrar producciones, aca solo inicio el
                                         //proceso de produccion, luego falta registrar el fin de produccion,
                                         //ahi es cuando hago los mov de stock producto.
@@ -676,8 +942,8 @@ $this->db->prepare("
                 $tipo,
                 $productoId,
                 $cantidad,
-                $data['deposito_id'] ?? null,
-                $data['lote_id'] ?? null,
+                null,
+                null,
                 $motivo,
                 $usuarioId,
                 $orden_id
@@ -843,6 +1109,74 @@ $this->db->prepare("
     }
 
     //funcion para confirmar el avance registrado en avances. Esto confirma un solo registro por vez
+    /**
+     * Aplica el consumo de MP, el ingreso del producto terminado y el cambio de
+     * estado de una OP para un avance ya confirmado. No maneja transacciones:
+     * la transaccion la controla quien llama (confirmaravance o finalizacion
+     * de piezas desde el ultimo proceso).
+     */
+    private function aplicarAvanceConfirmado(array $avance): void
+    {
+        $ordenId = (int)$avance['orden_id'];
+        $productoId = (int)$avance['producto_id'];
+        $cantidadProducida = (float)$avance['cantidad_producida'];
+
+        $stmt = $this->db->prepare("SELECT receta_id FROM ordenes_produccion WHERE id=?");
+        $stmt->execute([$ordenId]);
+        $recetaId = $stmt->fetchColumn();
+
+        $stmt = $this->db->prepare("SELECT materia_prima_id, cantidad FROM recetas_detalle WHERE receta_id=?");
+        $stmt->execute([$recetaId]);
+        $materiasPrimas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($materiasPrimas as $mp) {
+            $cantidadMp = (float)$mp['cantidad'] * $cantidadProducida;
+            if ($cantidadMp <= 0) continue;
+
+            try {
+                // Conservar el deposito de origen de cada reserva, repartiendo
+                // el consumo entre todas las fuentes de la MP.
+                $fuentes = $this->fuentesReservadas($ordenId, (int)$mp['materia_prima_id']);
+                $consumos = $this->distribuirCantidadFuentes($fuentes, $cantidadMp);
+                if (empty($consumos)) {
+                    $consumos = [['deposito_id' => null, 'cantidad' => $cantidadMp]];
+                }
+
+                foreach ($consumos as $consumo) {
+                    $depositoId = $consumo['deposito_id'];
+                    $cantidadConsumo = (float)$consumo['cantidad'];
+                    if ($cantidadConsumo <= 0) continue;
+
+                    $this->db->prepare("
+                        INSERT INTO reservas_materia_prima
+                        (orden_produccion_id, materia_prima_id, deposito_id, cantidad, estado, procesado_at)
+                        VALUES (?, ?, ?, ?, 'CONSUMIDO', ?)
+                    ")->execute([
+                        $ordenId,
+                        $mp['materia_prima_id'],
+                        $depositoId,
+                        $cantidadConsumo,
+                        defined('FECHA_ACTUAL') ? FECHA_ACTUAL : date('Y-m-d H:i:s')
+                    ]);
+                }
+                error_log("Consumo MP OK - OP {$ordenId} - MP {$mp['materia_prima_id']} - {$cantidadMp}");
+            } catch (Exception $e) {
+                error_log('Error al registrar consumo de MP en OP ' . $ordenId . ': ' . $e->getMessage());
+            }
+        }
+
+        $this->ajustarProducto(
+            $productoId,
+            $cantidadProducida,
+            'Ingreso por produccion OP ID: ' . $ordenId,
+            $_SESSION['user_id'],
+            'ENTRADA',
+            $ordenId
+        );
+
+        $this->estadoChange($ordenId);
+    }
+
     public function confirmaravance(int $id_avance):bool{
         try {
             $this->db->beginTransaction();
@@ -893,56 +1227,8 @@ $this->db->prepare("
             $stmt=$this->db->prepare("UPDATE orden_produccion_detalle set confirma_produccion=? WHERE id_tbl_ordendetalle=?");//Solo confirmo que se ha cerrado un avance
             $stmt->execute([FECHA_ACTUAL,$id_avance]);
 
-            $avance = [$filaAvance];
-            error_log('$avance:'.print_r($avance,true).' - '.__FILE__.":".__LINE__);
-            $stmt=$this->db->prepare("SELECT receta_id FROM ordenes_produccion WHERE id=?");
-            $stmt->execute([$avance[0]['orden_id']]);
-            $receta_id=$stmt->fetchColumn();//id de receta para buscar las MP y las cantidades de cada MP
-            error_log($receta_id);
-            $stmt=$this->db->prepare("SELECT materia_prima_id,cantidad FROM recetas_detalle WHERE receta_id=?");
-            $stmt->execute([$receta_id]);
-            $materia_prima_id=$stmt->fetchAll(PDO::FETCH_ASSOC);// MP y cantidad de cada MP
-            error_log(print_r($materia_prima_id,true));
-            foreach ($materia_prima_id as $mp) {
-                $cantidad_mp = $mp['cantidad'] * $avance[0]['cantidad_producida']; // cantidad de MP a consumir segun lo producido en este avance
-                error_log("MP ID: {$mp['materia_prima_id']} - Cantidad a consumir: $cantidad_mp. ".__FILE__.":".__LINE__);
-                //inserto el registro en movimientos de stock para descontar la materia prima consumida, con referencia a la OP y al avance, esto me permite tener el stock real actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
-                try {
-                    // Conservar el deposito de origen de cada reserva, repartiendo
-                    // el consumo entre todas las fuentes de la MP.
-                    $fuentes = $this->fuentesReservadas((int)$avance[0]['orden_id'], (int)$mp['materia_prima_id']);
-                    $consumos = $this->distribuirCantidadFuentes($fuentes, (float)$cantidad_mp);
-                    if (empty($consumos)) {
-                        $consumos = [['deposito_id' => null, 'cantidad' => (float)$cantidad_mp]];
-                    }
+            $this->aplicarAvanceConfirmado($filaAvance);
 
-                    foreach ($consumos as $consumo) {
-                        $depositoId = $consumo['deposito_id'];
-                        $cantidadConsumo = (float)$consumo['cantidad'];
-                        if ($cantidadConsumo <= 0) continue;
-
-                        $this->db->prepare("
-                            INSERT INTO reservas_materia_prima
-                            (orden_produccion_id, materia_prima_id, deposito_id, cantidad, estado, procesado_at)
-                            VALUES (?, ?, ?, ?, 'CONSUMIDO', ?)
-                        ")->execute([
-                            $avance[0]['orden_id'],
-                            $mp['materia_prima_id'],
-                            $depositoId,
-                            $cantidadConsumo,
-                            FECHA_ACTUAL
-                        ]);
-                    }
-                    //inserto el registro en la tabla reserva mp para generar el registro de uso de materia prima, con el estado consumido, esto me permite tener el registro de consumo de materia prima a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
-                    error_log("RegistroOK - ".$avance[0]['orden_id']."-".$mp['materia_prima_id']."-".$cantidad_mp.' - '.__FILE__.":".__LINE__);
-                } catch (Exception $e) {
-                    error_log(print_r($e->getMessage(), true).'-'.__FILE__.":".__LINE__);
-                }
-            }
-            //llamo a ajustar el ingreso del producto, esto inserta el movimiento de stock con el tipo ENTRADA y la referencia a la OP, esto me permite tener el stock real del producto actualizado a medida que se van registrando los avances, sin necesidad de esperar a que se complete toda la producción.
-            $this->ajustarProducto($avance[0]['producto_id'],$avance[0]['cantidad_producida'],"Ingreso por produccion OP ID: ".$avance[0]['orden_id'],$_SESSION['user_id'],'ENTRADA',$avance[0]['orden_id']);
-            //Ver y confirmar estado de la OP, si se completo o no, para cambiar el estado a FINALIZADA o dejarlo en EN_PRODUCCION
-            $this->estadoChange($avance[0]['orden_id']);
             $this->db->commit();
             error_log("Registro el cierre OK del avance: $id_avance. ".__FILE__.":".__LINE__);
             return true;

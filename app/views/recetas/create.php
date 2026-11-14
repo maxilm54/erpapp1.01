@@ -30,6 +30,34 @@
     <button type="button" class="btn btn-secondary" onclick="agregarLinea()">
         + Agregar Insumo
     </button>
+
+    <hr>
+    <h5>Procesos de fabricación</h5>
+    <p class="text-muted small">Mínimo 1 proceso. Las horas son estimadas por pieza en ese proceso.</p>
+    <div class="table-scroll">
+        <table class="table" id="tablaProcesos">
+            <thead>
+                <tr>
+                    <th width="50">#</th>
+                    <th>Nombre del proceso</th>
+                    <th width="180">Horas por pieza</th>
+                    <th width="50"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="num-proceso">1</td>
+                    <td><input type="text" name="procesos[0][nombre]" class="form-control" maxlength="150" required placeholder="Ej: Corte, Torneado, Control"></td>
+                    <td><input type="number" name="procesos[0][horas_por_unidad]" class="form-control" step="0.0001" min="0" value="0" required></td>
+                    <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarProceso(this)">×</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <button type="button" class="btn btn-secondary mb-3" onclick="agregarProceso()">
+        + Agregar Proceso
+    </button>
+
     <label>Indique un procedimiento de fabricacion u observacion, en caso de ser necesario:</label>
     <textarea name="procedimiento" class="form-control" rows="4"></textarea>
     <br><br>
@@ -68,5 +96,38 @@ function agregarLinea() {
     `;
     tbody.appendChild(tr);
     index++;
+}
+
+function agregarProceso() {
+    const tbody = document.querySelector('#tablaProcesos tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="num-proceso"></td>
+        <td><input type="text" class="form-control" maxlength="150" required placeholder="Ej: Corte, Torneado, Control"></td>
+        <td><input type="number" class="form-control" step="0.0001" min="0" value="0" required></td>
+        <td><button type="button" class="btn btn-danger btn-sm" onclick="eliminarProceso(this)">×</button></td>
+    `;
+    tbody.appendChild(tr);
+    reindexarProcesos();
+}
+
+function eliminarProceso(btn) {
+    const tbody = document.querySelector('#tablaProcesos tbody');
+    if (tbody.querySelectorAll('tr').length <= 1) {
+        alert('La receta debe tener al menos un proceso.');
+        return;
+    }
+    btn.closest('tr').remove();
+    reindexarProcesos();
+}
+
+function reindexarProcesos() {
+    document.querySelectorAll('#tablaProcesos tbody tr').forEach(function (tr, i) {
+        tr.querySelector('.num-proceso').textContent = i + 1;
+        const nombre = tr.querySelector('input[type="text"]');
+        const horas = tr.querySelector('input[type="number"]');
+        if (nombre) nombre.name = 'procesos[' + i + '][nombre]';
+        if (horas) horas.name = 'procesos[' + i + '][horas_por_unidad]';
+    });
 }
 </script>

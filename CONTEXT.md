@@ -425,6 +425,14 @@ La anulación revierte según el estado: si está en tránsito devuelve al orige
     - **Tope de producción**: no se puede cargar ni confirmar más de lo pedido. Al cargar un avance (`avances()`) se valida contra confirmados + pendientes; al confirmar (`confirmaravance()`) se valida contra los confirmados (sin contar el avance actual) y se rechaza con un mensaje claro. Reconfirmar un avance ya confirmado no duplica consumo ni stock. El formulario de avance limita el máximo a lo que queda por cargar.
     - La columna **Equiv. stock total** de la vista de stock es solo el desglose del stock total (`665 × 6 M + 5 M`), **no** el sobrante de una OP. El sobrante real se ve en la columna **Sobrante** y en el depósito "MP sobrante".
 
+25. **Producción por procesos (migración 038)**: cada receta tiene al menos un proceso (`recetas_procesos`: nombre, `horas_por_unidad`, secuencia, activo). El ABM de receta exige mínimo uno; el modelo crea "Proceso 1" si no viene ninguno y la migración lo hizo para las recetas existentes.
+    - Al crear una OP se copian los procesos a `ordenes_produccion_procesos` (snapshot de nombre/horas/secuencia). La primera fila arranca con `cantidad_en_proceso = cantidad pedida` y el resto en 0.
+    - Pantalla `/ordenproduccion/procesos/{id}` (métodos `procesos`, `moverProceso`, `finalizarProceso`): permite mover cantidades parciales al siguiente proceso y finalizar piezas desde el último. Las OPs con procesos redirigen desde `/avance` al tablero; las OPs viejas sin filas siguen con el flujo legacy de avances.
+    - Cada movimiento queda en `ordenes_produccion_procesos_movimientos` (`MOVER` o `FINALIZAR`).
+    - Al finalizar piezas se inserta una fila confirmada en `orden_produccion_detalle` y se llama a `OrdenProduccion::aplicarAvanceConfirmado()`: consumo de MP, ingreso de producto terminado y `estadoChange()`. La OP queda abierta hasta que el total finalizado alcance la cantidad pedida.
+    - El consumo de MP se registra al finalizar piezas (no al mover entre procesos); la reserva de MP ya se descuenta al crear la OP. El sobrante automático se calcula al finalizar/cancelar la OP.
+    - El tablero muestra piezas por proceso, horas estimadas en curso y el historial. `totalFinalizado` sale de los avances confirmados.
+
 ## Cómo Agregar un Módulo Nuevo
 
 ### 1. Modelo (`app/models/NuevoModelo.php`)

@@ -36,7 +36,11 @@
                     Ver
                     </a>
                     <?php
-                        if($o['estado']==='EN_PRODUCCION' || $o['estado']==='FINALIZADA'):?>
+                        if(!empty($o['tiene_procesos'])):?>
+                        <a href="<?= BASE_URL ?>/ordenproduccion/procesos/<?= $o['id'] ?>" class="btn btn-primary btn-sm">
+                            Procesos
+                        </a>
+                    <?php elseif($o['estado']==='EN_PRODUCCION' || $o['estado']==='FINALIZADA'):?>
                         <a href="<?= BASE_URL ?>/ordenproduccion/avance/<?= $o['id'] ?>" class="btn btn-primary btn-sm">
                             Avances
                         </a>

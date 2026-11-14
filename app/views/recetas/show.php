@@ -72,6 +72,39 @@
             </div>
         </div>
 
+        <?php $procesos = $receta['procesos'] ?? []; ?>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-diagram-3"></i> Procesos de fabricación</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="50">#</th>
+                                <th>Proceso</th>
+                                <th class="text-end">Horas por pieza</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($procesos)): ?>
+                                <tr><td colspan="3" class="text-center text-muted">Sin procesos cargados.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($procesos as $i => $proceso): ?>
+                                <tr>
+                                    <td><?= $i + 1 ?></td>
+                                    <td><?= htmlspecialchars($proceso['nombre']) ?></td>
+                                    <td class="text-end"><?= number_format((float)$proceso['horas_por_unidad'], 4, ',', '.') ?> h</td>
+                                </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Procedimiento -->
         <div class="card mb-4">
             <div class="card-header">

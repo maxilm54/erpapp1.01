@@ -41,19 +41,31 @@ foreach ($orden_det as $r) {
             <i class="bi bi-arrow-left"></i> Volver
         </a>
         <?php if ($orden['estado'] === 'PENDIENTE'): ?>
-        <a href="<?= BASE_URL ?>/ordenproduccion/producir/<?= $orden['id'] ?>" class="btn btn-success">
-            <i class="bi bi-play"></i> Iniciar Produccion
-        </a>
+            <?php if (!empty($tieneProcesos)): ?>
+                <a href="<?= BASE_URL ?>/ordenproduccion/procesos/<?= $orden['id'] ?>" class="btn btn-primary">
+                    <i class="bi bi-diagram-3"></i> Procesos
+                </a>
+            <?php else: ?>
+                <a href="<?= BASE_URL ?>/ordenproduccion/producir/<?= $orden['id'] ?>" class="btn btn-success">
+                    <i class="bi bi-play"></i> Iniciar Produccion
+                </a>
+            <?php endif ?>
         <?php endif ?>
         <?php if ($orden['estado'] === 'EN_PRODUCCION'): ?>
-        <a href="<?= BASE_URL ?>/ordenproduccion/avance/<?= $orden['id'] ?>" class="btn btn-primary">
-            <i class="bi bi-clipboard-plus"></i> Registrar Avance
-        </a>
+            <?php if (!empty($tieneProcesos)): ?>
+                <a href="<?= BASE_URL ?>/ordenproduccion/procesos/<?= $orden['id'] ?>" class="btn btn-primary">
+                    <i class="bi bi-diagram-3"></i> Procesos
+                </a>
+            <?php else: ?>
+                <a href="<?= BASE_URL ?>/ordenproduccion/avance/<?= $orden['id'] ?>" class="btn btn-primary">
+                    <i class="bi bi-clipboard-plus"></i> Registrar Avance
+                </a>
+            <?php endif ?>
         <button class="btn btn-danger" onclick="confirmarAnulacionOP(<?= $orden['id'] ?>)">
             <i class="bi bi-x-circle"></i> Cancelar
         </button>
         <?php endif ?>
-        <?php if ($orden['estado'] === 'EN_PRODUCCION' && $totalProducido >= $orden['cantidad']): ?>
+        <?php if (empty($tieneProcesos) && $orden['estado'] === 'EN_PRODUCCION' && $totalProducido >= $orden['cantidad']): ?>
         <a href="<?= BASE_URL ?>/ordenproduccion/finalizarproduccion/<?= $orden['id'] ?>" class="btn btn-success">
             <i class="bi bi-check-circle"></i> Finalizar
         </a>

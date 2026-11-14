@@ -58,8 +58,14 @@ class OrdenproduccionController extends Controller
     }
     public function addavance(int $id_avance){ //confirmo el avace de produccion, check en vista avance de produccuin, aqui es donde confirmo el stock en todos lados
         validarId($id_avance, BASE_URL . '/ordenproduccion');
-        $registro=$this->model->confirmaravance($id_avance); //id avance es el id en la tabla orden_produccion_detalle
         $id_op=$this->model->numeroOP((int) $id_avance);
+        if ($id_op > 0 && $this->model->tieneProcesos($id_op)) {
+            $_SESSION['error'] = 'Esta orden usa procesos: registrá las piezas desde el tablero de procesos.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id_op);
+            exit;
+        }
+
+        $registro=$this->model->confirmaravance($id_avance); //id avance es el id en la tabla orden_produccion_detalle
         if($registro===true){
             $_SESSION['success']="Registro de avance confirmado!";
             error_log("Confirmacion del registro de avance $id_avance. ".__FILE__.':'.__LINE__);
@@ -75,6 +81,13 @@ class OrdenproduccionController extends Controller
     public function avance(int $id) //controlador de eventos de produccion, vista avance/id,Modal del boton + iniciar produccion.
     {
         validarId($id, BASE_URL . '/ordenproduccion');
+
+        // Las OPs nuevas con procesos usan el tablero de procesos.
+        if ($this->model->tieneProcesos((int)$id)) {
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+
         $orden = $this->model->find((int)$id); // obtengo datos de cabecera OP
         $orden_det = $this->model->findopdetalle((int)$id); //Obtengo datos de detalle de OP (puede estar vacio o tener varios registros)
         if ($_SERVER['REQUEST_METHOD'] === 'POST') { // viene del modal de agregar produccion, se registra el avance y se actualiza el stock de producto y materia prima consumida, si es que hubo consumo. Se debe actualizar el estado de la OP a EN_PRODUCCION si no estaba en ese estado.
@@ -149,6 +162,99 @@ class OrdenproduccionController extends Controller
     }
 
 
+    /**
+     * Tablero de procesos de una OP (cantidades por proceso e historial).
+     */
+    public function procesos(int $id): void
+    {
+        validarId($id, BASE_URL . '/ordenproduccion');
+
+        if (!$this->model->tieneProcesos((int)$id)) {
+            header('Location: ' . BASE_URL . '/ordenproduccion/avance/' . $id);
+            exit;
+        }
+
+        $orden = $this->model->find((int)$id);
+        if (!$orden) {
+            $_SESSION['error'] = 'Orden no encontrada';
+            header('Location: ' . BASE_URL . '/ordenproduccion');
+            exit;
+        }
+
+        $this->view('produccion/procesos', [
+            'orden' => $orden,
+            'procesos' => $this->model->procesosOP((int)$id),
+            'movimientos' => $this->model->movimientosProcesos((int)$id, 40),
+            'totalFinalizado' => $this->model->totalFinalizado((int)$id),
+        ]);
+    }
+
+    public function moverProceso(int $id): void
+    {
+        validarId($id, BASE_URL . '/ordenproduccion');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+
+        $procesoId = (int)($_POST['proceso_id'] ?? 0);
+        $cantidad = (float)str_replace(',', '.', (string)($_POST['cantidad'] ?? '0'));
+        $observaciones = trim((string)($_POST['observaciones'] ?? ''));
+
+        $ok = $this->model->moverPiezasProceso(
+            (int)$id,
+            $procesoId,
+            $cantidad,
+            (int)($_SESSION['user_id'] ?? 0),
+            $observaciones
+        );
+        if ($ok) {
+            $_SESSION['success'] = 'Piezas movidas al siguiente proceso.';
+        }
+
+        header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+        exit;
+    }
+
+    public function finalizarProceso(int $id): void
+    {
+        validarId($id, BASE_URL . '/ordenproduccion');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
+
+        $procesoId = (int)($_POST['proceso_id'] ?? 0);
+        $cantidad = (float)str_replace(',', '.', (string)($_POST['cantidad'] ?? '0'));
+        $observaciones = trim((string)($_POST['observaciones'] ?? ''));
+
+        $ok = $this->model->finalizarPiezasProceso(
+            (int)$id,
+            $procesoId,
+            $cantidad,
+            (int)($_SESSION['user_id'] ?? 0),
+            $observaciones
+        );
+        if ($ok) {
+            $_SESSION['success'] = 'Piezas finalizadas y sumadas al stock de producto terminado.';
+        }
+
+        header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+        exit;
+    }
+
     public function show($id) //ver una OP en datalle estado y requerimientos
     {
         validarId($id, BASE_URL . '/ordenproduccion');
@@ -161,7 +267,12 @@ class OrdenproduccionController extends Controller
             exit;
         }
 
-        $this->view('produccion/show', compact('orden', 'reservas','orden_det'));
+        $this->view('produccion/show', [
+            'orden' => $orden,
+            'reservas' => $reservas,
+            'orden_det' => $orden_det,
+            'tieneProcesos' => $this->model->tieneProcesos((int)$id),
+        ]);
     }
 
     public function checkStock() //este controlador se usa para el chequeo de stock via ajax y poder mostrar si hay stock para las distintas cantidads que se vayan eligiendo a producir
@@ -194,6 +305,11 @@ class OrdenproduccionController extends Controller
     public function finalizarproduccion($id)
     {
         validarId($id, BASE_URL . '/ordenproduccion');
+        if ($this->model->tieneProcesos((int)$id)) {
+            $_SESSION['error'] = 'Esta OP se finaliza automáticamente cuando todas las piezas terminan el último proceso.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/procesos/' . $id);
+            exit;
+        }
         $this->model->actualizarEstado((int)$id, 'FINALIZADA');
         $_SESSION['success'] = 'Orden de producción finalizada';
         header('Location: '.BASE_URL.'/ordenproduccion/show/'.$id);

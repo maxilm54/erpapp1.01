@@ -46,7 +46,8 @@ class RecetasController extends Controller
                     $_POST['nombre'],
                     $items,
                     $_POST['procedimiento'] ?? null,
-                    (int)$_SESSION['user_id']
+                    (int)$_SESSION['user_id'],
+                    $_POST['procesos'] ?? []
                 );
 
                 $_SESSION['success'] = 'Receta creada correctamente';

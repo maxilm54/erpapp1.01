@@ -324,8 +324,8 @@ Receta (BOM) → Orden de Producción → Avances → Confirmación
   Primas         (disponible)       Parcial       Final
 ```
 
-- **Recetas**: Listas de materiales (BOM). Cada receta tiene detalle de materias primas con cantidades.
-- **Órdenes de Producción**: Vinculadas a receta. Reservan MP automáticamente. Permiten avances parciales (producción incrementales). Estados: PENDIENTE → EN_PRODUCCION → FINALIZADA/CANCELADA.
+- **Recetas**: Listas de materiales (BOM). Cada receta tiene **al menos un proceso de fabricación** (nombre + horas estimadas por pieza), configurable como filas en el ABM. El detalle de materias primas sigue igual.
+- **Órdenes de Producción**: Vinculadas a receta. Al crearse copian los procesos de la receta y todas las piezas arrancan en el proceso 1. El tablero de procesos permite mover cantidades parciales al siguiente proceso y finalizar piezas desde el último; la OP queda abierta hasta completar la cantidad pedida. Las OPs viejas sin procesos siguen usando la pantalla de avances.
 - **Avances confirmados**: el total producido y el cierre de la OP cuentan **solo avances confirmados**. Cargar dos avances sin confirmar no cierra la OP ni dispara el sobrante automático sobre una cantidad incompleta.
 - **Tope de producción**: no se puede cargar ni confirmar más de la cantidad pedida. El formulario limita el máximo a lo que queda por cargar y el backend rechaza tanto la carga como la confirmación que exceda la OP.
 - **Depósito de origen**: al crear la OP se elige, para cada MP de la receta, de qué depósito se reserva. La cantidad se puede **repartir entre varios depósitos** (ej. 3 M de **MP sobrante** + 6 M del principal); la suma debe coincidir con lo necesario. La reserva y los movimientos de salida quedan asociados a cada depósito.
@@ -474,7 +474,7 @@ Reemplaza al viejo `tareas.json` de la raíz del repo (eliminado). Vive en la ta
 | **Códigos** | `producto_codigos`, `materiaprima_codigos`, `conversiones` |
 | **Ventas** | `presupuestos`, `presupuestos_detalle`, `notas_pedido`, `notas_pedido_detalle`, `remitos_salida`, `remitos_salida_detalle`, `devoluciones`, `devoluciones_detalle`, `devoluciones_reembolsos` |
 | **Compras** | `ordenes_compra`, `ordenes_compra_detalle`, `ingresos_mercaderia`, `ingresos_mercaderia_detalle`, `compras`, `compras_detalle` |
-| **Producción** | `recetas`, `recetas_detalle`, `ordenes_produccion`, `orden_produccion_detalle`, `reservas_materia_prima` |
+| **Producción** | `recetas`, `recetas_detalle`, `recetas_procesos`, `ordenes_produccion`, `ordenes_produccion_procesos`, `ordenes_produccion_procesos_movimientos`, `orden_produccion_detalle`, `reservas_materia_prima` |
 | **Stock** | `movimientos_stock`, `vststock_movstock_producto`, `vststock_movstock_materiaprima`, `depositos`, `lotes`, `series` |
 | **Transferencias** | `transferencias_depositos`, `transferencias_detalle` |
 | **Finanzas** | `cuentas_corriente_clientes`, `pagos`, `gastos`, `cajas_bancos`, `movimientos_caja` |
@@ -531,6 +531,7 @@ El `MigrationManager.php` controla la versión del schema por tenant. Cada tenan
 | 035 | `035_mp_tipo_gestion_especificaciones.sql` | `materias_primas.tipo_gestion` (`UNIDAD`/`LINEAL`/`SUPERFICIE`/`GRANEL`) + tabla `materias_primas_especificaciones` (ficha técnica opcional 1:1) |
 | 036 | `036_mp_unidad_compra_factor.sql` | `materias_primas.id_unidadcompra` + `factor_conversion` (compra en unidad distinta a la de stock, con conversión al ingresar) |
 | 037 | `037_mp_sobrante_produccion_deposito.sql` | `depositos.es_sobrante` + depósito "MP sobrante" + `reservas_materia_prima.deposito_id` (Producción elige el depósito de origen de cada MP) |
+| 038 | `038_recetas_procesos.sql` | Procesos de fabricación por receta (`recetas_procesos`), tablero por OP (`ordenes_produccion_procesos`) e historial de movimientos |
 
 ### Migraciones de la BD Master
 

@@ -18,7 +18,7 @@ class Receta extends Model
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function crear(int $productoId,string $nombre, array $items, string $procedimiento, int $userId): int
+    public function crear(int $productoId,string $nombre, array $items, string $procedimiento, int $userId, array $procesos = []): int
     {
         $this->db->beginTransaction();
 
@@ -44,6 +44,8 @@ class Receta extends Model
                 ]);
             }
 
+            $this->guardarProcesos($recetaId, $procesos);
+
             $this->db->commit();
             return $recetaId;
 
@@ -51,6 +53,64 @@ class Receta extends Model
             error_log('Error en la funcion de crear una receta: '.$e->getMessage());
             $this->db->rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * Procesos activos de una receta, ordenados.
+     */
+    public function procesos(int $recetaId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT * FROM recetas_procesos
+            WHERE receta_id = ? AND activo = 1
+            ORDER BY secuencia ASC, id ASC
+        ");
+        $stmt->execute([$recetaId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Guarda los procesos de una receta. Si no viene ninguno, crea "Proceso 1"
+     * para cumplir con el minimo de un proceso.
+     * Se reemplazan los procesos existentes (las OPs ya creadas conservan su
+     * snapshot de nombre/horas/secuencia).
+     */
+    private function guardarProcesos(int $recetaId, array $procesos): void
+    {
+        $normalizados = [];
+        foreach ($procesos as $proceso) {
+            if (!is_array($proceso)) {
+                continue;
+            }
+            $nombre = trim((string)($proceso['nombre'] ?? ''));
+            if ($nombre === '') {
+                continue;
+            }
+            $horas = (float)str_replace(',', '.', (string)($proceso['horas_por_unidad'] ?? $proceso['horas'] ?? 0));
+            if ($horas < 0) {
+                $horas = 0;
+            }
+            $normalizados[] = [
+                'nombre' => mb_substr($nombre, 0, 150),
+                'horas' => round($horas, 4),
+            ];
+        }
+
+        if (empty($normalizados)) {
+            $normalizados[] = ['nombre' => 'Proceso 1', 'horas' => 0.0];
+        }
+
+        $this->db->prepare("DELETE FROM recetas_procesos WHERE receta_id = ?")->execute([$recetaId]);
+
+        $stmt = $this->db->prepare("
+            INSERT INTO recetas_procesos (receta_id, nombre, horas_por_unidad, secuencia, activo)
+            VALUES (?, ?, ?, ?, 1)
+        ");
+        $secuencia = 1;
+        foreach ($normalizados as $proceso) {
+            $stmt->execute([$recetaId, $proceso['nombre'], $proceso['horas'], $secuencia]);
+            $secuencia++;
         }
     }
 
@@ -82,6 +142,7 @@ class Receta extends Model
         if (!$receta) return null;
 
         $receta['detalle'] = $this->detalle($id);
+        $receta['procesos'] = $this->procesos($id);
         return $receta;
     }
 
@@ -132,6 +193,11 @@ class Receta extends Model
                     ]);
                 }
             }
+
+            if (array_key_exists('procesos', $_POST)) {
+                $this->guardarProcesos((int)$_POST['receta_id'], $_POST['procesos'] ?? []);
+            }
+
             $this->db->commit();
         }catch(Exception $e){
             $this->db->rollBack();
