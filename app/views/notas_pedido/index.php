@@ -2,7 +2,7 @@
 
 <a href="<?= BASE_URL ?>/notaspedido/create" class="btn btn-success mb-3">Nueva NP</a>
 <div class="table-scroll mt-3">
-    <table class="table table-striped">
+    <table class="table table-striped align-middle">
         <thead>
             <tr>
                 <th>#</th>
@@ -10,26 +10,57 @@
                 <th>Estado</th>
                 <th>Fecha</th>
                 <th>Entrega</th>
-                <th>Ver/Remitar</th>
+                <th>Productos / Cantidad</th>
+                <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($notas as $n): ?>
+            <?php
+                $itemsCount = (int)($n['items_count'] ?? 0);
+                $totalPedida = (float)($n['total_pedida'] ?? 0);
+                $totalRemitida = (float)($n['total_remitida'] ?? 0);
+                $remitidoCompleto = ($n['remitido'] ?? '') === 'RemitidoCompleto';
+                $puedeRemitir = $n['estado'] === 'APROBADA' && !$remitidoCompleto;
+                $badgeEstado = $n['estado'] === 'APROBADA'
+                    ? 'primary'
+                    : ($n['estado'] === 'ANULADA' ? 'danger' : 'secondary');
+            ?>
             <tr>
-                <td><?= $n['id'] ?></td>
-                <td><?= $n['razon_social'] ?></td>
-                <td><?= $n['estado'] ?></td>
+                <td><?= (int)$n['id'] ?></td>
+                <td><?= htmlspecialchars($n['razon_social']) ?></td>
+                <td>
+                    <span class="badge bg-<?= $badgeEstado ?>"><?= htmlspecialchars($n['estado']) ?></span>
+                    <?php if (!empty($n['produccion_pendiente'])): ?>
+                        <span class="badge bg-warning text-dark">Producción</span>
+                    <?php endif; ?>
+                </td>
                 <td><?= date('d/m/Y', strtotime($n['created_at'])) ?></td>
                 <td><?= !empty($n['fecha_entrega']) ? date('d/m/Y', strtotime($n['fecha_entrega'])) : '&mdash;' ?></td>
                 <td>
-                    <a href="<?= BASE_URL ?>/notaspedido/show/<?= $n['id'] ?>" class="btn btn-sm btn-primary">Ver</a>
-                    <?php if ($n['remitido'] !== 'RemitidoCompleto'): ?>
+                    <?php if ($itemsCount === 1): ?>
+                        <strong><?= htmlspecialchars($n['item_descripcion'] ?? '—') ?></strong><br>
+                    <?php elseif ($itemsCount === 0): ?>
+                        <span class="text-muted small">Sin items</span><br>
+                    <?php endif; ?>
+
+                    <span class="small <?= $remitidoCompleto ? 'text-success fw-bold' : '' ?>">
+                        Pedida: <?= number_format($totalPedida, 3, ',', '.') ?>
+                        &mdash;
+                        Remitida: <?= number_format($totalRemitida, 3, ',', '.') ?>
+                    </span>
+
+                    <?php if ($remitidoCompleto): ?>
+                        <span class="text-success fw-bold ms-1">Remitido Completo</span>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <a href="<?= BASE_URL ?>/notaspedido/show/<?= (int)$n['id'] ?>" class="btn btn-sm btn-primary">Ver NP</a>
+                    <?php if ($puedeRemitir): ?>
                         <button class="btn btn-primary btn-sm"
-                            onclick="confirmarRemito(<?= $n['id'] ?>)">
+                            onclick="confirmarRemito(<?= (int)$n['id'] ?>)">
                             Remitir
                         </button>
-                    <?php else: ?>
-                    <span class="text-success">Remitido Completo</span>
                     <?php endif; ?>
                 </td>
             </tr>

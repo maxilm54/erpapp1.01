@@ -52,6 +52,14 @@ class IngresosMercaderiaController extends Controller
                 header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
                 exit;
             }
+
+            $depositoId = !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null;
+            if ($depositoId && (new Deposito())->esReservadoNp($depositoId)) {
+                $_SESSION['error'] = 'El depósito de productos reservados por NP no se puede usar para ingresos de mercadería.';
+                header('Location: '.BASE_URL.'/ingresosmercaderia/create/'.$ordenCompraId);
+                exit;
+            }
+
             error_log(print_r($_POST, true));
             //Existente me va a devolver si existe o no un remito para ese proveedor, debe venir vacio para poder seguir sino alerta.
             $existente = $this->ingreso->findByRemitoProveedor(

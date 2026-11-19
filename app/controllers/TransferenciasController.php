@@ -48,6 +48,12 @@ class TransferenciasController extends Controller
         }
 
         try {
+            $depositoModel = new Deposito();
+            if ($depositoModel->esReservadoNp((int)($_POST['deposito_origen_id'] ?? 0))
+                || $depositoModel->esReservadoNp((int)($_POST['deposito_destino_id'] ?? 0))) {
+                throw new Exception('El depósito de productos reservados por NP no se puede usar en transferencias manuales.');
+            }
+
             $items = [];
             $tipos = $_POST['tipo'] ?? [];
             $cantidades = $_POST['cantidad'] ?? [];

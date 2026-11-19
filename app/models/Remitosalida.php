@@ -3,6 +3,8 @@
     use Dompdf\Options;
 require_once BASE_PATH.'/app/models/Cuentacorrientecliente.php';
 require_once BASE_PATH.'/app/models/Numerador.php';
+require_once BASE_PATH.'/app/models/Deposito.php';
+require_once BASE_PATH.'/app/models/Reservaproductonp.php';
 require_once BASE_PATH.'/app/helpers/AsientoAutomatico.php';
 class RemitoSalida extends Model
 {
@@ -254,8 +256,21 @@ if (!$remito) {
         return $remito;
     }
 
+    /**
+     * Stock de un producto en depósitos normales. Excluye el depósito de
+     * productos reservados por NP: ese stock no se puede tomar desde un remito
+     * manual ni desde el selector general.
+     */
     public function stockDisponibleProducto(int $productoId): float
     {
+        $reservado = (new Deposito())->getReservadoNp();
+        $filtro = '';
+        $params = [$productoId];
+        if ($reservado) {
+            $filtro = ' AND (deposito_id IS NULL OR deposito_id <> ?)';
+            $params[] = (int)$reservado['id'];
+        }
+
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(
                 CASE
@@ -264,14 +279,19 @@ if (!$remito) {
                 END
             ),0) AS stock
             FROM movimientos_stock
-            WHERE producto_id = ?
+            WHERE producto_id = ?{$filtro}
         ");
-        $stmt->execute([$productoId]);
+        $stmt->execute($params);
         return (float)$stmt->fetchColumn();
     }
 
     public function stockDisponibleProductoPorDeposito(int $productoId, int $depositoId): float
     {
+        $principalId = (new Deposito())->principalId();
+        $filtro = ($depositoId === $principalId)
+            ? ' AND (deposito_id = ? OR deposito_id IS NULL)'
+            : ' AND deposito_id = ?';
+
         $stmt = $this->db->prepare("
             SELECT COALESCE(SUM(
                 CASE
@@ -280,8 +300,7 @@ if (!$remito) {
                 END
             ),0) AS stock
             FROM movimientos_stock
-            WHERE producto_id = ?
-              AND deposito_id = ?
+            WHERE producto_id = ?{$filtro}
         ");
         $stmt->execute([$productoId, $depositoId]);
         return (float)$stmt->fetchColumn();
@@ -331,8 +350,12 @@ if (!$remito) {
         ?string $observaciones = null,
         array $itemsManuales = []
         ): int{
-        try {
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
             $this->db->beginTransaction();
+        }
+
+        try {
             $numero = (new Numerador())->siguiente('REMITO');
             $cc = new CuentaCorrienteCliente();
 
@@ -368,25 +391,63 @@ if (!$remito) {
                     throw new Exception('ID de producto inválido');
                 }
 
-                $nombreProd = '';
-                $stmtProd = $this->db->prepare("SELECT nombre FROM productos WHERE id = ?");
+                $stmtProd = $this->db->prepare("SELECT nombre, usa_serie FROM productos WHERE id = ?");
                 $stmtProd->execute([$productoId]);
-                $nombreProd = $stmtProd->fetchColumn() ?? "ID: $productoId";
+                $prodDatos = $stmtProd->fetch(PDO::FETCH_ASSOC);
+                $nombreProd = $prodDatos['nombre'] ?? "ID: $productoId";
+                $usaSerie = (int)($prodDatos['usa_serie'] ?? 0) === 1;
 
-                // Validar stock por depósito si se indicó uno
-                if ($depositoId) {
-                    $stock = $this->stockDisponibleProductoPorDeposito($productoId, $depositoId);
-                } else {
-                    $stock = $this->stockDisponibleProducto($productoId);
+                // Prioridad de consumo: primero lo reservado para esta NP en el
+                // deposito "Deposito Productos Reservados (NP)"; si no alcanza,
+                // el resto sale del deposito elegido en el remito (o el principal).
+                $reservaModel = new Reservaproductonp();
+                $reservado = $reservaModel->disponible((int)$notaPedidoId, (int)$productoId);
+                $depositoReservadoId = $reservado > 0.000001
+                    ? $reservaModel->depositoReservadoId()
+                    : 0;
+                $cantidadReservada = $reservado > 0.000001
+                    ? min($cantidad, $reservado)
+                    : 0.0;
+                $cantidadRestante = $cantidad - $cantidadReservada;
+
+                if ($usaSerie && $cantidadReservada > 0.000001) {
+                    throw new Exception(
+                        "El producto '$nombreProd' usa series y tiene reservas para la NP. "
+                        . 'Libere la reserva o gestione el remito desde el depósito reservado.'
+                    );
                 }
 
-                if ($stock <= 0) {
-                    throw new Exception("El producto '$nombreProd' no tiene stock disponible (Stock: 0). No se puede remitar.");
+                $depositoRestanteId = 0;
+                if ($cantidadRestante > 0.000001) {
+                    $depositoRestanteId = $depositoId ?: (new Deposito())->principalId();
+                    if ($depositoRestanteId <= 0) {
+                        throw new Exception("No hay depósito de origen para remitar '$nombreProd'.");
+                    }
+                    if ($depositoReservadoId > 0 && $depositoRestanteId === $depositoReservadoId) {
+                        $depositoRestanteId = (new Deposito())->principalId();
+                    }
                 }
 
-                if ($stock < $cantidad) {
-                    $ubicacion = $depositoId ? ' del depósito seleccionado' : '';
-                    throw new Exception("Stock insuficiente en " . trim($ubicacion) . " para '$nombreProd'. Disponible: " . number_format($stock, 2) . ", Solicitado: " . number_format($cantidad, 2));
+                if ($cantidadReservada > 0.000001) {
+                    $stockReservado = $this->stockDisponibleProductoPorDeposito($productoId, $depositoReservadoId);
+                    if ($stockReservado + 0.0005 < $cantidadReservada) {
+                        throw new Exception(
+                            "La reserva de la NP para '$nombreProd' no tiene stock suficiente "
+                            . 'en el depósito reservado. Disponible: ' . number_format($stockReservado, 2)
+                            . ', reservado: ' . number_format($cantidadReservada, 2)
+                        );
+                    }
+                }
+
+                if ($cantidadRestante > 0.000001) {
+                    $stockRestante = $this->stockDisponibleProductoPorDeposito($productoId, $depositoRestanteId);
+                    if ($stockRestante + 0.0005 < $cantidadRestante) {
+                        throw new Exception(
+                            "Stock insuficiente para '$nombreProd' en el depósito seleccionado. "
+                            . 'Disponible: ' . number_format($stockRestante, 2)
+                            . ', solicitado: ' . number_format($cantidadRestante, 2)
+                        );
+                    }
                 }
 
                 // Detalle
@@ -433,20 +494,44 @@ if (!$remito) {
                 } catch (Exception $e) {
                     error_log("Error generando asiento para remito #{$remitoId}: " . $e->getMessage());
                 }
-// Movimiento de stock (salida)
-                $this->db->prepare("
-                    INSERT INTO movimientos_stock
-                    (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id)
-                    VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?, ?, ?)
-                ")->execute([
-                    $remitoId,
-                    $productoId,
-                    $cantidad,
-                    $depositoId,
-                    $loteId,
-                    'Remito de salida #' . $remitoId,
-                    $usuarioId
-                ]);
+
+                // Movimiento de stock: parte reservada para la NP
+                if ($cantidadReservada > 0.000001) {
+                    $consumido = $reservaModel->consumir((int)$notaPedidoId, (int)$productoId, $cantidadReservada);
+                    if ($consumido + 0.0005 < $cantidadReservada) {
+                        throw new Exception("No se pudo consumir la reserva de '$nombreProd' para la NP.");
+                    }
+
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id)
+                        VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, NULL, ?, ?)
+                    ")->execute([
+                        $remitoId,
+                        $productoId,
+                        $cantidadReservada,
+                        $depositoReservadoId,
+                        'Remito de salida #' . $remitoId . ' (reserva NP)',
+                        $usuarioId
+                    ]);
+                }
+
+                // Movimiento de stock: resto desde el deposito elegido
+                if ($cantidadRestante > 0.000001) {
+                    $this->db->prepare("
+                        INSERT INTO movimientos_stock
+                        (tipo, origen, referencia_id, producto_id, cantidad, deposito_id, lote_id, observaciones, usuario_id)
+                        VALUES ('SALIDA', 'REMITO_SALIDA', ?, ?, ?, ?, ?, ?, ?)
+                    ")->execute([
+                        $remitoId,
+                        $productoId,
+                        $cantidadRestante,
+                        $depositoRestanteId,
+                        $loteId,
+                        'Remito de salida #' . $remitoId,
+                        $usuarioId
+                    ]);
+                }
 
                 // Si el item tiene series, marcarlas como remitidas
                 if (!empty($itemValue['series']) && is_array($itemValue['series'])) {
@@ -548,14 +633,17 @@ if (!$remito) {
 
             // ✅ Commit;
 
-            $this->db->commit();
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
             return $remitoId;
 
         } catch (Exception $e) {
-            $this->db->rollBack();
+            if (!$inTransaction) {
+                $this->db->rollBack();
+            }
             error_log('Error al generar remito: ' . $e->getMessage() . ' - ' . __FILE__ . ':' . __LINE__);
             throw new Exception('Error al generar remito: ' . $e->getMessage());
-            $_SESSION['error'] = 'Error al generar remito: ' . $e->getMessage();
         }
     }
 
@@ -791,6 +879,11 @@ if (!$remito) {
 
                 if (!is_numeric($productoId)) {
                     throw new Exception('ID de producto inválido');
+                }
+
+                $depositoReservadoNp = (new Deposito())->reservadoNpId();
+                if ($depositoId && $depositoReservadoNp && $depositoId === $depositoReservadoNp) {
+                    throw new Exception('El depósito de productos reservados por NP no se puede usar en un remito manual.');
                 }
 
                 // Validar stock por depósito si se indicó uno

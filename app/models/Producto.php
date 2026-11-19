@@ -1,6 +1,7 @@
 <?php
 
 require_once BASE_PATH . '/app/core/Model.php';
+require_once BASE_PATH . '/app/models/Deposito.php';
 
 class Producto extends Model
 {
@@ -24,6 +25,13 @@ class Producto extends Model
         if ($depositoId) {
             $depositoFilter = " ON ms.producto_id = p.id AND ms.deposito_id = :deposito_id";
             $params[':deposito_id'] = $depositoId;
+        } else {
+            $reservado = (new Deposito())->getReservadoNp();
+            if ($reservado) {
+                $depositoFilter = " ON ms.producto_id = p.id
+                    AND (ms.deposito_id IS NULL OR ms.deposito_id <> :reservado_np)";
+                $params[':reservado_np'] = (int)$reservado['id'];
+            }
         }
         $stmt = $this->db->prepare("
             SELECT p.id, p.nombre, p.sku, p.precio_venta,
@@ -54,6 +62,13 @@ class Producto extends Model
         if ($depositoId) {
             $depositoFilter = " ON ms.producto_id = p.id AND ms.deposito_id = :deposito_id";
             $params[':deposito_id'] = $depositoId;
+        } else {
+            $reservado = (new Deposito())->getReservadoNp();
+            if ($reservado) {
+                $depositoFilter = " ON ms.producto_id = p.id
+                    AND (ms.deposito_id IS NULL OR ms.deposito_id <> :reservado_np)";
+                $params[':reservado_np'] = (int)$reservado['id'];
+            }
         }
         $stmt = $this->db->prepare("
             SELECT p.id, p.nombre, p.sku, p.precio_venta, p.usa_serie,

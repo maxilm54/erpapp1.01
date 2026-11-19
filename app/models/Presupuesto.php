@@ -57,7 +57,13 @@ class Presupuesto extends Model
     public function all(): array
     {
         return $this->db->query(
-            "SELECT pr.*, c.razon_social
+            "SELECT pr.*, c.razon_social,
+                    (SELECT np.id
+                     FROM notas_pedido np
+                     WHERE np.presupuesto_id = pr.id
+                       AND np.estado <> 'ANULADA'
+                     ORDER BY np.id DESC
+                     LIMIT 1) AS nota_pedido_id
              FROM presupuestos pr
              JOIN clientes c ON c.id = pr.cliente_id
              ORDER BY pr.created_at DESC"
@@ -67,7 +73,13 @@ class Presupuesto extends Model
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT pr.*, c.razon_social
+            "SELECT pr.*, c.razon_social,
+                    (SELECT np.id
+                     FROM notas_pedido np
+                     WHERE np.presupuesto_id = pr.id
+                       AND np.estado <> 'ANULADA'
+                     ORDER BY np.id DESC
+                     LIMIT 1) AS nota_pedido_id
              FROM presupuestos pr
              JOIN clientes c ON c.id = pr.cliente_id
              WHERE pr.id = ?"
@@ -103,14 +115,15 @@ class Presupuesto extends Model
         try { 
             //cabecera
             $stmt = $this->db->prepare(
-                "INSERT INTO presupuestos (cliente_id, usuario_id, observaciones, fecha_entrega)
-                 VALUES (:c, :u, :obs, :fe)"
+                "INSERT INTO presupuestos (cliente_id, usuario_id, observaciones, fecha_entrega, vencimiento)
+                 VALUES (:c, :u, :obs, :fe, :v)"
             );
             $stmt->execute([
                 'c'   => $data['cliente_id'],
                 'u'   => $_SESSION['user_id'],
                 'obs' => $data['observaciones'] ?? '',
-                'fe'  => $data['fecha_entrega'] ?? null
+                'fe'  => $data['fecha_entrega'] ?? null,
+                'v'   => $data['vencimiento'] ?? null
             ]);
 
             $presupuestoId = (int)$this->db->lastInsertId();
@@ -172,14 +185,27 @@ class Presupuesto extends Model
         $this->db->beginTransaction();
 
         try {
+            $stmtEstado = $this->db->prepare(
+                "SELECT estado FROM presupuestos WHERE id = ? FOR UPDATE"
+            );
+            $stmtEstado->execute([$id]);
+            $estadoActual = $stmtEstado->fetchColumn();
+            if ($estadoActual === false) {
+                throw new Exception('Presupuesto no encontrado.');
+            }
+            if ($estadoActual !== 'BORRADOR') {
+                throw new Exception('Solo se pueden editar presupuestos en borrador.');
+            }
+
             $this->db->prepare(
                 "UPDATE presupuestos
-                 SET cliente_id = ?, observaciones = ?, fecha_entrega = ?
+                 SET cliente_id = ?, observaciones = ?, fecha_entrega = ?, vencimiento = ?
                  WHERE id = ? AND estado = 'BORRADOR'"
             )->execute([
                 $data['cliente_id'],
                 $data['observaciones'] ?? '',
                 $data['fecha_entrega'] ?? null,
+                $data['vencimiento'] ?? null,
                 $id
             ]);
 
@@ -233,9 +259,66 @@ class Presupuesto extends Model
     {
         $this->db->prepare(
             "UPDATE presupuestos
-             SET estado = 'APROBADO'
+             SET estado = 'APROBADO',
+                 aprobado_at = COALESCE(aprobado_at, NOW())
              WHERE id = ? AND estado = 'BORRADOR'"
         )->execute([$id]);
+    }
+
+    /**
+     * Actualiza solo el vencimiento, mientras el presupuesto esta en BORRADOR.
+     * Una vez aprobado no se puede tocar.
+     */
+    public function actualizarVencimiento(int $id, ?string $vencimiento): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT estado FROM presupuestos WHERE id = ?"
+        );
+        $stmt->execute([$id]);
+        if ($stmt->fetchColumn() !== 'BORRADOR') {
+            return false;
+        }
+
+        $upd = $this->db->prepare(
+            "UPDATE presupuestos
+             SET vencimiento = ?
+             WHERE id = ? AND estado = 'BORRADOR'"
+        );
+        $upd->execute([$vencimiento, $id]);
+
+        if ($upd->rowCount() === 0) {
+            // Puede ser que el valor no haya cambiado o que el estado cambio.
+            $stmt->execute([$id]);
+            return $stmt->fetchColumn() === 'BORRADOR';
+        }
+
+        return true;
+    }
+
+    /**
+     * Anula el presupuesto. Queda el registro y no se puede revertir.
+     * Si tiene una NP asociada, primero hay que anular la NP: eso libera el
+     * presupuesto (pre_asign = LIBRE) y recien despues se puede anular.
+     * Devuelve false si ya estaba anulado o no existe.
+     */
+    public function anular(int $id): bool
+    {
+        $npId = $this->getNotaPedidoActivaByPresupuesto($id);
+        if ($npId > 0) {
+            throw new Exception(
+                'El presupuesto tiene la Nota de Pedido #' . $npId
+                . ' asociada. Primero anule la NP; eso libera el presupuesto y después podrá anularlo. '
+                . 'Si la NP está remitida por completo no se puede anular: genere una devolución.'
+            );
+        }
+
+        $stmt = $this->db->prepare(
+            "UPDATE presupuestos
+             SET estado = 'ANULADO', pre_asign = 'ANULADO'
+             WHERE id = ? AND estado <> 'ANULADO'"
+        );
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
     }
 
     public function getByCliente($clienteId)
@@ -305,6 +388,23 @@ class Presupuesto extends Model
         ");
         $stmt->execute([$id]);
         return $stmt->fetchColumn();
+    }
+
+    /**
+     * NP activa (no anulada) asociada al presupuesto, o 0 si no hay.
+     */
+    public function getNotaPedidoActivaByPresupuesto(int $id): int
+    {
+        $stmt = $this->db->prepare("
+            SELECT id
+            FROM notas_pedido
+            WHERE presupuesto_id = ?
+              AND estado <> 'ANULADA'
+            ORDER BY id DESC
+            LIMIT 1
+        ");
+        $stmt->execute([$id]);
+        return (int)$stmt->fetchColumn();
     }
 
     /**

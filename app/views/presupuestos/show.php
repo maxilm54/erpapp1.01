@@ -1,3 +1,13 @@
+<?php
+$tieneNpAsociada = !empty($presupuesto['nota_pedido_id']);
+$fechaVencimiento = !empty($presupuesto['vencimiento'])
+    ? date('d/m/Y', strtotime($presupuesto['vencimiento']))
+    : '';
+$vencido = !empty($presupuesto['vencimiento']) && $presupuesto['vencimiento'] < date('Y-m-d');
+$aprobadoVencido = !empty($presupuesto['aprobado_at'])
+    && !empty($presupuesto['vencimiento'])
+    && date('Y-m-d', strtotime($presupuesto['aprobado_at'])) > $presupuesto['vencimiento'];
+?>
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3>Presupuesto #<?= $presupuesto['id'] ?></h3>
@@ -7,15 +17,40 @@
                 <a href="<?= BASE_URL ?>/presupuestos/edit/<?= $presupuesto['id'] ?>"
                    class="btn btn-warning">Editar</a>
 
-                <form method="POST"
+                <form id="formAprobarPresupuesto" method="POST"
                       action="<?= BASE_URL ?>/presupuestos/aprobar/<?= $presupuesto['id'] ?>"
                       class="d-inline">
-                    <button class="btn btn-success">Aprobar</button>
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                    <button type="submit" class="btn btn-success"
+                            onclick="return confirmarAprobacionPresupuesto(<?= $vencido ? 'true' : 'false' ?>, '<?= htmlspecialchars($fechaVencimiento, ENT_QUOTES) ?>')">
+                        Aprobar
+                    </button>
+                </form>
+            <?php endif; ?>
+
+            <?php if ($presupuesto['estado'] !== 'ANULADO' && !$tieneNpAsociada): ?>
+                <form method="POST"
+                      action="<?= BASE_URL ?>/presupuestos/anular/<?= $presupuesto['id'] ?>"
+                      class="d-inline"
+                      onsubmit="return confirm('¿Anular el presupuesto? Queda el registro y esta acción no se puede revertir.');">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                    <button class="btn btn-danger">Anular</button>
                 </form>
             <?php endif; ?>
 
             <a href="<?= BASE_URL ?>/presupuestos" class="btn btn-secondary">Volver</a>
-            <a href="<?= BASE_URL ?>/presupuestos/volvernp/<?= $presupuesto['id'] ?>" class="btn btn-secondary">NP</a>
+            <?php if ($tieneNpAsociada): ?>
+                <a href="<?= BASE_URL ?>/notaspedido/show/<?= (int)$presupuesto['nota_pedido_id'] ?>"
+                   class="btn btn-outline-secondary">
+                    Ver NP #<?= (int)$presupuesto['nota_pedido_id'] ?>
+                </a>
+                <?php if ($presupuesto['estado'] !== 'ANULADO'): ?>
+                    <span class="text-muted small ms-2">
+                        Para anular el presupuesto, primero anulá la NP.
+                        Si la NP está remitida por completo, generá una devolución.
+                    </span>
+                <?php endif; ?>
+            <?php endif; ?>
 
             <a href="<?= BASE_URL ?>/presupuestos/pdf/<?= $presupuesto['id'] ?>" target="_blank"
                class="btn btn-outline-danger">
@@ -41,9 +76,62 @@
         <strong>Entrega comprometida:</strong> <?= date('d/m/Y', strtotime($presupuesto['fecha_entrega'])) ?><br>
         <?php endif; ?>
         <strong>Estado:</strong>
-        <span class="badge bg-<?= $presupuesto['estado'] === 'APROBADO' ? 'success' : 'secondary' ?>">
+        <?php
+        $badgeEstado = $presupuesto['estado'] === 'APROBADO'
+            ? 'success'
+            : ($presupuesto['estado'] === 'ANULADO' ? 'danger' : 'secondary');
+        ?>
+        <span class="badge bg-<?= $badgeEstado ?>">
             <?= $presupuesto['estado'] ?>
         </span>
+
+        <br>
+        <strong>Vencimiento:</strong>
+        <?php if (!empty($presupuesto['vencimiento'])): ?>
+            <?= $fechaVencimiento ?>
+            <?php if (!empty($presupuesto['aprobado_at'])): ?>
+                <?php if ($aprobadoVencido): ?>
+                    <span class="badge bg-danger">Aprobado vencido</span>
+                <?php else: ?>
+                    <span class="badge bg-success">Aprobado en término</span>
+                <?php endif; ?>
+            <?php elseif ($presupuesto['estado'] === 'BORRADOR' && $vencido): ?>
+                <span class="badge bg-danger">Vencido</span>
+            <?php endif; ?>
+        <?php else: ?>
+            <span class="text-muted">Sin vencimiento</span>
+        <?php endif; ?>
+
+        <?php if ($presupuesto['estado'] === 'APROBADO' || !empty($presupuesto['aprobado_at'])): ?>
+            <br>
+            <strong>Aprobado:</strong>
+            <?php if (!empty($presupuesto['aprobado_at'])): ?>
+                <?= date('d/m/Y H:i', strtotime($presupuesto['aprobado_at'])) ?>
+            <?php else: ?>
+                <span class="text-muted">sin fecha registrada</span>
+            <?php endif; ?>
+        <?php endif; ?>
+
+        <?php if ($presupuesto['estado'] === 'BORRADOR'): ?>
+            <form method="POST"
+                  action="<?= BASE_URL ?>/presupuestos/actualizar-vencimiento/<?= (int)$presupuesto['id'] ?>"
+                  class="d-flex align-items-end gap-2 mt-2">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                <div>
+                    <label class="form-label small mb-0">Cambiar vencimiento</label>
+                    <input type="date" name="vencimiento" class="form-control form-control-sm"
+                           value="<?= htmlspecialchars($presupuesto['vencimiento'] ?? '') ?>">
+                </div>
+                <button class="btn btn-sm btn-outline-primary">Guardar vencimiento</button>
+            </form>
+        <?php endif; ?>
+
+        <?php if ($presupuesto['estado'] === 'ANULADO'): ?>
+            <div class="alert alert-danger mt-3 mb-0">
+                <strong>Presupuesto anulado.</strong>
+                Queda el registro, pero no se puede aprobar ni modificar.
+            </div>
+        <?php endif; ?>
     </div>
 
     <?php $adjModulo = 'PRESUPUESTO'; $adjDocId = (int)$presupuesto['id'];
@@ -81,15 +169,19 @@
                     <td>$<?= number_format($sub, 2) ?></td>
                     <td>
                         <?php if (empty($d['producto_id'])): ?>
-                            <form method="POST"
-                                  action="<?= BASE_URL ?>/presupuestos/agregar-producto/<?= $presupuesto['id'] ?>/<?= $d['id'] ?>"
-                                  class="d-inline"
-                                  onsubmit="return confirm('¿Agregar este producto a la base de productos? Después podrá editarlo en Productos.');">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
-                                <button class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-plus-circle"></i> Agregar a Productos
-                                </button>
-                            </form>
+                            <?php if ($presupuesto['estado'] !== 'ANULADO'): ?>
+                                <form method="POST"
+                                      action="<?= BASE_URL ?>/presupuestos/agregar-producto/<?= $presupuesto['id'] ?>/<?= $d['id'] ?>"
+                                      class="d-inline"
+                                      onsubmit="return confirm('¿Agregar este producto a la base de productos? Después podrá editarlo en Productos.');">
+                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                                    <button class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-plus-circle"></i> Agregar a Productos
+                                    </button>
+                                </form>
+                            <?php else: ?>
+                                <span class="text-muted small">Sin producto asociado</span>
+                            <?php endif; ?>
                         <?php else: ?>
                             <a href="<?= BASE_URL ?>/productos/update/<?= $d['producto_id'] ?>"
                                class="btn btn-sm btn-outline-secondary">
@@ -109,3 +201,31 @@
         </table>
     </div>
 </div>
+
+<script>
+function confirmarAprobacionPresupuesto(vencido, fechaVencimiento) {
+    const form = document.getElementById('formAprobarPresupuesto');
+    if (!form) return true;
+
+    if (!vencido) {
+        return true;
+    }
+
+    Swal.fire({
+        title: 'Presupuesto vencido',
+        html: 'Este presupuesto venció el <strong>' + fechaVencimiento + '</strong>.<br>¿Querés aprobarlo igual?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, aprobar vencido',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            form.submit();
+        }
+    });
+
+    return false;
+}
+</script>

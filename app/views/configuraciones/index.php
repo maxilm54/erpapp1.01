@@ -167,6 +167,40 @@
     </div>
 </div>
 
+<!-- Levantar Nota de Pedido en una receta -->
+<div class="card mb-3">
+    <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Producción desde Notas de Pedido</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= BASE_URL ?>/configuraciones/guardar">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="guardar" value="np_generar_produccion">
+
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="np_generar_produccion"
+                       name="np_generar_produccion" value="1" <?= $npGenerarProduccion ? 'checked' : '' ?>>
+                <label class="form-check-label fw-semibold" for="np_generar_produccion">
+                    Permitir levantar una Nota de Pedido en la receta de su producto
+                </label>
+            </div>
+            <p class="text-muted mb-0 small">
+                Con esta opción activa, una <strong>NP aprobada</strong> que tenga
+                <strong>un solo producto</strong> (cargado en la base de productos) y ese producto tenga
+                <strong>una única receta activa</strong> muestra el botón
+                <em>Generar orden de producción</em>. La OP se crea desde esa receta, con la cantidad pedida,
+                reserva las materias primas y queda vinculada a la NP. Si el producto no tiene receta, tiene
+                más de una, o la NP tiene varias líneas/productos libres, no se genera y se explica el motivo.
+            </p>
+
+            <div class="mt-3">
+                <button class="btn btn-success"><i class="bi bi-save"></i> Guardar</button>
+                <a href="<?= BASE_URL ?>/home" class="btn btn-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Campos personalizados por modulo -->
 <div class="card mb-3">
     <div class="card-header bg-dark text-white">

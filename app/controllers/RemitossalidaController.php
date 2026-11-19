@@ -4,6 +4,7 @@ require_once BASE_PATH.'/app/models/Remitosalida.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Cliente.php';
 require_once BASE_PATH.'/app/models/Deposito.php';
+require_once BASE_PATH.'/app/models/Reservaproductonp.php';
 require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 class RemitosSalidaController extends Controller
@@ -262,9 +263,20 @@ class RemitosSalidaController extends Controller
             }
         }
 
+        $reservasNp = [];
+        $depositoReservadoNp = null;
+        try {
+            $reservasNp = (new Reservaproductonp())->resumenPorProducto((int)$notaPedidoId);
+            $depositoReservadoNp = (new Deposito())->getReservadoNp();
+        } catch (Exception $e) {
+            error_log('[Remito reservas NP] ' . $e->getMessage());
+        }
+
         $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
             'np' => $np,
             'depositos' => (new Deposito())->allSeleccionables(false),
+            'reservasNp' => $reservasNp,
+            'depositoReservadoNp' => $depositoReservadoNp,
             'cpCampos' => (new Campopersonalizado())->porModulo('REMITO_SALIDA'),
             'cpValores' => []
         ]);

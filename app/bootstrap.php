@@ -18,7 +18,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Variables de entorno para producción
 //$develop = getenv('APP_ENV') === 'production' ? 0 : 1;
-$develop = 1;
+$develop = 0;
 /**
  * Constantes base//
  */

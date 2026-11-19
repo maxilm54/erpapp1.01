@@ -7,6 +7,9 @@ require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Cliente.php';
 require_once BASE_PATH . '/app/models/Configuracion.php';
 require_once BASE_PATH . '/app/models/Campopersonalizado.php';
+require_once BASE_PATH . '/app/models/Ordenproduccion.php';
+require_once BASE_PATH . '/app/models/Deposito.php';
+require_once BASE_PATH . '/app/models/Reservaproductonp.php';
 
 class NotaPedido extends Model
 {
@@ -53,10 +56,34 @@ class NotaPedido extends Model
     public function all(): array
     {
         return $this->db->query("
-            SELECT np.*, c.razon_social
+            SELECT np.*, c.razon_social,
+                   (SELECT COUNT(*)
+                    FROM notas_pedido_detalle d
+                    WHERE d.nota_pedido_id = np.id) AS items_count,
+                   (SELECT COALESCE(SUM(d.cantidad), 0)
+                    FROM notas_pedido_detalle d
+                    WHERE d.nota_pedido_id = np.id) AS total_pedida,
+                   (SELECT COALESCE(SUM(rsd.cantidad), 0)
+                    FROM remitos_salida rs
+                    JOIN remitos_salida_detalle rsd ON rsd.remito_id = rs.id
+                    WHERE rs.nota_pedido_id = np.id) AS total_remitida,
+                   (SELECT COALESCE(p.nombre, d.descripcion)
+                    FROM notas_pedido_detalle d
+                    LEFT JOIN productos p ON p.id = d.producto_id
+                    WHERE d.nota_pedido_id = np.id
+                    ORDER BY d.id ASC
+                    LIMIT 1) AS item_descripcion
             FROM notas_pedido np
             JOIN clientes c ON c.id = np.cliente_id
-            ORDER BY np.created_at DESC
+            ORDER BY
+                CASE
+                    WHEN np.estado = 'ANULADA' THEN 2
+                    WHEN np.remitido = 'RemitidoCompleto' THEN 1
+                    ELSE 0
+                END ASC,
+                CASE WHEN np.fecha_entrega IS NULL THEN 1 ELSE 0 END ASC,
+                np.fecha_entrega ASC,
+                np.created_at DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -162,56 +189,403 @@ class NotaPedido extends Model
     }
 
     // ✅ Aprobar
-    public function aprobar(int $id): void
+    /**
+     * Aprueba la NP. Si $produccionPendiente es true, la NP queda marcada
+     * para procesarse desde una receta en el submenu "NP pendientes de producir".
+     */
+    public function aprobar(int $id, bool $produccionPendiente = false): void
     {
         $this->db->prepare("
             UPDATE notas_pedido
-            SET estado = 'APROBADA'
+            SET estado = 'APROBADA',
+                produccion_pendiente = :pp
             WHERE id = :id AND estado = 'BORRADOR'
-        ")->execute(['id' => $id]);
+        ")->execute([
+            'pp' => $produccionPendiente ? 1 : 0,
+            'id' => $id,
+        ]);
+    }
+
+    /**
+     * Evalua si la NP se puede "levantar" en una receta para producir.
+     * Requiere: un solo producto (sin lineas libres), producto existente y
+     * activo. La cantidad devuelta es la pendiente de remitir.
+     */
+    public function evaluarProduccionNota(int $id): array
+    {
+        $resultado = [
+            'elegible'    => false,
+            'motivo'      => '',
+            'producto_id' => null,
+            'producto'    => null,
+            'cantidad'    => 0.0,
+            'receta'      => null,
+            'recetas'     => [],
+        ];
+
+        $lineas = $this->detalleConPendientes($id);
+
+        if (empty($lineas)) {
+            $resultado['motivo'] = 'La nota de pedido no tiene lineas.';
+            return $resultado;
+        }
+
+        $productos = [];
+        $cantidad = 0.0;
+        foreach ($lineas as $linea) {
+            if (empty($linea['producto_id'])) {
+                $resultado['motivo'] = 'La nota de pedido tiene lineas libres o sin producto asociado.';
+                return $resultado;
+            }
+            $productos[(int)$linea['producto_id']] = true;
+            $cantidad += (float)($linea['pendiente'] ?? 0);
+        }
+
+        if ($cantidad <= 0) {
+            $resultado['motivo'] = 'La Nota de Pedido no tiene cantidad pendiente para producir.';
+            return $resultado;
+        }
+
+        if (count($productos) !== 1) {
+            $resultado['motivo'] = 'La nota de pedido tiene mas de un producto.';
+            return $resultado;
+        }
+
+        $productoId = (int)array_key_first($productos);
+
+        $stmt = $this->db->prepare("SELECT id, nombre, activo FROM productos WHERE id = ?");
+        $stmt->execute([$productoId]);
+        $producto = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$producto || (int)$producto['activo'] !== 1) {
+            $resultado['motivo'] = 'El producto de la nota de pedido no existe o esta inactivo.';
+            return $resultado;
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT id, nombre, producto_id
+             FROM recetas
+             WHERE producto_id = ? AND activa = '1'
+             ORDER BY id DESC"
+        );
+        $stmt->execute([$productoId]);
+        $recetas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $resultado['producto_id'] = $productoId;
+        $resultado['producto']    = $producto['nombre'];
+        $resultado['cantidad']    = $cantidad;
+        $resultado['recetas']     = $recetas;
+
+        if (empty($recetas)) {
+            $resultado['motivo'] = 'El producto no tiene una receta activa.';
+            return $resultado;
+        }
+        if (count($recetas) > 1) {
+            $resultado['motivo'] = 'El producto tiene mas de una receta activa.';
+            return $resultado;
+        }
+
+        $resultado['elegible'] = true;
+        $resultado['receta']   = $recetas[0];
+        return $resultado;
+    }
+
+    /**
+     * Orden de produccion ya generada desde esta NP (si existe).
+     */
+    public function ordenProduccionDeNota(int $notaPedidoId): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, estado, cantidad
+             FROM ordenes_produccion
+             WHERE nota_pedido_id = ?
+             ORDER BY id DESC
+             LIMIT 1"
+        );
+        $stmt->execute([$notaPedidoId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * NPs aprobadas marcadas para producir que todavia no tienen una OP.
+     */
+    public function npPendientesProduccion(): array
+    {
+        return $this->db->query("
+            SELECT np.*, c.razon_social,
+                   (SELECT GROUP_CONCAT(COALESCE(p.nombre, d.descripcion) SEPARATOR ' / ')
+                    FROM notas_pedido_detalle d
+                    LEFT JOIN productos p ON p.id = d.producto_id
+                    WHERE d.nota_pedido_id = np.id) AS productos,
+                   (SELECT COUNT(*) FROM notas_pedido_detalle d
+                    WHERE d.nota_pedido_id = np.id) AS lineas,
+                   (SELECT COUNT(DISTINCT d.producto_id) FROM notas_pedido_detalle d
+                    WHERE d.nota_pedido_id = np.id AND d.producto_id IS NOT NULL) AS productos_distintos,
+                   (SELECT COUNT(*) FROM notas_pedido_detalle d
+                    WHERE d.nota_pedido_id = np.id AND d.producto_id IS NULL) AS lineas_libres
+            FROM notas_pedido np
+            JOIN clientes c ON c.id = np.cliente_id
+            WHERE np.produccion_pendiente = 1
+              AND np.estado = 'APROBADA'
+              AND COALESCE(np.remitido, 'SinRemitir') <> 'RemitidoCompleto'
+              AND NOT EXISTS (
+                  SELECT 1 FROM ordenes_produccion op WHERE op.nota_pedido_id = np.id
+              )
+            ORDER BY np.id DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Crea la OP desde la receta del unico producto de la NP. La reserva de
+     * materias primas la hace OrdenProduccion::crear().
+     *
+     * Si $recetaId viene informado se usa esa receta (puede ser de otro
+     * producto, por ejemplo una variante con cambios minimos). Si no, se
+     * exige que el producto tenga exactamente una receta activa.
+     */
+    public function crearOrdenProduccionDesdeNota(int $notaPedidoId, int $usuarioId, ?int $recetaId = null): int
+    {
+        $existente = $this->ordenProduccionDeNota($notaPedidoId);
+        if ($existente) {
+            throw new Exception(
+                'La Nota de Pedido #' . $notaPedidoId . ' ya tiene la Orden de Produccion #'
+                . (int)$existente['id'] . '.'
+            );
+        }
+
+        $evaluacion = $this->evaluarProduccionNota($notaPedidoId);
+        if (empty($evaluacion['producto_id'])) {
+            throw new Exception('No se puede generar la orden de produccion: ' . $evaluacion['motivo']);
+        }
+
+        $recetaFinal = null;
+        if ($recetaId !== null && $recetaId > 0) {
+            $stmt = $this->db->prepare(
+                "SELECT id, nombre, producto_id
+                 FROM recetas
+                 WHERE id = ? AND activa = '1'"
+            );
+            $stmt->execute([$recetaId]);
+            $recetaFinal = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$recetaFinal) {
+                throw new Exception('La receta seleccionada no existe o esta inactiva.');
+            }
+        } else {
+            if (!$evaluacion['elegible']) {
+                throw new Exception('No se puede generar la orden de produccion: ' . $evaluacion['motivo']);
+            }
+            $recetaFinal = $evaluacion['receta'];
+        }
+
+        $stmt = $this->db->prepare(
+            "SELECT estado, remitido, fecha_entrega, observaciones
+             FROM notas_pedido
+             WHERE id = ?"
+        );
+        $stmt->execute([$notaPedidoId]);
+        $nota = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$nota) {
+            throw new Exception('La Nota de Pedido no existe.');
+        }
+        if ($nota['estado'] !== 'APROBADA') {
+            throw new Exception('La Nota de Pedido debe estar aprobada antes de generar la orden de produccion.');
+        }
+        if (($nota['remitido'] ?? '') === 'RemitidoCompleto') {
+            throw new Exception('La Nota de Pedido ya fue remitida por completo.');
+        }
+
+        $observaciones = 'Generada desde Nota de Pedido #' . $notaPedidoId;
+        if (!empty($nota['observaciones'])) {
+            $observaciones .= ': ' . $nota['observaciones'];
+        }
+        if (!empty($recetaFinal['producto_id'])
+            && (int)$recetaFinal['producto_id'] !== (int)$evaluacion['producto_id']) {
+            $observaciones .= ' - Receta "' . $recetaFinal['nombre'] . '" del producto #'
+                . (int)$recetaFinal['producto_id'];
+        }
+
+        try {
+            $ordenId = (new OrdenProduccion())->crear([
+                'producto_id'    => (int)$evaluacion['producto_id'],
+                'receta_id'      => (int)$recetaFinal['id'],
+                'cantidad'       => (float)$evaluacion['cantidad'],
+                'f_entrega'      => $nota['fecha_entrega'] ?? null,
+                'observaciones'  => $observaciones,
+                'usuario_id'     => $usuarioId,
+                'deposito_items' => [],
+                'nota_pedido_id' => $notaPedidoId,
+            ]);
+
+            // Ya tiene OP: sale de la bandeja de pendientes de producir.
+            $this->db->prepare("UPDATE notas_pedido SET produccion_pendiente = 0 WHERE id = ?")
+                ->execute([$notaPedidoId]);
+
+            return $ordenId;
+        } catch (PDOException $e) {
+            if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+                throw new Exception(
+                    'La Nota de Pedido #' . $notaPedidoId . ' ya tiene una orden de produccion generada.'
+                );
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Reserva manual de productos para una NP aprobada (tenga o no una OP).
+     * $items = [producto_id => cantidad].
+     * Devuelve la cantidad de lineas reservadas.
+     */
+    public function reservarProductos(int $notaPedidoId, array $items, int $depositoOrigenId, int $usuarioId): int
+    {
+        $stmt = $this->db->prepare("SELECT estado, remitido FROM notas_pedido WHERE id = ?");
+        $stmt->execute([$notaPedidoId]);
+        $np = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$np) {
+            throw new Exception('La Nota de Pedido no existe.');
+        }
+        if ($np['estado'] !== 'APROBADA') {
+            throw new Exception('La Nota de Pedido debe estar aprobada para reservar productos.');
+        }
+        if (($np['remitido'] ?? '') === 'RemitidoCompleto') {
+            throw new Exception('La Nota de Pedido ya fue remitida por completo.');
+        }
+        if ($depositoOrigenId <= 0) {
+            throw new Exception('Debe seleccionar un deposito de origen.');
+        }
+        if (empty($items)) {
+            throw new Exception('No se indicaron productos para reservar.');
+        }
+
+        $pendientes = [];
+        foreach ($this->detalleConPendientes($notaPedidoId) as $linea) {
+            if (empty($linea['producto_id'])) {
+                continue;
+            }
+            $productoId = (int)$linea['producto_id'];
+            $pendientes[$productoId] = ($pendientes[$productoId] ?? 0) + (float)$linea['pendiente'];
+        }
+
+        $reservaModel = new Reservaproductonp();
+        $reservado = $reservaModel->resumenPorProducto($notaPedidoId);
+
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $reservadas = 0;
+            foreach ($items as $productoId => $cantidad) {
+                $productoId = (int)$productoId;
+                $cantidad = (float)str_replace(',', '.', (string)$cantidad);
+                if ($cantidad <= 0) {
+                    continue;
+                }
+                if (!isset($pendientes[$productoId])) {
+                    throw new Exception('El producto #' . $productoId . ' no pertenece a la Nota de Pedido.');
+                }
+
+                $yaReservado = (float)($reservado[$productoId]['disponible'] ?? 0);
+                $disponibleParaReservar = $pendientes[$productoId] - $yaReservado;
+                if ($cantidad > $disponibleParaReservar + 0.0005) {
+                    throw new Exception(
+                        'No se puede reservar ' . number_format($cantidad, 3, ',', '.')
+                        . ' del producto #' . $productoId . ': pendiente '
+                        . number_format($pendientes[$productoId], 3, ',', '.')
+                        . ', ya reservado ' . number_format($yaReservado, 3, ',', '.') . '.'
+                    );
+                }
+
+                $reservaModel->crearManual($notaPedidoId, $productoId, $cantidad, $depositoOrigenId, $usuarioId);
+                $reservadas++;
+            }
+
+            if ($reservadas === 0) {
+                throw new Exception('No se indicaron cantidades para reservar.');
+            }
+
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
+            return $reservadas;
+        } catch (Exception $e) {
+            if (!$inTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Libera las reservas vigentes de la NP y devuelve el stock al origen.
+     */
+    public function liberarReservas(int $notaPedidoId, int $usuarioId): float
+    {
+        return (new Reservaproductonp())->liberar($notaPedidoId, $usuarioId);
     }
 
     // ❌ Anular
     public function anular(int $id, string $motivo): void
     {
-        $this->db->beginTransaction();
         if (trim($motivo) === '') {
             throw new Exception('Debe indicar el motivo de anulación');
         }
-        // 1️⃣ Obtener NP para controlar que exista
-        $stmt = $this->db->prepare("
-            SELECT presupuesto_id
-            FROM notas_pedido
-            WHERE id = ?
-        ");
-        $stmt->execute([$id]);
-        $np = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$np) {
-            throw new Exception('NP no encontrada');
-        }
-
-        $this->db->prepare("
-            UPDATE notas_pedido
-            SET estado = 'ANULADA',
-                motivo_anulacion = :m,
-                presupuesto_id = NULL,
-                anulado_at = NOW()
-            WHERE id = :id
-        ")->execute([
-            'm' => $motivo,
-            'id' => $id
-        ]);
-        // 3️⃣ Liberar presupuesto si existe
-        if (!empty($np['presupuesto_id'])) {
-            $this->db->prepare("
-                UPDATE presupuestos
-                SET pre_asign = 'LIBRE'
+        $this->db->beginTransaction();
+        try {
+            // 1️⃣ Obtener NP para controlar que exista y su estado
+            $stmt = $this->db->prepare("
+                SELECT presupuesto_id, estado, remitido
+                FROM notas_pedido
                 WHERE id = ?
-            ")->execute([$np['presupuesto_id']]);
-        }
+                FOR UPDATE
+            ");
+            $stmt->execute([$id]);
+            $np = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        $this->db->commit();
+            if (!$np) {
+                throw new Exception('NP no encontrada');
+            }
+            if (($np['estado'] ?? '') === 'ANULADA') {
+                throw new Exception('La Nota de Pedido ya está anulada.');
+            }
+            if (($np['remitido'] ?? '') === 'RemitidoCompleto') {
+                throw new Exception(
+                    'La Nota de Pedido está remitida por completo. No se puede anular. '
+                    . 'Para revertir la entrega, generá una devolución desde el módulo Devoluciones.'
+                );
+            }
+
+            $this->db->prepare("
+                UPDATE notas_pedido
+                SET estado = 'ANULADA',
+                    motivo_anulacion = :m,
+                    presupuesto_id = NULL,
+                    anulado_at = NOW()
+                WHERE id = :id
+            ")->execute([
+                'm' => $motivo,
+                'id' => $id
+            ]);
+            // 2️⃣ Liberar presupuesto si existe
+            if (!empty($np['presupuesto_id'])) {
+                $this->db->prepare("
+                    UPDATE presupuestos
+                    SET pre_asign = 'LIBRE'
+                    WHERE id = ? AND estado <> 'ANULADO'
+                ")->execute([$np['presupuesto_id']]);
+            }
+
+            // 3️⃣ Devolver al stock los productos reservados para esta NP
+            (new Reservaproductonp())->liberar($id, (int)($_SESSION['user_id'] ?? 0));
+
+            $this->db->commit();
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            throw $e;
+        }
     }
 
     // 🔽 Combos
@@ -241,7 +615,23 @@ class NotaPedido extends Model
             return null;
         }
 
-        // Detalle con pendientes y stock disponible (soporta lineas libres sin producto)
+        $np['detalle'] = $this->detalleConPendientes($id);
+        //aca deberia hacer el control de stock para determinar si la np la puedo remitar o no
+
+        return $np;
+    }
+
+    /**
+     * Detalle de la NP con cantidades remitidas y pendientes, sin efectos
+     * secundarios (findWithPendientes avisa y devuelve null si ya esta completa).
+     */
+    public function detallePendientes(int $id): array
+    {
+        return $this->detalleConPendientes($id);
+    }
+
+    private function detalleConPendientes(int $id): array
+    {
         $stmt = $this->db->prepare("
             SELECT x.*, (x.pedida - x.remitida) AS pendiente
             FROM (
@@ -284,10 +674,7 @@ class NotaPedido extends Model
             ORDER BY x.detalle_id
         ");
         $stmt->execute([$id]);
-        $np['detalle'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        //aca deberia hacer el control de stock para determinar si la np la puedo remitar o no  
-
-        return $np;
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**

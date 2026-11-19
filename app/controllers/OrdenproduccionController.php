@@ -3,6 +3,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Ordenproduccion.php';
 require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
+require_once BASE_PATH.'/app/models/Notapedido.php';
 class OrdenproduccionController extends Controller
 {
     private OrdenProduccion $model;
@@ -18,6 +19,68 @@ class OrdenproduccionController extends Controller
             'ordenes' => $this->model->all()
         ]);
     }
+    /**
+     * Bandeja de Notas de Pedido aprobadas para producir que todavia no
+     * tienen una Orden de Produccion.
+     */
+    public function npPendientes()
+    {
+        $npModel = new NotaPedido();
+        $recetaModel = new Receta();
+
+        $pendientes = $npModel->npPendientesProduccion();
+        foreach ($pendientes as &$pendiente) {
+            $evaluacion = $npModel->evaluarProduccionNota((int)$pendiente['id']);
+            $pendiente['evaluacion'] = $evaluacion;
+            $pendiente['recetas_producto'] = !empty($evaluacion['producto_id'])
+                ? $recetaModel->activasPorProducto((int)$evaluacion['producto_id'])
+                : [];
+        }
+        unset($pendiente);
+
+        $this->view('produccion/np_pendientes', [
+            'pendientes' => $pendientes,
+            'recetasDisponibles' => $recetaModel->allActivasConProducto(),
+        ]);
+    }
+
+    /**
+     * Crea la OP de una NP pendiente usando la receta elegida.
+     */
+    public function crearDesdeNp($id)
+    {
+        validarId($id, BASE_URL . '/ordenproduccion/np-pendientes');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/ordenproduccion/np-pendientes');
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/np-pendientes');
+            exit;
+        }
+
+        try {
+            $recetaId = (int)($_POST['receta_id'] ?? 0);
+            $ordenId = (new NotaPedido())->crearOrdenProduccionDesdeNota(
+                (int)$id,
+                (int)($_SESSION['user_id'] ?? 0),
+                $recetaId > 0 ? $recetaId : null
+            );
+
+            $_SESSION['success'] = 'Orden de Producción #' . $ordenId
+                . ' generada desde la Nota de Pedido #' . $id . '.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/show/' . $ordenId);
+            exit;
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            error_log('[Produccion NP pendiente] ' . $e->getMessage());
+            header('Location: ' . BASE_URL . '/ordenproduccion/np-pendientes');
+            exit;
+        }
+    }
+
     //En la Vista Create, cuando generamos la orden, hacemos el pedido de MP, lo que hay de stock se reserva y lo que falta se pide.
     public function create()
     {

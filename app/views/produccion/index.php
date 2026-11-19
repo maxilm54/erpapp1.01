@@ -3,6 +3,9 @@
 <a href="<?= BASE_URL ?>/ordenproduccion/create" class="btn btn-success mb-3">
     Nueva Orden
 </a>
+<a href="<?= BASE_URL ?>/ordenproduccion/np-pendientes" class="btn btn-warning mb-3">
+    <i class="bi bi-clipboard-check"></i> NP pendientes de producir
+</a>
 <div class="table-scroll mt-3">
     <table class="table table-bordered">
         <thead>

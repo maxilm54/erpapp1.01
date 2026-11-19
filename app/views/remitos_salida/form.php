@@ -1,3 +1,7 @@
+<?php
+$reservasNp = $reservasNp ?? [];
+$depositoReservadoNp = $depositoReservadoNp ?? null;
+?>
 <h1>Nuevo Remito</h1>
 
 <p><strong>Cliente:</strong> <?= htmlspecialchars($np['cliente_nombre']) ?></p>
@@ -11,6 +15,14 @@
         <option value="<?= $d['id'] ?>" data-nombre="<?= htmlspecialchars($d['nombre']) ?>"><?= htmlspecialchars($d['nombre']) ?></option>
         <?php endforeach; ?>
     </select>
+    <?php if (!empty($reservasNp) && !empty($depositoReservadoNp)): ?>
+        <div class="alert alert-warning py-2 mt-2 mb-0 small">
+            <i class="bi bi-bookmark-check"></i>
+            Esta NP tiene productos reservados en
+            <strong><?= htmlspecialchars($depositoReservadoNp['nombre']) ?></strong>.
+            Se usan primero; si la cantidad pedida supera lo reservado, el resto sale del depósito seleccionado.
+        </div>
+    <?php endif; ?>
     <div id="alertaDeposito" class="alert alert-warning mt-2 d-none">
         <i class="bi bi-arrow-left-right"></i> Some de los productos tienen stock repartido entre varios depósitos.
         Puede <a href="javascript:void(0)" onclick="irATransferencias(event)">realizar una transferencia</a> para concentrar el stock en el depósito seleccionado y poder remitar.
@@ -62,11 +74,19 @@
                     $esUnidadEntera = in_array($u, ['U','UN','UNIDAD','UNIDADES']);
                     $step = $esUnidadEntera ? '1' : '0.01';
                     $esSerie = !empty($item['usa_serie']);
+                    $reservadoNp = (float)($reservasNp[$item['producto_id']]['disponible'] ?? 0);
                 ?>
-                <tr data-producto="<?= $item['producto_id'] ?>" data-serie="<?= $esSerie ? '1' : '0' ?>">
+                <tr data-producto="<?= $item['producto_id'] ?>" data-serie="<?= $esSerie ? '1' : '0' ?>"
+                    data-reservado="<?= $reservadoNp ?>" data-pendiente="<?= (float)$item['pendiente'] ?>">
                     <td>
                         <?= htmlspecialchars($item['nombre']) ?> <small class="text-muted">(<?= $u ?>)</small>
                         <?php if ($esSerie): ?><span class="badge bg-danger">SERIE</span><?php endif; ?>
+                        <?php if ($reservadoNp > 0): ?>
+                            <span class="badge bg-warning text-dark">Reservado NP: <?= number_format($reservadoNp, 3, ',', '.') ?></span>
+                            <?php if ($esSerie): ?>
+                                <div class="small text-danger">Tiene reservas NP: libere la reserva para remitir con series.</div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </td>
                     <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
                     <td>$ <?= number_format($item['precio'], 2, ',', '.') ?></td>
@@ -178,6 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
         for (const row of rows) {
             const productoId = row.dataset.producto;
             const esSerie = row.dataset.serie === '1';
+            const reservado = parseFloat(row.dataset.reservado || 0);
             const stockDepCell = row.querySelector('.stock-deposito');
 
             if (esSerie) {
@@ -188,26 +209,34 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const qtyInput = row.querySelector('.qty-input');
-            const pendiente = parseFloat(qtyInput.max) || 0;
+            const pendiente = parseFloat(row.dataset.pendiente || qtyInput.max) || 0;
 
-            if (!depositoId) {
+            if (!depositoId && reservado <= 0) {
                 stockDepCell.textContent = '—';
                 qtyInput.max = pendiente;
                 continue;
             }
 
-            const data = await obtenerStockDeposito(productoId, depositoId);
+            const data = depositoId
+                ? await obtenerStockDeposito(productoId, depositoId)
+                : { stock: 0 };
             const stockEnDeposito = data.stock;
+            const disponible = stockEnDeposito + reservado;
 
-            stockDepCell.textContent = numberFormat(stockEnDeposito);
+            if (reservado > 0) {
+                stockDepCell.innerHTML = numberFormat(stockEnDeposito) + ' en depósito'
+                    + '<br><span class="badge bg-warning text-dark">+' + numberFormat(reservado) + ' reservado</span>';
+            } else {
+                stockDepCell.textContent = numberFormat(stockEnDeposito);
+            }
 
-            const maxRemitir = Math.min(pendiente, stockEnDeposito);
+            const maxRemitir = Math.min(pendiente, disponible);
             qtyInput.max = maxRemitir;
             if (parseFloat(qtyInput.value || 0) > maxRemitir) {
                 qtyInput.value = maxRemitir > 0 ? maxRemitir : '';
             }
 
-            if (stockEnDeposito < pendiente) {
+            if (disponible < pendiente) {
                 hayParcial = true;
             }
         }

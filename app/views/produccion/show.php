@@ -30,7 +30,23 @@ if ($inicioProd && $finProd) {
             <strong>Producto:</strong> <?= htmlspecialchars($orden['producto']) ?>
             <span class="badge bg-warning text-dark fs-6 ms-2">Cantidad: <?= number_format($orden['cantidad'], 2, ',', '.') ?></span>
         </p>
+        <?php if (!empty($orden['receta'])): ?>
+            <p>
+                <strong>Receta:</strong> <?= htmlspecialchars($orden['receta']) ?>
+                <?php if (!empty($orden['receta_producto_id']) && (int)$orden['receta_producto_id'] !== (int)$orden['producto_id']): ?>
+                    <span class="badge bg-info text-dark">Receta de otro producto</span>
+                <?php endif; ?>
+            </p>
+        <?php endif; ?>
         <p><strong>Estado:</strong> <?= $orden['estado'] ?></p>
+        <?php if (!empty($orden['nota_pedido_id'])): ?>
+            <p>
+                <strong>Origen:</strong>
+                <a href="<?= BASE_URL ?>/notaspedido/show/<?= (int)$orden['nota_pedido_id'] ?>">
+                    Nota de Pedido #<?= (int)$orden['nota_pedido_id'] ?>
+                </a>
+            </p>
+        <?php endif; ?>
         <p><strong>Producido:</strong> <?= number_format($totalProducido, 2, ',', '.') ?> / <?= number_format($orden['cantidad'], 2, ',', '.') ?></p>
         <p>
             <strong>Inicio producción:</strong>

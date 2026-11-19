@@ -3,6 +3,7 @@ require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/models/Receta.php';
 require_once BASE_PATH . '/app/models/Deposito.php';
 require_once BASE_PATH . '/app/models/Serie.php';
+require_once BASE_PATH . '/app/models/Reservaproductonp.php';
 class OrdenProduccion extends Model
 {
     public function all(): array
@@ -20,33 +21,41 @@ class OrdenProduccion extends Model
     }
     public function crear(array $data): int //creo OP y reservo MP, pero si no hay stock de MP lanzo excepcion y rollback para no crear nada.
     {
-        $this->db->beginTransaction();
+        $inTransaction = $this->db->inTransaction();
+        if (!$inTransaction) {
+            $this->db->beginTransaction();
+        }
 
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO ordenes_produccion
-                (producto_id,receta_id,cantidad,fecha_entrega,observaciones,usuario_id)
-                VALUES (?,?,?,?,?,?)
+                (producto_id,receta_id,nota_pedido_id,cantidad,fecha_entrega,observaciones,usuario_id)
+                VALUES (?,?,?,?,?,?,?)
             ");
             $stmt->execute([
                 $data['producto_id'],
                 $data['receta_id'],
+                $data['nota_pedido_id'] ?? null,
                 $data['cantidad'],
                 $data['f_entrega'],
                 $data['observaciones'],
                 $data['usuario_id']
             ]);
 
-            $ordenId = $this->db->lastInsertId();
+            $ordenId = (int)$this->db->lastInsertId();
 
             $this->crearProcesosOP((int)$ordenId, (int)$data['receta_id'], (float)$data['cantidad']);
             $this->reservarMateriaPrima($ordenId, $data['deposito_items'] ?? []); // hago la reserva de MP, si falla se lanza excepcion y hace rollback
 
-            $this->db->commit();
+            if (!$inTransaction) {
+                $this->db->commit();
+            }
             return $ordenId;
 
         } catch (Exception $e) {
-            $this->db->rollBack(); //revierto los cambios si hubo error
+            if (!$inTransaction) {
+                $this->db->rollBack(); //revierto los cambios si hubo error
+            }
             error_log(__FILE__ . ':' . __LINE__ . ' - Error al crear la OP.'.$e->getMessage());
             throw $e;
         }
@@ -486,7 +495,7 @@ class OrdenProduccion extends Model
             LEFT JOIN movimientos_stock m
                    ON m.materia_prima_id = ?
                   AND (m.deposito_id = d.id OR (m.deposito_id IS NULL AND d.id = ?))
-            WHERE d.activo = 1 AND d.es_transito = 0
+            WHERE d.activo = 1 AND d.es_transito = 0 AND d.es_reservado_np = 0
             GROUP BY d.id, d.nombre, d.es_sobrante
             ORDER BY d.es_sobrante ASC, (d.id = ?) DESC, d.nombre
         ");
@@ -725,10 +734,12 @@ class OrdenProduccion extends Model
     public function find(int $id): ?array //devuelve la info de la orden de produccion
     {
         $stmt = $this->db->prepare("
-            SELECT op.*, p.nombre AS producto, p.precio_venta, u.nombre AS nombre_user, p.id AS producto_id
+            SELECT op.*, p.nombre AS producto, p.precio_venta, u.nombre AS nombre_user, p.id AS producto_id,
+                   r.nombre AS receta, r.producto_id AS receta_producto_id
             FROM ordenes_produccion op
             JOIN productos p ON p.id = op.producto_id
             LEFT JOIN users u ON u.id=op.usuario_id
+            LEFT JOIN recetas r ON r.id = op.receta_id
             WHERE op.id = ?
         ");
         $stmt->execute([$id]);
@@ -1180,7 +1191,15 @@ class OrdenProduccion extends Model
     }
 
     // esta funcion ajusta el stock de productos impactando en movimientos de stock.
-    public function ajustarProducto(int $productoId,float $cantidad,string $motivo,int $usuarioId,string $tipo,int $orden_id): void {
+    public function ajustarProducto(
+        int $productoId,
+        float $cantidad,
+        string $motivo,
+        int $usuarioId,
+        string $tipo,
+        int $orden_id,
+        ?int $depositoId = null
+    ): void {
         try {
             if ($cantidad == 0) {
             throw new Exception('La cantidad no puede ser 0');
@@ -1193,7 +1212,7 @@ $this->db->prepare("
                 $tipo,
                 $productoId,
                 $cantidad,
-                null,
+                $depositoId,
                 null,
                 $motivo,
                 $usuarioId,
@@ -1372,9 +1391,15 @@ $this->db->prepare("
         $productoId = (int)$avance['producto_id'];
         $cantidadProducida = (float)$avance['cantidad_producida'];
 
-        $stmt = $this->db->prepare("SELECT receta_id FROM ordenes_produccion WHERE id=?");
+        $stmt = $this->db->prepare("SELECT receta_id, nota_pedido_id FROM ordenes_produccion WHERE id=?");
         $stmt->execute([$ordenId]);
-        $recetaId = $stmt->fetchColumn();
+        $ordenDatos = $stmt->fetch(PDO::FETCH_ASSOC);
+        $recetaId = $ordenDatos['receta_id'] ?? null;
+        $notaPedidoId = !empty($ordenDatos['nota_pedido_id']) ? (int)$ordenDatos['nota_pedido_id'] : null;
+
+        // Si la OP viene de una NP, el producto terminado queda reservado para
+        // esa NP en el deposito "Deposito Productos Reservados (NP)".
+        $depositoDestino = $notaPedidoId ? (new Deposito())->ensureReservadoNp() : null;
 
         $checkProductos = $this->validarStockProductosReceta((int)$recetaId, $cantidadProducida);
         if ($checkProductos['estado'] !== 'ok') {
@@ -1428,10 +1453,21 @@ $this->db->prepare("
             $productoId,
             $cantidadProducida,
             'Ingreso por produccion OP ID: ' . $ordenId,
-            $_SESSION['user_id'],
+            (int)($_SESSION['user_id'] ?? 0),
             'ENTRADA',
-            $ordenId
+            $ordenId,
+            $depositoDestino
         );
+
+        if ($notaPedidoId) {
+            (new Reservaproductonp())->registrarProduccion(
+                $notaPedidoId,
+                $productoId,
+                $cantidadProducida,
+                $ordenId,
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+        }
 
         $this->consumirProductosComponentes($ordenId, (int)$recetaId, $cantidadProducida);
 

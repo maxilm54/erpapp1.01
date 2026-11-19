@@ -19,6 +19,37 @@ class Receta extends Model
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Recetas activas de un producto.
+     */
+    public function activasPorProducto(int $productoId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT id, nombre, producto_id
+            FROM recetas
+            WHERE producto_id = ? AND activa = '1'
+            ORDER BY nombre ASC, id DESC
+        ");
+        $stmt->execute([$productoId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Todas las recetas activas con el nombre del producto al que pertenecen.
+     * Se usa para elegir una receta existente cuando el producto de la NP
+     * todavia no tiene receta.
+     */
+    public function allActivasConProducto(): array
+    {
+        return $this->db->query("
+            SELECT r.id, r.nombre, r.producto_id, p.nombre AS producto
+            FROM recetas r
+            JOIN productos p ON p.id = r.producto_id
+            WHERE r.activa = '1'
+            ORDER BY p.nombre ASC, r.nombre ASC, r.id DESC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function crear(int $productoId,string $nombre, array $items, ?string $procedimiento, int $userId, array $procesos = []): int
     {
         $this->db->beginTransaction();

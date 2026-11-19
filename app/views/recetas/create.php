@@ -1,12 +1,17 @@
+<?php
+$productoPreseleccionado = (int)($productoPreseleccionado ?? 0);
+$volver = (string)($volver ?? '');
+?>
 <h1>Nueva Receta</h1>
 
 <form method="post">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+    <input type="hidden" name="volver" value="<?= htmlspecialchars($volver) ?>">
     <input type="text" class="form-control mb-3" required name="nombre" placeholder="Nombre de Receta">
     <label>Producto Final</label>    
     <select name="producto_id" class="form-control" required>
         <?php foreach ($productos as $p): ?>
-            <option value="<?= $p['id'] ?>">
+            <option value="<?= $p['id'] ?>" <?= $productoPreseleccionado === (int)$p['id'] ? 'selected' : '' ?>>
                 <?= htmlspecialchars($p['nombre']) ?>
             </option>
         <?php endforeach ?>

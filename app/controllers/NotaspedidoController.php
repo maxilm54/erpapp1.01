@@ -5,6 +5,8 @@ require_once BASE_PATH.'/app/models/Notapedido.php';
 require_once BASE_PATH.'/app/models/Presupuesto.php';
 require_once BASE_PATH.'/app/models/Configuracion.php';
 require_once BASE_PATH.'/app/models/Campopersonalizado.php';
+require_once BASE_PATH.'/app/models/Deposito.php';
+require_once BASE_PATH.'/app/models/Reservaproductonp.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 
@@ -124,15 +126,199 @@ class NotasPedidoController extends Controller
             die();
         }
 
-        $this->view('notas_pedido/show', compact('np'));
+        $ordenProduccionNp = null;
+        try {
+            $ordenProduccionNp = $this->np->ordenProduccionDeNota((int)$id);
+        } catch (Exception $e) {
+            error_log('[NotaPedido OP] ' . $e->getMessage());
+        }
+
+        $npProduccion = [
+            'configActiva' => false,
+            'evaluacion'   => null,
+            'orden'        => $ordenProduccionNp,
+        ];
+        try {
+            if ((new Configuracion())->activa('np_generar_produccion', false)) {
+                $npProduccion['configActiva'] = true;
+                $npProduccion['evaluacion']   = $this->np->evaluarProduccionNota((int)$id);
+            }
+        } catch (Exception $e) {
+            error_log('[NotaPedido produccion] ' . $e->getMessage());
+        }
+
+        $reservasNp = [];
+        $reservasResumen = [];
+        $detalleReserva = [];
+        $depositosReserva = [];
+        $depositoReservadoNp = null;
+        try {
+            $reservaModel = new Reservaproductonp();
+            $reservasNp = $reservaModel->porNota((int)$id);
+            $reservasResumen = $reservaModel->resumenPorProducto((int)$id);
+            $detalleReserva = $this->np->detallePendientes((int)$id);
+            $depositosReserva = (new Deposito())->allSeleccionables(false);
+            $depositoReservadoNp = (new Deposito())->getReservadoNp();
+        } catch (Exception $e) {
+            error_log('[NotaPedido reservas] ' . $e->getMessage());
+        }
+
+        $this->view('notas_pedido/show', compact(
+            'np',
+            'npProduccion',
+            'reservasNp',
+            'reservasResumen',
+            'detalleReserva',
+            'depositosReserva',
+            'depositoReservadoNp'
+        ));
+    }
+
+    /**
+     * Genera la Orden de Produccion desde la receta del unico producto de la NP.
+     * Solo esta disponible si la configuracion np_generar_produccion esta activa.
+     */
+    public function generarProduccion($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!(new Configuracion())->activa('np_generar_produccion', false)) {
+            $_SESSION['error'] = 'La generación de producción desde notas de pedido no está habilitada.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        try {
+            $ordenId = $this->np->crearOrdenProduccionDesdeNota((int)$id, (int)$_SESSION['user_id']);
+            $_SESSION['success'] = 'Orden de Producción #' . $ordenId
+                . ' generada desde la Nota de Pedido #' . $id . '.';
+            header('Location: ' . BASE_URL . '/ordenproduccion/show/' . $ordenId);
+            exit;
+        } catch (Exception $e) {
+            error_log('[NotaPedido produccion] ' . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+    }
+
+    /**
+     * Reserva manual de productos de una NP (tenga o no OP): mueve stock al
+     * deposito "Deposito Productos Reservados (NP)" y lo deja vinculado a la NP.
+     */
+    public function reservarProductos($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        try {
+            $items = $_POST['items'] ?? [];
+            $n = $this->np->reservarProductos(
+                (int)$id,
+                is_array($items) ? $items : [],
+                (int)($_POST['deposito_origen_id'] ?? 0),
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+            $_SESSION['success'] = $n . ' producto(s) reservado(s) para la Nota de Pedido #' . $id . '.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            error_log('[NotaPedido reservarProductos] ' . $e->getMessage());
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
+    }
+
+    /**
+     * Libera las reservas vigentes de una NP y devuelve el stock al origen.
+     */
+    public function liberarReservas($id)
+    {
+        validarId($id, BASE_URL . '/notaspedido');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        try {
+            $total = $this->np->liberarReservas((int)$id, (int)($_SESSION['user_id'] ?? 0));
+            if ($total > 0) {
+                $_SESSION['success'] = 'Reservas liberadas: ' . number_format($total, 3, ',', '.')
+                    . ' unidad(es) devueltas al stock.';
+            } else {
+                $_SESSION['warning'] = 'La Nota de Pedido no tiene reservas vigentes para liberar.';
+            }
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            error_log('[NotaPedido liberarReservas] ' . $e->getMessage());
+        }
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+        exit;
     }
 
     // ✅ Aprobar
     public function approve($id)
     {
         validarId($id, BASE_URL . '/notaspedido');
-        $this->np->aprobar($id);
-        header('Location: '.BASE_URL.'/notaspedido/show/'.$id);
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para aprobar use el botón de la Nota de Pedido.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        $npActual = $this->np->findWithDetalle((int)$id);
+        if (!$npActual) {
+            $_SESSION['error'] = 'Nota de Pedido no encontrada.';
+            header('Location: ' . BASE_URL . '/notaspedido');
+            exit;
+        }
+        if ($npActual['estado'] !== 'BORRADOR') {
+            $_SESSION['error'] = 'La Nota de Pedido ya no está en borrador.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
+        $flujo = (string)($_POST['flujo'] ?? 'normal');
+        $produccionPendiente = $flujo === 'produccion';
+
+        $this->np->aprobar((int)$id, $produccionPendiente);
+
+        $_SESSION['success'] = $produccionPendiente
+            ? 'Nota de Pedido aprobada y enviada a "NP pendientes de producir".'
+            : 'Nota de Pedido aprobada. Ya puede remitirse.';
+
+        header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
         exit;
     }
 
@@ -185,22 +371,50 @@ class NotasPedidoController extends Controller
     public function anular($id)
     {
         validarId($id, BASE_URL . '/notaspedido');
+
+        $np = $this->np->findWithDetalle((int)$id);
+        if (!$np) {
+            $_SESSION['error'] = 'Nota de Pedido no encontrada.';
+            header('Location: ' . BASE_URL . '/notaspedido');
+            exit;
+        }
+        if ($np['estado'] === 'ANULADA') {
+            $_SESSION['error'] = 'La Nota de Pedido ya está anulada.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+        if (($np['remitido'] ?? '') === 'RemitidoCompleto') {
+            $_SESSION['error'] = 'La Nota de Pedido está remitida por completo. No se puede anular. '
+                . 'Para revertir la entrega, generá una devolución desde el módulo Devoluciones.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
+            exit;
+        }
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+                header('Location: ' . BASE_URL . '/notaspedido/anular/' . $id);
+                exit;
+            }
+
             try {
                 $this->np->anular(
                     (int)$id,
-                    $_POST['motivo']
+                    (string)($_POST['motivo'] ?? '')
                 );
 
-                $_SESSION['success'] = 'Nota de Pedido anulada';
+                $_SESSION['success'] = 'Nota de Pedido anulada.';
                 header('Location: ' . BASE_URL . '/notaspedido');
                 exit;
 
             } catch (Exception $e) {
                 $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/notaspedido/anular/' . $id);
+                exit;
             }
         }
-        $this->view('notas_pedido/anular', ['id' => $id]);
+
+        $this->view('notas_pedido/anular', ['id' => $id, 'np' => $np]);
     }
 
     // 💾 Guardar campos personalizados desde la vista de la NP (incluye las NPs

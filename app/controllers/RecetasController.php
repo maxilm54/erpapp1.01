@@ -83,10 +83,17 @@ class RecetasController extends Controller
 
     public function create()
     {
+        $productoPreseleccionado = (int)($_POST['producto_id'] ?? $_GET['producto_id'] ?? 0);
+        $volver = trim((string)($_POST['volver'] ?? $_GET['volver'] ?? ''));
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
                 $_SESSION['error'] = 'Token CSRF inválido';
-                header('Location: '.BASE_URL.'/recetas/create');
+                $qs = http_build_query(array_filter([
+                    'producto_id' => $productoPreseleccionado ?: null,
+                    'volver' => $volver !== '' ? $volver : null,
+                ]));
+                header('Location: '.BASE_URL.'/recetas/create' . ($qs ? '?' . $qs : ''));
                 exit;
             }
             try {
@@ -103,7 +110,11 @@ class RecetasController extends Controller
                 );
 
                 $_SESSION['success'] = 'Receta creada correctamente';
-                header('Location: '.BASE_URL.'/recetas/show/'.$id);
+                if ($volver === 'np-pendientes') {
+                    header('Location: '.BASE_URL.'/ordenproduccion/np-pendientes');
+                } else {
+                    header('Location: '.BASE_URL.'/recetas/show/'.$id);
+                }
                 exit;
 
             } catch (Exception $e) {
@@ -115,6 +126,8 @@ class RecetasController extends Controller
             'productos' => $this->producto->all(),
             'materias'  => $this->materia->all(),
             'usarProductosRecetas' => $this->permiteProductos(),
+            'productoPreseleccionado' => $productoPreseleccionado,
+            'volver' => $volver,
         ]);
     }
 

@@ -11,6 +11,10 @@ require_once BASE_PATH . '/app/core/Model.php';
  *   - usar_nomenclador: '1' | '0' — activa el uso de nomencladores por cliente.
  *   - usar_productos_recetas: '1' | '0' — permite agregar productos como
  *     componentes de una receta (ademas de materias primas).
+ *   - np_generar_produccion: '1' | '0' — habilita "levantar" una Nota de
+ *     Pedido en la receta de su producto: las NPs aprobadas con un solo
+ *     producto que tiene receta activa muestran un boton para generar la
+ *     Orden de Produccion desde esa receta.
  */
 class Configuracion extends Model
 {

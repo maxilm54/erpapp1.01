@@ -125,6 +125,7 @@ Producción
 <ul class="dropdown-menu">
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/recetas">Recetas</a></li>
 <li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenproduccion">Producción</a></li>
+<li><a class="dropdown-item" href="<?= BASE_URL ?>/ordenproduccion/np-pendientes">NP pendientes de producir</a></li>
 </ul>
 </li>
 

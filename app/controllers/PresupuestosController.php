@@ -39,6 +39,19 @@ class PresupuestosController extends Controller
         return $fecha;
     }
 
+    /**
+     * Vencimiento del presupuesto: fecha opcional. Se puede cargar al crear o
+     * editar mientras el presupuesto siga en BORRADOR.
+     */
+    private function vencimientoDesdePost(): ?string
+    {
+        $fecha = trim((string)($_POST['vencimiento'] ?? ''));
+        if ($fecha === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return null;
+        }
+        return $fecha;
+    }
+
     public function create()
     {
         $this->view('presupuestos/form', [
@@ -75,7 +88,8 @@ class PresupuestosController extends Controller
                     'usuario_id'   => $_SESSION['user_id'],
                     'items'        => $items,
                     'observaciones'=> $_POST['observaciones'] ?? '',
-                    'fecha_entrega'=> $this->fechaEntregaDesdePost()
+                    'fecha_entrega'=> $this->fechaEntregaDesdePost(),
+                    'vencimiento'  => $this->vencimientoDesdePost()
                 ]);
 
                 // Campos personalizados del formulario (config Empresa -> Configuraciones)
@@ -140,6 +154,14 @@ class PresupuestosController extends Controller
     public function update($id)
     {
         validarId($id, BASE_URL . '/presupuestos');
+
+        $prActual = $this->pr->find((int)$id);
+        if (!$prActual || ($prActual['estado'] ?? '') !== 'BORRADOR') {
+            $_SESSION['error'] = 'Solo se pueden editar presupuestos en borrador.';
+            header('Location: ' . BASE_URL . '/presupuestos');
+            exit;
+        }
+
         if($_SERVER['REQUEST_METHOD'] === 'POST')
         {
             if (!Csrf::validate($_POST['csrf_token'])) {
@@ -161,7 +183,8 @@ class PresupuestosController extends Controller
                     'cliente_id'   => $_POST['cliente_id'],
                     'items'        => $items,
                     'observaciones'=> $_POST['observaciones'] ?? '',
-                    'fecha_entrega'=> $this->fechaEntregaDesdePost()
+                    'fecha_entrega'=> $this->fechaEntregaDesdePost(),
+                    'vencimiento'  => $this->vencimientoDesdePost()
                 ]);
 
                 // Campos personalizados del formulario (config Empresa -> Configuraciones)
@@ -206,6 +229,30 @@ class PresupuestosController extends Controller
     public function aprobar($id)
     {
         validarId($id, BASE_URL . '/presupuestos');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para aprobar use el botón del presupuesto.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        $presupuestoActual = $this->pr->find((int)$id);
+        if (!$presupuestoActual) {
+            $_SESSION['error'] = 'Presupuesto no encontrado.';
+            header('Location: ' . BASE_URL . '/presupuestos');
+            exit;
+        }
+        if ($presupuestoActual['estado'] !== 'BORRADOR') {
+            $_SESSION['error'] = 'Solo se pueden aprobar presupuestos en borrador.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
         $this->pr->aprobar($id);
 
         // La NP se genera SIEMPRE automatica al aprobar el presupuesto
@@ -216,7 +263,7 @@ class PresupuestosController extends Controller
         try {
             $npId = (int)$this->pr->getNotaPedidoByPresupuesto((int)$id);
             if (!$npId) {
-                $presupuesto = $this->pr->find((int)$id);
+                $presupuesto = $presupuestoActual;
                 $items = [];
                 $idx = 0;
                 foreach ($presupuesto['detalle'] as $d) {
@@ -296,6 +343,101 @@ class PresupuestosController extends Controller
     }
 
     /**
+     * Anula el presupuesto. Queda el registro y no se puede revertir.
+     */
+    public function anular($id)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida. Para anular use el botón del presupuesto.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        $pr = $this->pr->find((int)$id);
+        if (!$pr) {
+            $_SESSION['error'] = 'Presupuesto no encontrado.';
+            header('Location: ' . BASE_URL . '/presupuestos');
+            exit;
+        }
+        if ($pr['estado'] === 'ANULADO') {
+            $_SESSION['error'] = 'El presupuesto ya está anulado.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        $npId = $this->pr->getNotaPedidoActivaByPresupuesto((int)$id);
+        if ($npId > 0) {
+            $_SESSION['error'] = 'El presupuesto tiene la Nota de Pedido #' . $npId
+                . ' asociada. Primero anule la NP; eso libera el presupuesto y después podrá anularlo. '
+                . 'Si la NP está remitida por completo no se puede anular: genere una devolución.';
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . $npId);
+            exit;
+        }
+
+        try {
+            if ($this->pr->anular((int)$id)) {
+                $_SESSION['success'] = 'Presupuesto #' . (int)$id
+                    . ' anulado. Queda el registro y esta acción no se puede revertir.';
+            } else {
+                $_SESSION['error'] = 'No se pudo anular el presupuesto.';
+            }
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+        exit;
+    }
+
+    /**
+     * Actualiza solo el vencimiento de un presupuesto en BORRADOR.
+     */
+    public function actualizarVencimiento($id)
+    {
+        validarId($id, BASE_URL . '/presupuestos');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $_SESSION['error'] = 'Acción inválida.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF inválido. Inténtalo de nuevo.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        $pr = $this->pr->find((int)$id);
+        if (!$pr) {
+            $_SESSION['error'] = 'Presupuesto no encontrado.';
+            header('Location: ' . BASE_URL . '/presupuestos');
+            exit;
+        }
+        if ($pr['estado'] !== 'BORRADOR') {
+            $_SESSION['error'] = 'El vencimiento solo se puede modificar antes de aprobar el presupuesto.';
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+            exit;
+        }
+
+        $vencimiento = $this->vencimientoDesdePost();
+        if ($this->pr->actualizarVencimiento((int)$id, $vencimiento)) {
+            $_SESSION['success'] = 'Vencimiento actualizado.';
+        } else {
+            $_SESSION['error'] = 'No se pudo actualizar el vencimiento.';
+        }
+
+        header('Location: ' . BASE_URL . '/presupuestos/show/' . $id);
+        exit;
+    }
+
+    /**
      * Convierte una linea libre del presupuesto en un producto real de la base.
      */
     public function agregarProducto($id, $detalleId)
@@ -314,6 +456,14 @@ class PresupuestosController extends Controller
         }
 
         try {
+            $pr = $this->pr->find((int)$id);
+            if (!$pr) {
+                throw new Exception('Presupuesto no encontrado.');
+            }
+            if ($pr['estado'] === 'ANULADO') {
+                throw new Exception('El presupuesto está anulado y no se puede modificar.');
+            }
+
             $productoId = $this->pr->agregarProductoADetalle((int)$id, (int)$detalleId);
             try {
                 $this->pr->generarYGuardarPdf((int)$id);

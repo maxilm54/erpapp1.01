@@ -42,6 +42,17 @@ $action = $isEdit
             </div>
         </div>
 
+        <!-- Vencimiento del presupuesto (opcional) -->
+        <div class="mb-3">
+            <label class="form-label">Vencimiento del presupuesto <small class="text-muted">(opcional)</small></label>
+            <input type="date" name="vencimiento" class="form-control" style="max-width: 220px;"
+                   value="<?= htmlspecialchars($presupuesto['vencimiento'] ?? '') ?>">
+            <div class="form-text">
+                Si se carga, el presupuesto se marca como vencido cuando la fecha sea anterior a hoy.
+                Una vez aprobado no se puede modificar.
+            </div>
+        </div>
+
         <!-- Detalle -->
         <h5 class="mt-4">Detalle</h5>
 

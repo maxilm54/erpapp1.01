@@ -29,6 +29,10 @@ class AjustesstockController extends Controller
                     error_log('AjusteStockController Error: motivo de ajuste vacío.'.__FILE__.':'.__LINE__);
                     throw new Exception('El Ajuste no fue realizado. Debe indicar un motivo del ajuste');
                 }
+                $depositoId = !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null;
+                if ($depositoId && (new Deposito())->esReservadoNp($depositoId)) {
+                    throw new Exception('El depósito de productos reservados por NP se gestiona automáticamente y no admite ajustes manuales.');
+                }
                 $this->model->ajustarProducto(
                     (int)$_POST['producto_id'],
                     (float)$_POST['cantidad'],
@@ -36,7 +40,7 @@ class AjustesstockController extends Controller
                     (int)$_SESSION['user_id'],
                     htmlspecialchars($_POST['tipo']),
                     htmlspecialchars($_POST['observaciones']),
-                    !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null,
+                    $depositoId,
                     !empty($_POST['lote_id']) ? (int)$_POST['lote_id'] : null
                 );
                 error_log('AjusteStockController: Producto ID ' . (int)$_POST['producto_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
@@ -65,6 +69,10 @@ class AjustesstockController extends Controller
                     error_log('AjusteStockController Error: motivo de ajuste vacío.'.__FILE__.':'.__LINE__);
                     throw new Exception('El Ajuste no fue realizado. Debe indicar un motivo del ajuste');
                 }
+                $depositoId = !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null;
+                if ($depositoId && (new Deposito())->esReservadoNp($depositoId)) {
+                    throw new Exception('El depósito de productos reservados por NP se gestiona automáticamente y no admite ajustes manuales.');
+                }
                 $this->model->ajustarMateriaPrima(
                     (int)$_POST['materia_prima_id'],
                     (float)$_POST['cantidad'],
@@ -72,7 +80,7 @@ class AjustesstockController extends Controller
                     (int)$_SESSION['user_id'],
                     htmlspecialchars($_POST['tipo']),
                     htmlspecialchars($_POST['observaciones']),
-                    !empty($_POST['deposito_id']) ? (int)$_POST['deposito_id'] : null,
+                    $depositoId,
                     !empty($_POST['lote_id']) ? (int)$_POST['lote_id'] : null
                 );
                 error_log('AjusteStockController: Materia Prima ID ' . (int)$_POST['materia_prima_id'] . ', Cantidad ' . (float)$_POST['cantidad'] . ', Tipo ' . htmlspecialchars($_POST['tipo']) . ', Usuario ID ' . (int)$_SESSION['user_id'].', Motivo ' . htmlspecialchars($motivo) . ', Observaciones ' . htmlspecialchars($_POST['observaciones']) . ' - Ajuste realizado exitosamente.'.__FILE__.':'.__LINE__);
