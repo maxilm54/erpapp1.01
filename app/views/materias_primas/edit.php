@@ -74,3 +74,10 @@
         <button class="btn btn-success">Guardar</button>
     </div>
 </form>
+
+<?php
+$adjModulo = 'MATERIA_PRIMA';
+$adjDocId = (int)($item['id'] ?? 0);
+$adjTitulo = 'Archivos de la materia prima';
+require BASE_PATH . '/app/views/adjuntos/panel.php';
+?>

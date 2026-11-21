@@ -3,6 +3,14 @@
     <a href="<?= BASE_URL ?>/productos" class="btn btn-secondary btn-sm">Volver</a>
 </div>
 
+<?php
+$adjModulo = 'PRODUCTO';
+$adjDocId = (int)($producto['id'] ?? 0);
+$adjTitulo = 'Archivos del producto';
+$adjSoloLectura = true;
+require BASE_PATH . '/app/views/adjuntos/panel.php';
+?>
+
 <?php if (!empty($vencidos)): ?>
 <div class="alert alert-danger">
     <i class="bi bi-exclamation-triangle"></i> <strong>¡Lotes vencidos con stock!</strong> Hay <?= count($vencidos) ?> lote(s) vencido(s) que aún tienen stock. Revise los detalles a continuación.

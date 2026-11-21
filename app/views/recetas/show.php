@@ -148,6 +148,22 @@
                 <?= nl2br(htmlspecialchars($receta['proceso_fabrica'] ?? 'Sin procedimiento especificado')) ?>
             </div>
         </div>
+
+        <?php
+        // Adjuntos cargados en el ABM del producto (solo lectura desde la receta).
+        $adjModulo = 'PRODUCTO';
+        $adjDocId = (int)($receta['producto_id'] ?? 0);
+        $adjTitulo = 'Archivos del producto';
+        $adjSoloLectura = true;
+        require BASE_PATH . '/app/views/adjuntos/panel.php';
+
+        // Adjuntos propios de la receta (no se muestran en el ABM del producto).
+        $adjModulo = 'RECETA';
+        $adjDocId = (int)($receta['id'] ?? 0);
+        $adjTitulo = 'Archivos de la receta';
+        $adjSoloLectura = false;
+        require BASE_PATH . '/app/views/adjuntos/panel.php';
+        ?>
     </div>
 
     <!-- Columna derecha: Comparativa de costos del producto -->

@@ -34,6 +34,13 @@
             </div>
         </div>
 
+        <label for="archivos">Archivos adjuntos (fichas, tablas nutricionales, planos, medidas):</label>
+        <div class="mb-3">
+            <input class="form-control" type="file" name="archivos[]" multiple
+                   accept=".pdf,.jpg,.jpeg,.png">
+            <small class="text-muted">PDF, JPG, JPEG o PNG. Hasta 10 MB por archivo.</small>
+        </div>
+
         <h5>Códigos de Barra</h5>
 
         <div id="codigos">

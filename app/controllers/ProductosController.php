@@ -4,6 +4,7 @@ require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Producto.php';
 require_once BASE_PATH . '/app/models/Productocodigo.php';
 require_once BASE_PATH . '/app/models/Lote.php';
+require_once BASE_PATH . '/app/models/Adjunto.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -177,7 +178,16 @@ public function index(): void
                     );
                 }
             }
-            
+
+            // Adjuntos cargados en el alta (PDF/imagenes del producto).
+            if ($productoId > 0 && !empty($_FILES['archivos']['name'][0])) {
+                try {
+                    (new Adjunto())->guardarMultiples('PRODUCTO', $productoId, $_FILES['archivos']);
+                } catch (Exception $e) {
+                    $_SESSION['warning'] = 'El producto se creo, pero no se pudieron adjuntar los archivos: ' . $e->getMessage();
+                }
+            }
+
             header('Location: ' . BASE_URL . '/productos');
             exit;
         }

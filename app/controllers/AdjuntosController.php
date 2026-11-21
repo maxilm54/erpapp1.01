@@ -28,6 +28,9 @@ class AdjuntosController extends Controller
             'REMITO_SALIDA' => BASE_URL . '/remitossalida/show/' . $documentoId,
             'PRODUCCION'    => BASE_URL . '/ordenproduccion/show/' . $documentoId,
             'ORDEN_COMPRA'  => BASE_URL . '/ordenescompra/show/' . $documentoId,
+            'PRODUCTO'      => BASE_URL . '/productos/update/' . $documentoId,
+            'MATERIA_PRIMA' => BASE_URL . '/materiasprimas/update/' . $documentoId,
+            'RECETA'        => BASE_URL . '/recetas/show/' . $documentoId,
             default         => BASE_URL . '/home',
         };
     }
@@ -53,7 +56,8 @@ class AdjuntosController extends Controller
             header('Location: ' . $urlDoc);
             exit;
         }
-        if (!(new Configuracion())->activa('usar_adjuntos', false)) {
+        if (!Adjunto::esModuloAbm($modulo)
+            && !(new Configuracion())->activa('usar_adjuntos', false)) {
             $_SESSION['error'] = 'La opcion de adjuntos esta desactivada en Configuraciones.';
             header('Location: ' . $urlDoc);
             exit;

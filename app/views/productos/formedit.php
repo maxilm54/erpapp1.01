@@ -68,3 +68,10 @@
         <?php endif; ?>
     </div>
 </form>
+
+<?php
+$adjModulo = 'PRODUCTO';
+$adjDocId = (int)($producto['id'] ?? 0);
+$adjTitulo = 'Archivos del producto';
+require BASE_PATH . '/app/views/adjuntos/panel.php';
+?>

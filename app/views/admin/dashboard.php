@@ -96,6 +96,9 @@
                 <a href="<?= BASE_URL ?>/admin/migrations" class="btn btn-outline-warning me-2 mb-2">
                     <i class="bi bi-database"></i> Migraciones
                 </a>
+                <a href="<?= BASE_URL ?>/admin/ctacte" class="btn btn-outline-info me-2 mb-2">
+                    <i class="bi bi-cash-coin"></i> CtaCte Empresas
+                </a>
             </div>
         </div>
     </div>

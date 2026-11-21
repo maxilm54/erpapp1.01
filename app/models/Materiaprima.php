@@ -6,6 +6,13 @@ require_once BASE_PATH . '/app/core/Model.php';
 require_once BASE_PATH . '/app/models/Materiaprimaespecificacion.php';
 class MateriaPrima extends Model
 {
+    /** Ultimo ID insertado por create() (util para adjuntos en el alta). */
+    private int $ultimoId = 0;
+
+    public function ultimoId(): int
+    {
+        return $this->ultimoId;
+    }
     public function all()
     {
         return $this->listadoAbm();
@@ -116,6 +123,7 @@ class MateriaPrima extends Model
 
     public function create(array $d, $img, $barcode, $tipo): bool // crea la materia prima y opcionalmente un código de barra asociado
     {
+        $this->ultimoId = 0;
         try {
             $this->db->beginTransaction();
             $tipoGestion = Materiaprimaespecificacion::normalizarTipoGestion($d['tipo_gestion'] ?? null);
@@ -135,6 +143,7 @@ class MateriaPrima extends Model
                     'tg' => $tipoGestion
                 ]);
             $mpId = (int)$this->db->lastInsertId();
+            $this->ultimoId = $mpId;
             if ($barcode) {
                 $this->db->prepare("INSERT INTO materiaprima_codigos (materiaprima_id, codigo, tipo) VALUES (:mpId, :codigo, :tipo)")
                     ->execute(['mpId' => $mpId, 'codigo' => $barcode, 'tipo' => $tipo]);

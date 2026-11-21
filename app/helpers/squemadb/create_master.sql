@@ -155,6 +155,74 @@ CREATE TABLE IF NOT EXISTS `notificaciones_leidos` (
   COMMENT='Lectura por usuario de cada notificacion';
 
 -- -----------------------------------------------------------
+-- TABLA: ctacte_tenant (cuenta corriente mensual de las empresas)
+-- Un registro por empresa y periodo (YYYY-MM). conceptos: sistema, soporte
+-- y desarrollo. pago es lo cobrado acumulado y saldo_pendiente la diferencia.
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctacte_tenant` (
+  `id`                INT NOT NULL AUTO_INCREMENT,
+  `tenant_id`         INT NOT NULL,
+  `periodo`           CHAR(7) NOT NULL,
+  `fecha_alta`        DATE NOT NULL,
+  `fecha_vencimiento` DATE NOT NULL,
+  `obs`               VARCHAR(500) DEFAULT NULL,
+  `sistema`           DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `soporte`           DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `desarrollo`        DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `pago`              DECIMAL(12,2) DEFAULT NULL,
+  `saldo_pendiente`   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `estado`            ENUM('PENDIENTE','PARCIAL','SALDADO') NOT NULL DEFAULT 'PENDIENTE',
+  `updated_by`        INT DEFAULT NULL,
+  `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`        DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_ctacte_tenant_periodo` (`tenant_id`, `periodo`),
+  KEY `idx_ctacte_estado` (`estado`),
+  KEY `idx_ctacte_vencimiento` (`fecha_vencimiento`),
+  CONSTRAINT `fk_ctacte_tenant`      FOREIGN KEY (`tenant_id`)  REFERENCES `tenants` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ctacte_tenant_user` FOREIGN KEY (`updated_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Cuenta corriente mensual de cada empresa (panel superadmin)';
+
+-- -----------------------------------------------------------
+-- TABLA: ctacte_tenant_pagos (historial de pagos)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctacte_tenant_pagos` (
+  `id`         INT NOT NULL AUTO_INCREMENT,
+  `tenant_id`  INT NOT NULL,
+  `fecha`      DATE NOT NULL,
+  `monto`      DECIMAL(12,2) NOT NULL,
+  `obs`        VARCHAR(500) DEFAULT NULL,
+  `usuario_id` INT DEFAULT NULL,
+  `activo`     TINYINT(1) NOT NULL DEFAULT 1,
+  `anulado_at` DATETIME DEFAULT NULL,
+  `anulado_por` INT DEFAULT NULL,
+  `motivo_anulacion` VARCHAR(500) DEFAULT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ctacte_pago_tenant` (`tenant_id`, `fecha`),
+  CONSTRAINT `fk_ctacte_pago_tenant`  FOREIGN KEY (`tenant_id`)  REFERENCES `tenants` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ctacte_pago_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Pagos registrados en la cuenta corriente de las empresas';
+
+-- -----------------------------------------------------------
+-- TABLA: ctacte_tenant_pago_aplicaciones (reparto de cada pago)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `ctacte_tenant_pago_aplicaciones` (
+  `id`          INT NOT NULL AUTO_INCREMENT,
+  `pago_id`     INT NOT NULL,
+  `registro_id` INT NOT NULL,
+  `monto`       DECIMAL(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_ctacte_aplic_pago` (`pago_id`),
+  KEY `idx_ctacte_aplic_registro` (`registro_id`),
+  CONSTRAINT `fk_ctacte_aplic_pago`     FOREIGN KEY (`pago_id`)     REFERENCES `ctacte_tenant_pagos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ctacte_aplic_registro` FOREIGN KEY (`registro_id`) REFERENCES `ctacte_tenant` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Reparto de cada pago entre los registros de cuenta corriente';
+
+-- -----------------------------------------------------------
 -- DATOS INICIALES
 -- -----------------------------------------------------------
 

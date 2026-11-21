@@ -196,6 +196,21 @@
 </form>
 </div>
 
+<?php
+// Adjuntos del producto (solo lectura) y archivos propios de la receta.
+$adjModulo = 'PRODUCTO';
+$adjDocId = (int)($receta['producto_id'] ?? 0);
+$adjTitulo = 'Archivos del producto';
+$adjSoloLectura = true;
+require BASE_PATH . '/app/views/adjuntos/panel.php';
+
+$adjModulo = 'RECETA';
+$adjDocId = (int)($receta['id'] ?? 0);
+$adjTitulo = 'Archivos de la receta';
+$adjSoloLectura = false;
+require BASE_PATH . '/app/views/adjuntos/panel.php';
+?>
+
 <script>
 let index = <?= (int)($itemIndex ?? 0) ?>;
 const materias = <?= json_encode($materias) ?>;

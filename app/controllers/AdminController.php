@@ -3,6 +3,7 @@ require_once BASE_PATH.'/app/core/Controller.php';
 require_once BASE_PATH.'/app/models/Tenant.php';
 require_once BASE_PATH.'/app/models/User.php';
 require_once BASE_PATH.'/app/models/Notificacion.php';
+require_once BASE_PATH.'/app/models/Ctactetenant.php';
 require_once BASE_PATH.'/app/core/Csrf.php';
 require_once BASE_PATH.'/app/core/Role.php';
 require_once BASE_PATH.'/app/helpers/MigrationManager.php';
@@ -113,6 +114,15 @@ class AdminController extends Controller{
             ]);
 
             $tenantModel->crearDirectorios($tenantId);
+
+            // Cuenta corriente: primer registro del mes para la empresa nueva.
+            try {
+                (new Ctactetenant())->asegurarRegistro($tenantId);
+            } catch (Throwable $e) {
+                // Si la migracion master todavia no se aplico, no se rompe el alta:
+                // el registro se genera al abrir Admin -> CtaCte.
+                error_log('[Admin] No se pudo crear el registro de CtaCte del tenant ' . $tenantId . ': ' . $e->getMessage());
+            }
 
             $_SESSION['success'] = "Tenant '{$nombre}' creado exitosamente.";
             header('Location: ' . BASE_URL . '/admin/tenants');
@@ -1105,12 +1115,564 @@ class AdminController extends Controller{
         exit;
     }
 
+    // =====================================================
+    // CTA CTE (cuenta corriente mensual de las empresas)
+    // Un registro por empresa y por mes. conceptos: sistema, soporte y
+    // desarrollo. Los pagos se reparten del vencimiento mas viejo al mas nuevo.
+    // =====================================================
+
+    /**
+     * Listado principal: resumen, filtros, registros y ultimos pagos.
+     */
+    public function ctacte(): void{
+        $this->requireAdmin();
+
+        $error = $this->prepararCtacte();
+
+        $filtros = [
+            'tenant_id' => $_GET['tenant_id'] ?? '',
+            'estado'    => strtoupper(trim($_GET['estado'] ?? '')),
+            'periodo'   => trim($_GET['periodo'] ?? ''),
+            'vencidos'  => !empty($_GET['vencidos']) ? 1 : '',
+            'q'         => trim($_GET['q'] ?? ''),
+        ];
+
+        $registros = [];
+        $pagos = [];
+        $resumen = [
+            'facturado'  => 0.0,
+            'cobrado'    => 0.0,
+            'saldo'      => 0.0,
+            'vencido'    => 0.0,
+            'pendientes' => 0,
+        ];
+
+        if ($error === null) {
+            try {
+                $model = $this->ctacteModel();
+
+                // Genera el registro del mes actual si todavia no existe
+                // (idempotente). El cron hace lo mismo desde CLI.
+                $model->generarMes();
+
+                $registros = $model->all($filtros);
+                $pagos = $model->pagos(['tenant_id' => $filtros['tenant_id']]);
+                $resumen = $model->resumen(!empty($filtros['tenant_id']) ? (int)$filtros['tenant_id'] : null);
+            } catch (Throwable $e) {
+                error_log('[Admin] Error leyendo CtaCte: ' . $e->getMessage());
+                $error = 'No se pudo leer la cuenta corriente: ' . $e->getMessage();
+            }
+        }
+
+        $this->adminView('admin/ctacte', [
+            'title'      => 'CtaCte Empresas',
+            'error'      => $error,
+            'filtros'    => $filtros,
+            'registros'  => $registros,
+            'pagos'      => $pagos,
+            'resumen'    => $resumen,
+            'tenants'    => $error === null ? $this->ctacteModel()->getTenants() : [],
+            'csrf'       => Csrf::generate(),
+            'mesActual'  => date('Y-m'),
+        ]);
+    }
+
+    /**
+     * Alta manual de un registro mensual.
+     */
+    public function ctacteCreate(): void{
+        $this->requireAdmin();
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $model = $this->ctacteModel();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . '/admin/ctacte-create');
+                exit;
+            }
+
+            try {
+                $model->create($this->datosCtacteDesdePost(true));
+
+                $_SESSION['success'] = 'Registro de cuenta corriente creado.';
+                header('Location: ' . BASE_URL . '/admin/ctacte');
+                exit;
+            } catch (Throwable $e) {
+                error_log('[Admin] Error creando registro de CtaCte: ' . $e->getMessage());
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . '/admin/ctacte-create');
+                exit;
+            }
+        }
+
+        $periodo = date('Y-m');
+
+        $this->adminView('admin/ctacte_form', [
+            'title'     => 'Nuevo registro de CtaCte',
+            'registro'  => null,
+            'tenants'   => $model->getTenants(),
+            'preselect' => (int)($_GET['tenant_id'] ?? 0),
+            'periodo'   => $periodo,
+            'csrf'      => Csrf::generate(),
+        ]);
+    }
+
+    /**
+     * Edicion de un registro mensual (conceptos, fechas y observacion).
+     */
+    public function ctacteEdit(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $model = $this->ctacteModel();
+        $registro = $model->findById($id);
+
+        if (!$registro) {
+            $_SESSION['error'] = 'El registro de cuenta corriente no existe.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+                $_SESSION['error'] = 'Token CSRF invalido.';
+                header('Location: ' . BASE_URL . "/admin/ctacte-edit/{$id}");
+                exit;
+            }
+
+            try {
+                $model->update($id, $this->datosCtacteDesdePost(false, $registro));
+
+                $_SESSION['success'] = 'Registro de cuenta corriente actualizado.';
+                header('Location: ' . BASE_URL . '/admin/ctacte');
+                exit;
+            } catch (Throwable $e) {
+                error_log('[Admin] Error actualizando registro de CtaCte: ' . $e->getMessage());
+                $_SESSION['error'] = $e->getMessage();
+                header('Location: ' . BASE_URL . "/admin/ctacte-edit/{$id}");
+                exit;
+            }
+        }
+
+        $this->adminView('admin/ctacte_form', [
+            'title'     => 'Editar registro de CtaCte',
+            'registro'  => $registro,
+            'tenants'   => $model->getTenants(),
+            'preselect' => (int)$registro['tenant_id'],
+            'periodo'   => $registro['periodo'],
+            'csrf'      => Csrf::generate(),
+        ]);
+    }
+
+    /**
+     * Elimina un registro. Solo si no tiene pagos aplicados.
+     */
+    public function ctacteDelete(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $model = $this->ctacteModel();
+            $registro = $model->findById($id);
+
+            if (!$registro) {
+                throw new RuntimeException('El registro de cuenta corriente no existe.');
+            }
+            if ((float)($registro['pago'] ?? 0) > 0) {
+                throw new RuntimeException('No se puede eliminar un registro con pagos. Anula primero los pagos.');
+            }
+
+            $model->delete($id);
+            $_SESSION['success'] = 'Registro eliminado.';
+        } catch (Throwable $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/ctacte');
+        exit;
+    }
+
+    /**
+     * Formulario de pago: elige empresa y los registros a saldar.
+     */
+    public function ctactePago(): void{
+        $this->requireAdmin();
+
+        $error = $this->prepararCtacte();
+        $tenantId = (int)($_GET['tenant_id'] ?? 0);
+        $pendientes = [];
+        $totalPendiente = 0.0;
+        $tenantNombre = '';
+
+        if ($error === null) {
+            try {
+                $model = $this->ctacteModel();
+                $tenants = $model->getTenants(true);
+
+                if ($tenantId > 0) {
+                    $pendientes = $model->pendientes($tenantId);
+                    foreach ($pendientes as $p) {
+                        $totalPendiente += (float)$p['saldo_pendiente'];
+                    }
+                    $tenantModel = new Tenant();
+                    $tenant = $tenantModel->findById($tenantId);
+                    $tenantNombre = $tenant['nombre'] ?? '';
+                }
+            } catch (Throwable $e) {
+                error_log('[Admin] Error cargando pago de CtaCte: ' . $e->getMessage());
+                $error = 'No se pudo cargar la cuenta corriente: ' . $e->getMessage();
+                $tenants = [];
+            }
+        } else {
+            $tenants = [];
+        }
+
+        $this->adminView('admin/ctacte_pago', [
+            'title'          => 'Registrar pago de CtaCte',
+            'error'          => $error,
+            'tenants'        => $tenants,
+            'tenantId'       => $tenantId,
+            'tenantNombre'   => $tenantNombre,
+            'pendientes'     => $pendientes,
+            'totalPendiente' => $totalPendiente,
+            'csrf'           => Csrf::generate(),
+            'hoy'            => date('Y-m-d'),
+        ]);
+    }
+
+    /**
+     * Registra el pago y lo reparte entre los registros elegidos.
+     */
+    public function ctactePagar(): void{
+        $this->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte-pago');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte-pago');
+            exit;
+        }
+
+        $tenantId = (int)($_POST['tenant_id'] ?? 0);
+        $volver = BASE_URL . '/admin/ctacte-pago' . ($tenantId > 0 ? '?tenant_id=' . $tenantId : '');
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . $volver);
+            exit;
+        }
+
+        try {
+            if ($tenantId <= 0) {
+                throw new InvalidArgumentException('Selecciona la empresa del pago.');
+            }
+
+            $monto = $this->montoDesdePost($_POST['monto'] ?? '');
+            if ($monto <= 0) {
+                throw new InvalidArgumentException('El monto del pago debe ser mayor a cero.');
+            }
+
+            $fecha = trim($_POST['fecha'] ?? '');
+            if ($fecha === '') {
+                $fecha = date('Y-m-d');
+            }
+            if (!$this->fechaValida($fecha)) {
+                throw new InvalidArgumentException('La fecha del pago no es valida.');
+            }
+
+            $obs = trim($_POST['obs'] ?? '');
+            if (mb_strlen($obs) > 500) {
+                throw new InvalidArgumentException('La observacion no puede superar los 500 caracteres.');
+            }
+
+            $registros = $_POST['registros'] ?? [];
+            if (!is_array($registros)) {
+                $registros = [];
+            }
+
+            $resultado = $this->ctacteModel()->registrarPago(
+                $tenantId,
+                $monto,
+                $fecha,
+                $obs,
+                $registros,
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+
+            $_SESSION['success'] = sprintf(
+                'Pago registrado por $%s. Se aplico a %d registro(s).',
+                number_format($resultado['aplicado'], 2, ',', '.'),
+                $resultado['aplicaciones']
+            );
+            header('Location: ' . BASE_URL . '/admin/ctacte?tenant_id=' . $tenantId);
+            exit;
+        } catch (Throwable $e) {
+            error_log('[Admin] Error registrando pago de CtaCte: ' . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . $volver);
+            exit;
+        }
+    }
+
+    /**
+     * Anula un pago y devuelve los saldos a los registros.
+     */
+    public function ctactePagoAnular(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $motivo = trim($_POST['motivo'] ?? '');
+            if ($motivo === '') {
+                throw new InvalidArgumentException('Indica el motivo de la anulacion del pago.');
+            }
+
+            $this->ctacteModel()->anularPago(
+                $id,
+                $motivo,
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+
+            $_SESSION['success'] = 'Pago anulado. Queda registrado en el historial y los saldos se devolvieron a los registros.';
+        } catch (Throwable $e) {
+            error_log('[Admin] Error anulando pago de CtaCte: ' . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/ctacte');
+        exit;
+    }
+
+    /**
+     * Genera (a mano) los registros de un mes para todas las empresas activas.
+     */
+    public function ctacteGenerar(): void{
+        $this->requireAdmin();
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $periodo = trim($_POST['periodo'] ?? '');
+            if ($periodo === '') {
+                $periodo = date('Y-m');
+            }
+
+            $creados = $this->ctacteModel()->generarMes($periodo);
+
+            if ($creados > 0) {
+                $_SESSION['success'] = "Se crearon {$creados} registro(s) para el periodo {$periodo}.";
+            } else {
+                $_SESSION['info'] = "Los registros del periodo {$periodo} ya existian.";
+            }
+        } catch (Throwable $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/ctacte');
+        exit;
+    }
+
+    /**
+     * Deja el schema master al dia y avisa si falta alguna migracion.
+     */
+    private function prepararCtacte(): ?string{
+        try {
+            require_once BASE_PATH . '/app/helpers/MasterMigrationManager.php';
+            $mm = new MasterMigrationManager();
+            $mm->ensureSchema();
+
+            $pendientes = $mm->getPending();
+            if (!empty($pendientes)) {
+                $nombres = implode(', ', array_map(fn($m) => $m['filename'], $pendientes));
+                return 'Faltan migraciones master (' . $nombres . '). '
+                     . 'Ejecutalas desde Admin -> Migraciones.';
+            }
+
+            return null;
+        } catch (Throwable $e) {
+            error_log('[Admin] No se pudo preparar CtaCte: ' . $e->getMessage());
+            return 'No se pudo preparar el modulo CtaCte: ' . $e->getMessage()
+                 . ' Ejecuta las migraciones master desde Admin -> Migraciones.';
+        }
+    }
+
+    /**
+     * Valida y normaliza los datos del formulario de registro mensual.
+     */
+    private function datosCtacteDesdePost(bool $esAlta, ?array $actual = null): array{
+        $tenantId = $esAlta
+            ? (int)($_POST['tenant_id'] ?? 0)
+            : (int)($actual['tenant_id'] ?? 0);
+
+        if ($tenantId <= 0) {
+            throw new InvalidArgumentException('Selecciona la empresa.');
+        }
+        if ($esAlta && !(new Tenant())->findById($tenantId)) {
+            throw new InvalidArgumentException('La empresa seleccionada no existe.');
+        }
+
+        $periodo = $esAlta
+            ? trim($_POST['periodo'] ?? '')
+            : (string)($actual['periodo'] ?? '');
+
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $periodo)) {
+            throw new InvalidArgumentException('El periodo es obligatorio y debe tener el formato AAAA-MM.');
+        }
+
+        $fechaAlta = trim($_POST['fecha_alta'] ?? '');
+        if ($fechaAlta === '') {
+            $fechaAlta = $periodo . '-01';
+        }
+        if (!$this->fechaValida($fechaAlta)) {
+            throw new InvalidArgumentException('La fecha de alta no es valida.');
+        }
+
+        $fechaVencimiento = trim($_POST['fecha_vencimiento'] ?? '');
+        if ($fechaVencimiento === '') {
+            $fechaVencimiento = $periodo . '-10';
+        }
+        if (!$this->fechaValida($fechaVencimiento)) {
+            throw new InvalidArgumentException('La fecha de vencimiento no es valida.');
+        }
+
+        $obs = trim($_POST['obs'] ?? '');
+        if (mb_strlen($obs) > 500) {
+            throw new InvalidArgumentException('La observacion no puede superar los 500 caracteres.');
+        }
+
+        return [
+            'tenant_id'         => $tenantId,
+            'periodo'           => $periodo,
+            'fecha_alta'        => $fechaAlta,
+            'fecha_vencimiento' => $fechaVencimiento,
+            'obs'               => $obs,
+            'sistema'           => $this->montoDesdePost($_POST['sistema'] ?? ''),
+            'soporte'           => $this->montoDesdePost($_POST['soporte'] ?? ''),
+            'desarrollo'        => $this->montoDesdePost($_POST['desarrollo'] ?? ''),
+            'updated_by'        => (int)($_SESSION['user_id'] ?? 0) ?: null,
+        ];
+    }
+
+    /**
+     * Acepta montos con punto o coma decimal ("1234.56" o "1.234,56").
+     */
+    private function montoDesdePost($valor): float{
+        $valor = trim((string)$valor);
+        if ($valor === '') {
+            return 0.0;
+        }
+
+        $valor = str_replace(' ', '', $valor);
+        if (strpos($valor, ',') !== false) {
+            $valor = str_replace('.', '', $valor);
+            $valor = str_replace(',', '.', $valor);
+        }
+
+        if (!is_numeric($valor)) {
+            throw new InvalidArgumentException('Hay un monto con formato invalido.');
+        }
+
+        $numero = (float)$valor;
+        if ($numero < 0) {
+            throw new InvalidArgumentException('Los montos no pueden ser negativos.');
+        }
+
+        return round($numero, 2);
+    }
+
+    private function fechaValida(string $fecha): bool{
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            return false;
+        }
+        [$anio, $mes, $dia] = array_map('intval', explode('-', $fecha));
+        return checkdate($mes, $dia, $anio);
+    }
+
     /**
      * Modelo de tareas (BD master), instanciado por demanda.
      */
     private function tareaModel(): Tarea{
         require_once BASE_PATH . '/app/models/Tarea.php';
         return new Tarea();
+    }
+
+    /**
+     * Modelo de cuenta corriente de empresas (BD master).
+     */
+    private function ctacteModel(): Ctactetenant{
+        return new Ctactetenant();
     }
 
     /**

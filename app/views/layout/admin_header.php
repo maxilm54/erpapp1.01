@@ -105,6 +105,9 @@
             <a href="<?= BASE_URL ?>/admin/all-users" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/all-users') ? 'active' : '' ?>">
                 <i class="bi bi-people"></i> Usuarios
             </a>
+            <a href="<?= BASE_URL ?>/admin/ctacte" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/ctacte') ? 'active' : '' ?>">
+                <i class="bi bi-cash-coin"></i> CtaCte
+            </a>
 
             <div class="section-title">Sistema</div>
             <a href="<?= BASE_URL ?>/admin/tareas" class="nav-link <?= str_starts_with($_GET['url'] ?? '', 'admin/tareas') ? 'active' : '' ?>">

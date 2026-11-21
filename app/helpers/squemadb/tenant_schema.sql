@@ -60,7 +60,7 @@ INSERT INTO configuraciones (clave, valor) VALUES ('usar_adjuntos_compra', '0');
 
 CREATE TABLE IF NOT EXISTS `documentos_adjuntos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `modulo` enum('PRESUPUESTO','NOTA_PEDIDO','REMITO_SALIDA','PRODUCCION','ORDEN_COMPRA') NOT NULL,
+  `modulo` enum('PRESUPUESTO','NOTA_PEDIDO','REMITO_SALIDA','PRODUCCION','ORDEN_COMPRA','PRODUCTO','MATERIA_PRIMA','RECETA') NOT NULL,
   `documento_id` int(11) NOT NULL,
   `nombre_original` varchar(255) NOT NULL COMMENT 'Nombre con el que subio el usuario',
   `nombre_guardado` varchar(255) NOT NULL COMMENT 'Nombre fisico en storage/empresa_N/adjuntos',

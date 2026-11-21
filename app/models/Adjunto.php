@@ -5,20 +5,31 @@ require_once BASE_PATH . '/app/core/Model.php';
 /**
  * Archivos adjuntos de los documentos del tenant:
  * presupuestos, notas de pedido, remitos de salida y ordenes de produccion.
+ * Tambien se usa en los ABM de productos y materias primas y en las recetas
+ * (modulos PRODUCTO, MATERIA_PRIMA y RECETA), restringido a PDF/JPG/JPEG/PNG.
  *
  * Los archivos viven en storage/empresa_{tenantId}/adjuntos/{modulo}/{documentoId}/
  * (nunca servidos directo por Apache: se descargan via AdjuntosController::descargar).
  */
 class Adjunto extends Model
 {
-    public const MODULOS = ['PRESUPUESTO', 'NOTA_PEDIDO', 'REMITO_SALIDA', 'PRODUCCION', 'ORDEN_COMPRA'];
+    public const MODULOS = [
+        'PRESUPUESTO', 'NOTA_PEDIDO', 'REMITO_SALIDA', 'PRODUCCION', 'ORDEN_COMPRA',
+        'PRODUCTO', 'MATERIA_PRIMA', 'RECETA',
+    ];
 
-    /** Extensiones permitidas (whitelist). */
+    /** Modulos de ABM que no dependen de la config usar_adjuntos. */
+    public const MODULOS_ABM = ['PRODUCTO', 'MATERIA_PRIMA', 'RECETA'];
+
+    /** Extensiones permitidas en documentos (whitelist). */
     private const EXTENSIONES = [
         'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic',
         'doc', 'docx', 'odt', 'xls', 'xlsx', 'ods', 'csv', 'ppt', 'pptx',
         'txt', 'zip', 'rar', 'msg', 'eml',
     ];
+
+    /** En productos, materias primas y recetas solo se aceptan estos tipos. */
+    private const EXTENSIONES_ABM = ['pdf', 'jpg', 'jpeg', 'png'];
 
     /** Tamano maximo por archivo (10 MB). */
     private const MAX_BYTES = 10485760;
@@ -26,6 +37,19 @@ class Adjunto extends Model
     public static function moduloValido(string $modulo): bool
     {
         return in_array(strtoupper($modulo), self::MODULOS, true);
+    }
+
+    public static function esModuloAbm(string $modulo): bool
+    {
+        return in_array(strtoupper($modulo), self::MODULOS_ABM, true);
+    }
+
+    /**
+     * Extensiones aceptadas para un modulo (los ABM tienen una lista mas corta).
+     */
+    public static function extensionesPermitidas(string $modulo): array
+    {
+        return self::esModuloAbm($modulo) ? self::EXTENSIONES_ABM : self::EXTENSIONES;
     }
 
     /**
@@ -76,9 +100,29 @@ class Adjunto extends Model
 
         $nombreOriginal = basename((string)$file['name']);
         $ext = strtolower(pathinfo($nombreOriginal, PATHINFO_EXTENSION));
-        if (!in_array($ext, self::EXTENSIONES, true)) {
+        $permitidas = self::extensionesPermitidas($modulo);
+        if (!in_array($ext, $permitidas, true)) {
             throw new Exception("Extension no permitida (.{$ext}). Permitidos: "
-                . implode(', ', self::EXTENSIONES));
+                . implode(', ', $permitidas));
+        }
+
+        $mime = mb_substr((string)($file['type'] ?? ''), 0, 100);
+        if (self::esModuloAbm($modulo) && function_exists('finfo_open')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mimeReal = (string)$finfo->file((string)$file['tmp_name']);
+            $mimesOk = [
+                'pdf'  => ['application/pdf'],
+                'jpg'  => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png'  => ['image/png'],
+            ][$ext] ?? [];
+            if ($mimesOk && !in_array($mimeReal, $mimesOk, true)) {
+                throw new Exception('El contenido del archivo no coincide con su extension (.'
+                    . $ext . ').');
+            }
+            if ($mimeReal !== '') {
+                $mime = $mimeReal;
+            }
         }
 
         $dir = empresaStoragePath('adjuntos/' . strtoupper($modulo) . '/' . $documentoId);
@@ -104,7 +148,7 @@ class Adjunto extends Model
             'original' => mb_substr($nombreOriginal, 0, 255),
             'guardado' => $nombreGuardado,
             'tamano'   => (int)$file['size'],
-            'mime'     => mb_substr((string)($file['type'] ?? ''), 0, 100),
+            'mime'     => $mime,
             'usuario'  => $_SESSION['user_id'] ?? null,
         ]);
 

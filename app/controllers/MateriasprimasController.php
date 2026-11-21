@@ -3,6 +3,7 @@ require_once BASE_PATH . '/app/core/Controller.php';
 require_once BASE_PATH . '/app/models/Materiaprima.php';
 require_once BASE_PATH . '/app/models/Materiaprimaespecificacion.php';
 require_once BASE_PATH . '/app/models/Lote.php';
+require_once BASE_PATH . '/app/models/Adjunto.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 class MateriasprimasController extends Controller
@@ -144,6 +145,16 @@ class MateriasprimasController extends Controller
             $barcode = trim((string)($_POST['barcode'] ?? '')) ?: null;
             $tipo = trim((string)($_POST['tipo'] ?? '')) ?: null;
             $this->mp->create($datos, $imagen, $barcode, $tipo);
+
+            $mpId = $this->mp->ultimoId();
+            if ($mpId > 0 && !empty($_FILES['archivos']['name'][0])) {
+                try {
+                    (new Adjunto())->guardarMultiples('MATERIA_PRIMA', $mpId, $_FILES['archivos']);
+                } catch (Exception $e) {
+                    $_SESSION['warning'] = 'La materia prima se creo, pero no se pudieron adjuntar los archivos: ' . $e->getMessage();
+                }
+            }
+
             header('Location: '.BASE_URL.'/materiasprimas');
             exit;
         }
