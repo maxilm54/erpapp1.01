@@ -1,15 +1,17 @@
 <?php
+require_once BASE_PATH . '/app/models/Materiaprima.php';
+
 class Receta extends Model
 {
     protected string $table = 'recetas';
     public function all(): array
     {
         return $this->db->query("
-            SELECT r.*, p.nombre AS producto,
+            SELECT r.*, COALESCE(p.nombre, r.descripcion_libre, 'Item libre') AS producto,
             GROUP_CONCAT(rd.materia_prima_id SEPARATOR ' - ') AS id_mat_prim,
             GROUP_CONCAT(COALESCE(mp.nombre, CONCAT(pr.nombre, ' (producto)')) SEPARATOR ' - ') AS mat_prim
             FROM recetas r
-            JOIN productos p ON p.id = r.producto_id
+            LEFT JOIN productos p ON p.id = r.producto_id
             LEFT JOIN recetas_detalle rd ON rd.receta_id=r.id
             LEFT JOIN materias_primas mp ON mp.id=rd.materia_prima_id
             LEFT JOIN productos pr ON pr.id=rd.producto_id
@@ -45,20 +47,20 @@ class Receta extends Model
             SELECT r.id, r.nombre, r.producto_id, p.nombre AS producto
             FROM recetas r
             JOIN productos p ON p.id = r.producto_id
-            WHERE r.activa = '1'
+            WHERE r.activa = '1' AND r.producto_id IS NOT NULL
             ORDER BY p.nombre ASC, r.nombre ASC, r.id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function crear(int $productoId,string $nombre, array $items, ?string $procedimiento, int $userId, array $procesos = []): int
+    public function crear(?int $productoId, string $nombre, array $items, ?string $procedimiento, int $userId, array $procesos = [], ?string $descripcionLibre = null): int
     {
         $this->db->beginTransaction();
 
         try {
             $this->db->prepare("
-                INSERT INTO recetas (producto_id,nombre,proceso_fabrica,user_id)
-                VALUES (?,?,?,?)
-            ")->execute([$productoId,$nombre,$procedimiento,$userId]);
+                INSERT INTO recetas (producto_id, descripcion_libre, nombre, proceso_fabrica, user_id)
+                VALUES (?, ?, ?, ?, ?)
+            ")->execute([$productoId ?: null, $descripcionLibre, mb_substr($nombre, 0, 100), $procedimiento, $userId]);
 
             $recetaId = (int)$this->db->lastInsertId();
             
@@ -231,12 +233,86 @@ class Receta extends Model
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Resumen de costos de una receta para mostrarla como cotizador en el
+     * presupuesto o la nota de pedido. Usa los ultimos precios de compra de
+     * las materias primas y el precio de venta de los productos componentes.
+     */
+    public function resumenCostos(int $recetaId): ?array
+    {
+        $receta = $this->find($recetaId);
+        if (!$receta) {
+            return null;
+        }
+
+        $mpIds = [];
+        foreach ($receta['detalle'] as $det) {
+            if (!empty($det['materia_prima_id'])) {
+                $mpIds[] = (int)$det['materia_prima_id'];
+            }
+        }
+        $preciosCompra = (new Materiaprima())->getUltimosPreciosCompra(array_values(array_unique($mpIds)));
+
+        $items = [];
+        $costoInsumos = 0.0;
+        $sinPrecio = false;
+        foreach ($receta['detalle'] as $det) {
+            $precioUnit = $preciosCompra[(int)$det['materia_prima_id']] ?? null;
+            $subtotal = $precioUnit !== null ? $precioUnit * (float)$det['cantidad'] : null;
+            if ($subtotal !== null) {
+                $costoInsumos += $subtotal;
+            } else {
+                $sinPrecio = true;
+            }
+            $items[] = [
+                'tipo'          => 'MATERIA_PRIMA',
+                'nombre'        => $det['nombre'],
+                'cantidad'      => (float)$det['cantidad'],
+                'unidad_medida' => $det['unidad_medida'] ?? null,
+                'precio_unit'   => $precioUnit,
+                'subtotal'      => $subtotal,
+            ];
+        }
+
+        $costoProductos = 0.0;
+        foreach ($this->detalleProductos($recetaId) as $prod) {
+            $precioUnit = (float)($prod['precio_venta'] ?? 0);
+            $subtotal = $precioUnit * (float)$prod['cantidad'];
+            $costoProductos += $subtotal;
+            $items[] = [
+                'tipo'          => 'PRODUCTO',
+                'nombre'        => $prod['nombre'],
+                'cantidad'      => (float)$prod['cantidad'],
+                'unidad_medida' => $prod['unidad_medida'] ?? null,
+                'precio_unit'   => $precioUnit,
+                'subtotal'      => $subtotal,
+            ];
+        }
+
+        $costoProcesos = 0.0;
+        foreach (($receta['procesos'] ?? []) as $proceso) {
+            $costoProcesos += (float)($proceso['costo'] ?? 0);
+        }
+
+        return [
+            'receta'            => $receta,
+            'items'             => $items,
+            'procesos'          => $receta['procesos'] ?? [],
+            'costo_insumos'     => $costoInsumos,
+            'costo_productos'   => $costoProductos,
+            'costo_procesos'    => $costoProcesos,
+            'costo_total'       => $costoInsumos + $costoProductos + $costoProcesos,
+            'sin_precio'        => $sinPrecio,
+        ];
+    }
+
     public function find(int $id): ?array
     {
         $stmt = $this->db->prepare("
-            SELECT r.*, p.nombre AS producto, p.precio_venta, p.id AS producto_id
+            SELECT r.*, COALESCE(p.nombre, r.descripcion_libre, 'Item libre') AS producto,
+                   p.precio_venta, p.id AS producto_id
             FROM recetas r
-            JOIN productos p ON p.id = r.producto_id
+            LEFT JOIN productos p ON p.id = r.producto_id
             WHERE r.id = ? AND r.activa = '1'
         ");
         $stmt->execute([$id]);

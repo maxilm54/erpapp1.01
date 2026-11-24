@@ -223,7 +223,7 @@ function cargarLineasDesdePresupuesto(items) {
 function agregarLineaPresupuesto(p) {
     // Línea libre (sin producto en la base): ya viene resuelta desde el PR
     if (!p.producto_id) {
-        agregarLineaLibre(p.nombre, p.cantidad, p.precio, false, true);
+        agregarLineaLibre(p.nombre, p.cantidad, p.precio, false, true, p.receta_id);
         return;
     }
 
@@ -280,12 +280,15 @@ function escapeHtml(texto) {
         .replace(/"/g, '&quot;');
 }
 
-function agregarLineaLibre(nombre, cantidad, precio, crear, readonly) {
+function agregarLineaLibre(nombre, cantidad, precio, crear, readonly, recetaId) {
     const tbody = document.getElementById('detalle');
     const key = 'libre_' + (++libreIndex);
     const conNom = crear && !readonly && document.getElementById('libre_nomenclador').checked;
     const nom = nomencladorCliente();
     const badgeNom = conNom && nom ? `<span class="badge bg-dark">SKU ...-${nom}</span>` : '';
+    const inputReceta = recetaId
+        ? `<input type="hidden" name="items[${key}][receta_id]" value="${parseInt(recetaId, 10) || ''}">`
+        : '';
 
     const tr = document.createElement('tr');
     tr.id = 'libre-' + libreIndex;
@@ -298,6 +301,7 @@ function agregarLineaLibre(nombre, cantidad, precio, crear, readonly) {
             <input type="hidden" name="items[${key}][descripcion]" value="${escapeHtml(nombre)}">
             <input type="hidden" name="items[${key}][crear_producto]" value="${crear ? 1 : 0}">
             <input type="hidden" name="items[${key}][aplicar_nomenclador]" value="${conNom ? 1 : 0}">
+            ${inputReceta}
         </td>
         <td>
             <input type="number" class="form-control" step="0.01" min="0.01"

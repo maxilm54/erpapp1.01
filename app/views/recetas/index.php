@@ -18,7 +18,12 @@
             <?php foreach ($recetas as $r): ?>
             <tr>
                 <td><?= $r['id'] ?></td>
-                <td><?= htmlspecialchars($r['producto']) ?></td>
+                <td>
+                    <?= htmlspecialchars($r['producto']) ?>
+                    <?php if (empty($r['producto_id'])): ?>
+                        <span class="badge bg-info text-dark">Ítem libre</span>
+                    <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($r['nombre']) ?></td>
                 <td><?= htmlspecialchars($r['mat_prim']) ?></td>
                 <td>

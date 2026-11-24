@@ -111,11 +111,11 @@ class HomeController extends Controller
         ")->fetchColumn();
 
         $topProducidos = $db->query("
-            SELECT p.nombre, SUM(op.cantidad) as total
+            SELECT COALESCE(p.nombre, op.producto_libre, 'Item libre') AS nombre, SUM(op.cantidad) as total
             FROM ordenes_produccion op
-            JOIN productos p ON p.id = op.producto_id
+            LEFT JOIN productos p ON p.id = op.producto_id
             WHERE op.estado = 'FINALIZADA'
-            GROUP BY p.id
+            GROUP BY p.id, op.producto_libre
             ORDER BY total DESC
             LIMIT 3
         ")->fetchAll(PDO::FETCH_ASSOC);

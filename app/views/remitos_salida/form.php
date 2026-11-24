@@ -1,6 +1,16 @@
 <?php
 $reservasNp = $reservasNp ?? [];
 $depositoReservadoNp = $depositoReservadoNp ?? null;
+$produccionNp = $produccionNp ?? null;
+$producidoLibre = (float)($producidoLibre ?? 0);
+$producidoTotalNp = (float)($producidoTotalNp ?? 0);
+$tieneLineaLibre = false;
+foreach (($np['detalle'] ?? []) as $lineaNpForm) {
+    if (empty($lineaNpForm['producto_id'])) {
+        $tieneLineaLibre = true;
+        break;
+    }
+}
 ?>
 <h1>Nuevo Remito</h1>
 
@@ -48,23 +58,38 @@ $depositoReservadoNp = $depositoReservadoNp ?? null;
                 <?php if ($item['pendiente'] <= 0) continue; ?>
                 <?php if (empty($item['producto_id'])): ?>
                     <!-- Línea libre: no tiene producto ni descuenta stock -->
+                    <?php
+                    $producidoLinea = $produccionNp ? min((float)$item['pendiente'], $producidoLibre) : (float)$item['pendiente'];
+                    $maxRemitirLinea = $produccionNp ? $producidoLinea : (float)$item['pendiente'];
+                    ?>
                     <tr data-libre="1">
-                        <td><?= htmlspecialchars($item['nombre']) ?> <span class="badge bg-info">Libre</span></td>
+                        <td>
+                            <?= htmlspecialchars($item['nombre']) ?>
+                            <span class="badge bg-info">Libre</span>
+                            <?php if ($produccionNp): ?>
+                                <span class="badge bg-success">Producido: <?= number_format($producidoTotalNp, 3, ',', '.') ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= number_format($item['pedida'], 3, ',', '.') ?></td>
                         <td>$ <?= number_format($item['precio'], 2, ',', '.') ?></td>
                         <td>$ <?= number_format($item['total_linea'], 2, ',', '.') ?></td>
                         <td><?= number_format($item['remitida'], 3, ',', '.') ?></td>
                         <td><?= number_format($item['pendiente'], 3, ',', '.') ?></td>
-                        <td class="text-muted">—</td>
+                        <td class="text-muted">
+                            <?= $produccionNp ? number_format($producidoLibre, 3, ',', '.') : '—' ?>
+                        </td>
                         <td class="text-muted">No descuenta stock</td>
                         <td>
                             <input type="number"
                                    step="0.01"
                                    min="0"
-                                   max="<?= $item['pendiente'] ?>"
+                                   max="<?= number_format($maxRemitirLinea, 3, '.', '') ?>"
                                    name="items_manual[<?= $item['detalle_id'] ?>]"
                                    class="form-control"
-                                   value="<?= $item['pendiente'] ?>">
+                                   value="<?= number_format($producidoLinea, 3, '.', '') ?>">
+                            <?php if ($produccionNp && $producidoLibre <= 0): ?>
+                                <div class="small text-warning mt-1">No hay piezas producidas pendientes de remitir.</div>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php continue; ?>
@@ -120,6 +145,16 @@ $depositoReservadoNp = $depositoReservadoNp ?? null;
         </tbody>
     </table>
 </div>
+
+<?php if ($produccionNp && $tieneLineaLibre): ?>
+    <div class="alert alert-info py-2 small">
+        <i class="bi bi-gear"></i>
+        La OP #<?= (int)$produccionNp['id'] ?> lleva producidas
+        <strong><?= number_format($producidoTotalNp, 3, ',', '.') ?></strong> piezas.
+        Pendientes de remitir: <strong><?= number_format($producidoLibre, 3, ',', '.') ?></strong>.
+        En la línea libre se sugiere remitir esa cantidad; podés ajustarla antes de confirmar.
+    </div>
+<?php endif; ?>
 
 <div class="mb-3">
     <label>Observaciones</label>

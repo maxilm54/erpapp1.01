@@ -1,13 +1,27 @@
 <?php
 $productoPreseleccionado = (int)($productoPreseleccionado ?? 0);
 $volver = (string)($volver ?? '');
+$itemLibre = $itemLibre ?? null;
 ?>
-<h1>Nueva Receta</h1>
+<h1><?= $itemLibre ? 'Nueva Receta para ítem libre' : 'Nueva Receta' ?></h1>
 
 <form method="post">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
     <input type="hidden" name="volver" value="<?= htmlspecialchars($volver) ?>">
-    <input type="text" class="form-control mb-3" required name="nombre" placeholder="Nombre de Receta">
+    <?php if ($itemLibre): ?>
+        <input type="hidden" name="presupuesto_detalle_id" value="<?= ($itemLibre['tipo'] ?? '') === 'presupuesto' ? (int)$itemLibre['detalle_id'] : '' ?>">
+        <input type="hidden" name="nota_pedido_detalle_id" value="<?= ($itemLibre['tipo'] ?? '') === 'nota' ? (int)$itemLibre['detalle_id'] : '' ?>">
+        <div class="alert alert-info">
+            <strong>Ítem libre:</strong> <?= htmlspecialchars($itemLibre['descripcion']) ?>
+            <div class="small text-muted mt-1">
+                Esta receta queda atada a la línea del documento y no crea un producto en la base.
+                Sirve para cotizar la fabricación y luego producir el ítem.
+            </div>
+        </div>
+    <?php endif; ?>
+    <input type="text" class="form-control mb-3" required name="nombre" placeholder="Nombre de Receta" maxlength="100"
+           value="<?= htmlspecialchars(mb_substr($itemLibre['descripcion'] ?? '', 0, 100)) ?>">
+    <?php if (!$itemLibre): ?>
     <label>Producto Final</label>    
     <select name="producto_id" class="form-control" required>
         <?php foreach ($productos as $p): ?>
@@ -16,6 +30,7 @@ $volver = (string)($volver ?? '');
             </option>
         <?php endforeach ?>
     </select>
+    <?php endif; ?>
 
     <hr>
 

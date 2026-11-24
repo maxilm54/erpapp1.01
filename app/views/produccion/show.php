@@ -27,13 +27,16 @@ if ($inicioProd && $finProd) {
         <p><strong>Creado por:</strong> <?= htmlspecialchars($orden['nombre_user']) ?></p>
         <p><strong>Fecha creada:</strong> <?= htmlspecialchars($orden['created_at']) ?> &mdash; <strong>Entrega:</strong> <?= htmlspecialchars($orden['fecha_entrega']) ?></p>
         <p>
-            <strong>Producto:</strong> <?= htmlspecialchars($orden['producto']) ?>
+            <strong><?= empty($orden['producto_id']) ? 'Ítem libre' : 'Producto' ?>:</strong> <?= htmlspecialchars($orden['producto']) ?>
+            <?php if (empty($orden['producto_id'])): ?>
+                <span class="badge bg-info text-dark">No genera stock de producto</span>
+            <?php endif; ?>
             <span class="badge bg-warning text-dark fs-6 ms-2">Cantidad: <?= number_format($orden['cantidad'], 2, ',', '.') ?></span>
         </p>
         <?php if (!empty($orden['receta'])): ?>
             <p>
                 <strong>Receta:</strong> <?= htmlspecialchars($orden['receta']) ?>
-                <?php if (!empty($orden['receta_producto_id']) && (int)$orden['receta_producto_id'] !== (int)$orden['producto_id']): ?>
+                <?php if (!empty($orden['producto_id']) && !empty($orden['receta_producto_id']) && (int)$orden['receta_producto_id'] !== (int)$orden['producto_id']): ?>
                     <span class="badge bg-info text-dark">Receta de otro producto</span>
                 <?php endif; ?>
             </p>
@@ -221,7 +224,7 @@ if ($inicioProd && $finProd) {
 <?php endif; ?>
 
 <?php $totalMateriales = $total + (float)($total_productos ?? 0); ?>
-<?php if (!empty($reservas) || !empty($productos_receta)): ?>
+<?php if (!empty($orden['producto_id']) && (!empty($reservas) || !empty($productos_receta))): ?>
 <div class="row mt-3">
     <div class="col-md-8">
         <?php

@@ -272,11 +272,37 @@ class RemitosSalidaController extends Controller
             error_log('[Remito reservas NP] ' . $e->getMessage());
         }
 
+        // Produccion de la NP: para items libres no hay stock, lo producido se
+        // remite desde la linea libre. Se sugiere esa cantidad en el formulario.
+        $produccionNp = null;
+        $producidoLibre = 0.0;
+        $producidoTotalNp = 0.0;
+        try {
+            $produccionNp = $this->np->ordenProduccionDeNota((int)$notaPedidoId);
+            $lineasLibres = 0;
+            $remitidoLibre = 0.0;
+            foreach (($np['detalle'] ?? []) as $lineaNp) {
+                if (empty($lineaNp['producto_id'])) {
+                    $lineasLibres++;
+                    $remitidoLibre += (float)($lineaNp['remitida'] ?? 0);
+                }
+            }
+            if ($produccionNp && $lineasLibres === 1) {
+                $producidoTotalNp = (float)($produccionNp['producido'] ?? 0);
+                $producidoLibre = max(0, $producidoTotalNp - $remitidoLibre);
+            }
+        } catch (Exception $e) {
+            error_log('[Remito produccion NP] ' . $e->getMessage());
+        }
+
         $this->view('remitos_salida/form', [ //muestro el form con la info de la np para remitar
             'np' => $np,
             'depositos' => (new Deposito())->allSeleccionables(false),
             'reservasNp' => $reservasNp,
             'depositoReservadoNp' => $depositoReservadoNp,
+            'produccionNp' => $produccionNp,
+            'producidoLibre' => $producidoLibre,
+            'producidoTotalNp' => $producidoTotalNp,
             'cpCampos' => (new Campopersonalizado())->porModulo('REMITO_SALIDA'),
             'cpValores' => []
         ]);

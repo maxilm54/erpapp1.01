@@ -35,6 +35,14 @@
                placeholder="localhost">
     </div>
 
+    <div class="mb-3">
+        <label class="form-label">Email de la empresa</label>
+        <input type="email" class="form-control" name="email"
+               value="<?= htmlspecialchars($tenant['email'] ?? '') ?>"
+               placeholder="administracion@empresa.com">
+        <div class="form-text">A este correo se envian los comprobantes de CtaCte (deuda y pago).</div>
+    </div>
+
     <?php if ($tenant): ?>
     <div class="mb-3">
         <label class="form-label">Estado</label>

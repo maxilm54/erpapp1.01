@@ -137,13 +137,25 @@ class NotaPedido extends Model
 
             if ($productoId === null && $descripcion === '') continue;
 
+            $recetaId = null;
+            if ($productoId === null && !empty($item['receta_id'])) {
+                $stmtReceta = $this->db->prepare(
+                    "SELECT id FROM recetas WHERE id = ? AND producto_id IS NULL AND activa = '1'"
+                );
+                $stmtReceta->execute([(int)$item['receta_id']]);
+                if ($stmtReceta->fetchColumn() !== false) {
+                    $recetaId = (int)$item['receta_id'];
+                }
+            }
+
             $this->db->prepare("
                 INSERT INTO notas_pedido_detalle
-                (nota_pedido_id, producto_id, descripcion, cantidad, precio)
-                VALUES (?, ?, ?, ?, ?)
+                (nota_pedido_id, producto_id, receta_id, descripcion, cantidad, precio)
+                VALUES (?, ?, ?, ?, ?, ?)
             ")->execute([
                 $id,
                 $productoId,
+                $recetaId,
                 $productoId === null ? $descripcion : null,
                 $cantidad,
                 $precio
@@ -210,11 +222,15 @@ class NotaPedido extends Model
      * Evalua si la NP se puede "levantar" en una receta para producir.
      * Requiere: un solo producto (sin lineas libres), producto existente y
      * activo. La cantidad devuelta es la pendiente de remitir.
+     *
+     * Tambien contempla el caso de un item libre con una receta atada: la NP
+     * debe tener una sola linea, sin producto, con receta activa.
      */
     public function evaluarProduccionNota(int $id): array
     {
         $resultado = [
             'elegible'    => false,
+            'es_libre'    => false,
             'motivo'      => '',
             'producto_id' => null,
             'producto'    => null,
@@ -231,18 +247,63 @@ class NotaPedido extends Model
         }
 
         $productos = [];
+        $lineasLibres = [];
         $cantidad = 0.0;
         foreach ($lineas as $linea) {
-            if (empty($linea['producto_id'])) {
-                $resultado['motivo'] = 'La nota de pedido tiene lineas libres o sin producto asociado.';
-                return $resultado;
-            }
-            $productos[(int)$linea['producto_id']] = true;
             $cantidad += (float)($linea['pendiente'] ?? 0);
+            if (empty($linea['producto_id'])) {
+                $lineasLibres[] = $linea;
+            } else {
+                $productos[(int)$linea['producto_id']] = true;
+            }
         }
 
         if ($cantidad <= 0) {
             $resultado['motivo'] = 'La Nota de Pedido no tiene cantidad pendiente para producir.';
+            return $resultado;
+        }
+
+        // Item libre: una sola linea sin producto y con una receta activa.
+        if (empty($productos) && count($lineas) === 1 && count($lineasLibres) === 1) {
+            $linea = $lineasLibres[0];
+            $resultado['es_libre'] = true;
+            $resultado['producto'] = $linea['nombre'];
+            $resultado['cantidad'] = $cantidad;
+
+            if (!(new Configuracion())->activa('usar_recetas_libres', false)) {
+                $resultado['motivo'] = 'Las recetas para items libres no estan habilitadas en Configuraciones.';
+                return $resultado;
+            }
+            $recetaId = (int)($linea['receta_id'] ?? 0);
+            if ($recetaId <= 0) {
+                $resultado['motivo'] = 'El item libre no tiene una receta cargada.';
+                return $resultado;
+            }
+
+            $stmt = $this->db->prepare(
+                "SELECT id, nombre, producto_id
+                 FROM recetas
+                 WHERE id = ? AND activa = '1'"
+            );
+            $stmt->execute([$recetaId]);
+            $receta = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$receta) {
+                $resultado['motivo'] = 'La receta del item libre no existe o esta inactiva.';
+                return $resultado;
+            }
+
+            $resultado['elegible']    = true;
+            $resultado['es_libre']    = true;
+            $resultado['producto_id'] = null;
+            $resultado['producto']    = $linea['nombre'];
+            $resultado['cantidad']    = $cantidad;
+            $resultado['receta']      = $receta;
+            $resultado['recetas']     = [$receta];
+            return $resultado;
+        }
+
+        if (!empty($lineasLibres)) {
+            $resultado['motivo'] = 'La nota de pedido tiene lineas libres o sin producto asociado.';
             return $resultado;
         }
 
@@ -295,10 +356,16 @@ class NotaPedido extends Model
     public function ordenProduccionDeNota(int $notaPedidoId): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT id, estado, cantidad
-             FROM ordenes_produccion
-             WHERE nota_pedido_id = ?
-             ORDER BY id DESC
+            "SELECT op.id, op.estado, op.cantidad,
+                    COALESCE((
+                        SELECT SUM(opd.cantidad_producida)
+                        FROM orden_produccion_detalle opd
+                        WHERE opd.orden_id = op.id
+                          AND opd.confirma_produccion IS NOT NULL
+                    ), 0) AS producido
+             FROM ordenes_produccion op
+             WHERE op.nota_pedido_id = ?
+             ORDER BY op.id DESC
              LIMIT 1"
         );
         $stmt->execute([$notaPedidoId]);
@@ -353,12 +420,18 @@ class NotaPedido extends Model
         }
 
         $evaluacion = $this->evaluarProduccionNota($notaPedidoId);
-        if (empty($evaluacion['producto_id'])) {
+        if (empty($evaluacion['producto_id']) && empty($evaluacion['es_libre'])) {
             throw new Exception('No se puede generar la orden de produccion: ' . $evaluacion['motivo']);
         }
 
         $recetaFinal = null;
-        if ($recetaId !== null && $recetaId > 0) {
+        if (!empty($evaluacion['es_libre'])) {
+            // El item libre usa siempre la receta atada a su linea.
+            if (empty($evaluacion['elegible']) || empty($evaluacion['receta'])) {
+                throw new Exception('No se puede generar la orden de produccion: ' . $evaluacion['motivo']);
+            }
+            $recetaFinal = $evaluacion['receta'];
+        } elseif ($recetaId !== null && $recetaId > 0) {
             $stmt = $this->db->prepare(
                 "SELECT id, nombre, producto_id
                  FROM recetas
@@ -397,7 +470,9 @@ class NotaPedido extends Model
         if (!empty($nota['observaciones'])) {
             $observaciones .= ': ' . $nota['observaciones'];
         }
-        if (!empty($recetaFinal['producto_id'])
+        if (!empty($evaluacion['es_libre'])) {
+            $observaciones .= ' - Item libre: ' . $evaluacion['producto'];
+        } elseif (!empty($recetaFinal['producto_id'])
             && (int)$recetaFinal['producto_id'] !== (int)$evaluacion['producto_id']) {
             $observaciones .= ' - Receta "' . $recetaFinal['nombre'] . '" del producto #'
                 . (int)$recetaFinal['producto_id'];
@@ -405,7 +480,8 @@ class NotaPedido extends Model
 
         try {
             $ordenId = (new OrdenProduccion())->crear([
-                'producto_id'    => (int)$evaluacion['producto_id'],
+                'producto_id'    => !empty($evaluacion['producto_id']) ? (int)$evaluacion['producto_id'] : null,
+                'producto_libre' => !empty($evaluacion['es_libre']) ? $evaluacion['producto'] : null,
                 'receta_id'      => (int)$recetaFinal['id'],
                 'cantidad'       => (float)$evaluacion['cantidad'],
                 'f_entrega'      => $nota['fecha_entrega'] ?? null,
@@ -638,6 +714,7 @@ class NotaPedido extends Model
                 SELECT
                     d.id AS detalle_id,
                     d.producto_id,
+                    d.receta_id,
                     COALESCE(p.nombre, d.descripcion) AS nombre,
                     p.unidad_medida,
                     p.usa_serie,
@@ -709,7 +786,7 @@ class NotaPedido extends Model
 
             $this->db->prepare(
                 "UPDATE notas_pedido_detalle
-                 SET producto_id = ?, descripcion = NULL
+                 SET producto_id = ?, descripcion = NULL, receta_id = NULL
                  WHERE id = ?"
             )->execute([$productoId, $detalleId]);
 
@@ -719,6 +796,47 @@ class NotaPedido extends Model
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Linea de detalle con los datos de su nota de pedido, para crearle una
+     * receta libre desde el modulo de recetas.
+     */
+    public function detalleLinea(int $detalleId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT d.*, np.estado AS nota_estado, np.remitido AS nota_remitido, np.cliente_id
+            FROM notas_pedido_detalle d
+            JOIN notas_pedido np ON np.id = d.nota_pedido_id
+            WHERE d.id = ?
+        ");
+        $stmt->execute([$detalleId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Ata una receta libre a una linea de la nota de pedido.
+     */
+    public function vincularReceta(int $detalleId, int $recetaId): void
+    {
+        $this->db->prepare(
+            "UPDATE notas_pedido_detalle
+             SET receta_id = ?
+             WHERE id = ? AND producto_id IS NULL"
+        )->execute([$recetaId, $detalleId]);
+    }
+
+    /**
+     * Marca la NP como pendiente de producir (usado al crear una receta libre
+     * para una NP que ya estaba aprobada).
+     */
+    public function marcarProduccionPendiente(int $notaPedidoId): void
+    {
+        $this->db->prepare(
+            "UPDATE notas_pedido
+             SET produccion_pendiente = 1
+             WHERE id = ? AND estado = 'APROBADA'"
+        )->execute([$notaPedidoId]);
     }
 
     private function renderPdfHtml(int $id): string

@@ -9,13 +9,13 @@ class OrdenProduccion extends Model
     public function all(): array
     {
         return $this->db->query("
-            SELECT op.*, p.nombre AS producto,
+            SELECT op.*, COALESCE(p.nombre, op.producto_libre, 'Item libre') AS producto,
                    EXISTS(
                        SELECT 1 FROM ordenes_produccion_procesos opp
                        WHERE opp.orden_produccion_id = op.id
                    ) AS tiene_procesos
             FROM ordenes_produccion op
-            JOIN productos p ON p.id = op.producto_id
+            LEFT JOIN productos p ON p.id = op.producto_id
             ORDER BY op.id DESC
         ")->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -29,11 +29,12 @@ class OrdenProduccion extends Model
         try {
             $stmt = $this->db->prepare("
                 INSERT INTO ordenes_produccion
-                (producto_id,receta_id,nota_pedido_id,cantidad,fecha_entrega,observaciones,usuario_id)
-                VALUES (?,?,?,?,?,?,?)
+                (producto_id,producto_libre,receta_id,nota_pedido_id,cantidad,fecha_entrega,observaciones,usuario_id)
+                VALUES (?,?,?,?,?,?,?,?)
             ");
             $stmt->execute([
-                $data['producto_id'],
+                !empty($data['producto_id']) ? (int)$data['producto_id'] : null,
+                $data['producto_libre'] ?? null,
                 $data['receta_id'],
                 $data['nota_pedido_id'] ?? null,
                 $data['cantidad'],
@@ -439,7 +440,7 @@ class OrdenProduccion extends Model
             ");
             $stmt->execute([
                 $ordenId,
-                (int)$orden['producto_id'],
+                !empty($orden['producto_id']) ? (int)$orden['producto_id'] : null,
                 defined('FECHA_ACTUAL') ? FECHA_ACTUAL : date('Y-m-d H:i:s'),
                 $cantidad,
                 'Finalizado desde proceso ' . $proceso['nombre'] . ($observaciones !== '' ? ': ' . $observaciones : ''),
@@ -449,7 +450,7 @@ class OrdenProduccion extends Model
 
             $this->aplicarAvanceConfirmado([
                 'orden_id' => $ordenId,
-                'producto_id' => (int)$orden['producto_id'],
+                'producto_id' => !empty($orden['producto_id']) ? (int)$orden['producto_id'] : null,
                 'cantidad_producida' => $cantidad,
             ]);
 
@@ -734,10 +735,11 @@ class OrdenProduccion extends Model
     public function find(int $id): ?array //devuelve la info de la orden de produccion
     {
         $stmt = $this->db->prepare("
-            SELECT op.*, p.nombre AS producto, p.precio_venta, u.nombre AS nombre_user, p.id AS producto_id,
+            SELECT op.*, COALESCE(p.nombre, op.producto_libre, 'Item libre') AS producto,
+                   p.precio_venta, u.nombre AS nombre_user,
                    r.nombre AS receta, r.producto_id AS receta_producto_id
             FROM ordenes_produccion op
-            JOIN productos p ON p.id = op.producto_id
+            LEFT JOIN productos p ON p.id = op.producto_id
             LEFT JOIN users u ON u.id=op.usuario_id
             LEFT JOIN recetas r ON r.id = op.receta_id
             WHERE op.id = ?
@@ -1120,7 +1122,7 @@ class OrdenProduccion extends Model
             ");
             $stmt->execute([
                 $data['orden_id'],
-                $data['producto_id'],
+                !empty($data['producto_id']) ? (int)$data['producto_id'] : null,
                 $data['f_registro'],
                 $data['cantidad_producida'],
                 $data['observaciones'],
@@ -1388,8 +1390,9 @@ $this->db->prepare("
     private function aplicarAvanceConfirmado(array $avance): void
     {
         $ordenId = (int)$avance['orden_id'];
-        $productoId = (int)$avance['producto_id'];
+        $productoId = !empty($avance['producto_id']) ? (int)$avance['producto_id'] : null;
         $cantidadProducida = (float)$avance['cantidad_producida'];
+        $esLibre = $productoId === null;
 
         $stmt = $this->db->prepare("SELECT receta_id, nota_pedido_id FROM ordenes_produccion WHERE id=?");
         $stmt->execute([$ordenId]);
@@ -1398,8 +1401,9 @@ $this->db->prepare("
         $notaPedidoId = !empty($ordenDatos['nota_pedido_id']) ? (int)$ordenDatos['nota_pedido_id'] : null;
 
         // Si la OP viene de una NP, el producto terminado queda reservado para
-        // esa NP en el deposito "Deposito Productos Reservados (NP)".
-        $depositoDestino = $notaPedidoId ? (new Deposito())->ensureReservadoNp() : null;
+        // esa NP en el deposito "Deposito Productos Reservados (NP)". Un item
+        // libre no genera stock de producto terminado: solo consume MP.
+        $depositoDestino = ($notaPedidoId && !$esLibre) ? (new Deposito())->ensureReservadoNp() : null;
 
         $checkProductos = $this->validarStockProductosReceta((int)$recetaId, $cantidadProducida);
         if ($checkProductos['estado'] !== 'ok') {
@@ -1449,24 +1453,31 @@ $this->db->prepare("
             }
         }
 
-        $this->ajustarProducto(
-            $productoId,
-            $cantidadProducida,
-            'Ingreso por produccion OP ID: ' . $ordenId,
-            (int)($_SESSION['user_id'] ?? 0),
-            'ENTRADA',
-            $ordenId,
-            $depositoDestino
-        );
-
-        if ($notaPedidoId) {
-            (new Reservaproductonp())->registrarProduccion(
-                $notaPedidoId,
+        if (!$esLibre) {
+            $this->ajustarProducto(
                 $productoId,
                 $cantidadProducida,
+                'Ingreso por produccion OP ID: ' . $ordenId,
+                (int)($_SESSION['user_id'] ?? 0),
+                'ENTRADA',
                 $ordenId,
-                (int)($_SESSION['user_id'] ?? 0)
+                $depositoDestino
             );
+
+            if ($notaPedidoId) {
+                (new Reservaproductonp())->registrarProduccion(
+                    $notaPedidoId,
+                    $productoId,
+                    $cantidadProducida,
+                    $ordenId,
+                    (int)($_SESSION['user_id'] ?? 0)
+                );
+            }
+        } else {
+            // Item libre: no hay producto en la base ni stock de producto
+            // terminado. El consumo de MP ya se registro arriba y el ciclo
+            // termina al remitir la NP con su linea libre.
+            error_log("[Produccion] OP {$ordenId} es item libre: no se genera stock de producto terminado.");
         }
 
         $this->consumirProductosComponentes($ordenId, (int)$recetaId, $cantidadProducida);

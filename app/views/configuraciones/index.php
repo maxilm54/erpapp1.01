@@ -201,6 +201,40 @@
     </div>
 </div>
 
+<!-- Recetas libres para items que no estan en la base -->
+<div class="card mb-3">
+    <div class="card-header bg-info text-white">
+        <h5 class="mb-0"><i class="bi bi-book"></i> Recetas para ítems libres (cotizador)</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= BASE_URL ?>/configuraciones/guardar">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="guardar" value="usar_recetas_libres">
+
+            <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" role="switch" id="usar_recetas_libres"
+                       name="usar_recetas_libres" value="1" <?= $usarRecetasLibres ? 'checked' : '' ?>>
+                <label class="form-check-label fw-semibold" for="usar_recetas_libres">
+                    Permitir recetas para ítems libres de Presupuestos y Notas de Pedido
+                </label>
+            </div>
+            <p class="text-muted mb-0 small">
+                Con esta opción activa, una línea <strong>libre</strong> (sin producto en la base) puede tener su propia
+                <strong>receta libre</strong>, creada desde la vista del presupuesto o de la nota de pedido.
+                La receta se usa como <strong>cotizador</strong> del ítem y viaja del presupuesto a la NP.
+                Al aprobar la NP de un ítem libre con receta, solo se ofrece el camino de producción:
+                el ítem consume materias primas pero <strong>no genera stock de producto terminado</strong>
+                (no existe producto en la base) y termina al remitirse como línea libre.
+            </p>
+
+            <div class="mt-3">
+                <button class="btn btn-success"><i class="bi bi-save"></i> Guardar</button>
+                <a href="<?= BASE_URL ?>/home" class="btn btn-secondary">Volver</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Campos personalizados por modulo -->
 <div class="card mb-3">
     <div class="card-header bg-dark text-white">

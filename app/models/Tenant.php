@@ -128,6 +128,7 @@ class Tenant extends Model{
             BASE_PATH . "/public/uploads/materiasprimas/empresa_{$tenantId}",
             BASE_PATH . "/storage/empresa_{$tenantId}/remitos",
             BASE_PATH . "/storage/empresa_{$tenantId}/pagos",
+            BASE_PATH . "/storage/empresa_{$tenantId}/ctacte",
             BASE_PATH . "/storage/empresa_{$tenantId}/logs",
         ];
         foreach ($dirs as $dir) {

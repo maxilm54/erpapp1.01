@@ -131,8 +131,8 @@ class Presupuesto extends Model
             // Detalle
             $stmtDetalle = $this->db->prepare(
                 "INSERT INTO presupuestos_detalle
-                (presupuesto_id, producto_id, descripcion, cantidad, precio)
-                VALUES (:p, :prod, :desc, :cant, :precio)"
+                (presupuesto_id, producto_id, receta_id, descripcion, cantidad, precio)
+                VALUES (:p, :prod, :receta, :desc, :cant, :precio)"
             );
 
             foreach ($data['items'] as $item) {
@@ -161,9 +161,16 @@ class Presupuesto extends Model
                     continue;
                 }
 
+                // Receta libre atada a la linea (opcional, configurable)
+                $recetaId = null;
+                if ($productoId === null && !empty($item['receta_id']) && (int)$item['receta_id'] > 0) {
+                    $recetaId = $this->recetaLibreValida((int)$item['receta_id']);
+                }
+
                 $stmtDetalle->execute([
                     'p'     => $presupuestoId,
                     'prod'  => $productoId,
+                    'receta'=> $recetaId,
                     'desc'  => $productoId === null ? $descripcion : null,
                     'cant'  => $cantidad,
                     'precio'=> $precio
@@ -232,13 +239,20 @@ class Presupuesto extends Model
 
                 if ($productoId === null && $descripcion === '') continue;
 
+                // La receta libre se conserva al editar el presupuesto en borrador.
+                $recetaId = null;
+                if ($productoId === null && !empty($item['receta_id']) && (int)$item['receta_id'] > 0) {
+                    $recetaId = $this->recetaLibreValida((int)$item['receta_id']);
+                }
+
                 $this->db->prepare(
                     "INSERT INTO presupuestos_detalle
-                     (presupuesto_id, producto_id, descripcion, cantidad, precio)
-                     VALUES (?, ?, ?, ?, ?)"
+                     (presupuesto_id, producto_id, receta_id, descripcion, cantidad, precio)
+                     VALUES (?, ?, ?, ?, ?, ?)"
                 )->execute([
                     $id,
                     $productoId,
+                    $recetaId,
                     $productoId === null ? $descripcion : null,
                     $cantidad,
                     $precio
@@ -352,6 +366,7 @@ class Presupuesto extends Model
             SELECT 
                 d.id,
                 d.producto_id,
+                d.receta_id,
                 d.descripcion,
                 COALESCE(pr.nombre, d.descripcion) AS nombre,
                 pr.unidad_medida,
@@ -439,7 +454,7 @@ class Presupuesto extends Model
 
             $this->db->prepare(
                 "UPDATE presupuestos_detalle
-                 SET producto_id = ?, descripcion = NULL
+                 SET producto_id = ?, descripcion = NULL, receta_id = NULL
                  WHERE id = ?"
             )->execute([$productoId, $detalleId]);
 
@@ -451,10 +466,52 @@ class Presupuesto extends Model
         }
     }
 
+    /**
+     * Una receta solo puede atarse a una linea libre y debe estar activa.
+     * Devuelve el ID validado o null.
+     */
+    private function recetaLibreValida(int $recetaId): ?int
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id FROM recetas
+             WHERE id = ? AND producto_id IS NULL AND activa = '1'"
+        );
+        $stmt->execute([$recetaId]);
+        return $stmt->fetchColumn() !== false ? $recetaId : null;
+    }
+
+    /**
+     * Linea de detalle con los datos de su presupuesto, para crearle una
+     * receta libre desde el modulo de recetas.
+     */
+    public function detalleLinea(int $detalleId): ?array
+    {
+        $stmt = $this->db->prepare("
+            SELECT d.*, pr.estado AS presupuesto_estado, pr.cliente_id
+            FROM presupuestos_detalle d
+            JOIN presupuestos pr ON pr.id = d.presupuesto_id
+            WHERE d.id = ?
+        ");
+        $stmt->execute([$detalleId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /**
+     * Ata una receta libre a una linea del presupuesto.
+     */
+    public function vincularReceta(int $detalleId, int $recetaId): void
+    {
+        $this->db->prepare(
+            "UPDATE presupuestos_detalle
+             SET receta_id = ?
+             WHERE id = ? AND producto_id IS NULL"
+        )->execute([$recetaId, $detalleId]);
+    }
+
     private function renderPdfHtml(int $id): string
     {
         $stmt = $this->db->prepare("
-            SELECT p.id, p.created_at, p.observaciones, p.estado, p.fecha_entrega,
+            SELECT p.id, p.created_at, p.observaciones, p.estado, p.fecha_entrega, p.vencimiento,
                 c.razon_social AS cliente, c.direccion, c.cuit
             FROM presupuestos p
             LEFT JOIN clientes c ON c.id = p.cliente_id

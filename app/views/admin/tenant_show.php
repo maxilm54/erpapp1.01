@@ -38,6 +38,10 @@
                         <td><?= htmlspecialchars($tenant['host']) ?></td>
                     </tr>
                     <tr>
+                        <th>Email:</th>
+                        <td><?= htmlspecialchars($tenant['email'] ?? '-') ?></td>
+                    </tr>
+                    <tr>
                         <th>Estado:</th>
                         <td>
                             <?php if ($tenant['activo']): ?>

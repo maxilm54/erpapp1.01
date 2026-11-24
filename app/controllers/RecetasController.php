@@ -4,6 +4,8 @@ require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 require_once BASE_PATH.'/app/models/Materiaprima.php';
 require_once BASE_PATH.'/app/models/Configuracion.php';
+require_once BASE_PATH.'/app/models/Presupuesto.php';
+require_once BASE_PATH.'/app/models/Notapedido.php';
 
 class RecetasController extends Controller
 {
@@ -81,10 +83,124 @@ class RecetasController extends Controller
         ]);
     }
 
+    /**
+     * Valida que el request venga desde una linea libre de presupuesto o de
+     * nota de pedido. Devuelve null si es una receta normal de producto.
+     */
+    private function itemLibreDesdeRequest(array $request): ?array
+    {
+        $presupuestoDetalleId = (int)($request['presupuesto_detalle_id'] ?? 0);
+        $notaDetalleId = (int)($request['nota_pedido_detalle_id'] ?? 0);
+
+        if ($presupuestoDetalleId <= 0 && $notaDetalleId <= 0) {
+            return null;
+        }
+
+        if (!$this->config->activa('usar_recetas_libres', false)) {
+            throw new Exception('Las recetas para items libres no estan habilitadas en Configuraciones.');
+        }
+
+        if ($presupuestoDetalleId > 0) {
+            $linea = (new Presupuesto())->detalleLinea($presupuestoDetalleId);
+            if (!$linea) {
+                throw new Exception('La linea del presupuesto no existe.');
+            }
+            if (!empty($linea['producto_id'])) {
+                throw new Exception('La linea ya tiene un producto asociado.');
+            }
+            if (($linea['presupuesto_estado'] ?? '') !== 'BORRADOR') {
+                throw new Exception('Solo se puede crear la receta de una linea de presupuesto en borrador.');
+            }
+            $descripcion = trim((string)($linea['descripcion'] ?? ''));
+            if ($descripcion === '') {
+                throw new Exception('La linea libre no tiene descripcion.');
+            }
+            return [
+                'tipo'               => 'presupuesto',
+                'detalle_id'         => $presupuestoDetalleId,
+                'doc_id'             => (int)$linea['presupuesto_id'],
+                'descripcion'        => $descripcion,
+                'volver'             => 'presupuesto-' . (int)$linea['presupuesto_id'],
+                'receta_existente_id'=> !empty($linea['receta_id']) ? (int)$linea['receta_id'] : 0,
+            ];
+        }
+
+        $linea = (new NotaPedido())->detalleLinea($notaDetalleId);
+        if (!$linea) {
+            throw new Exception('La linea de la nota de pedido no existe.');
+        }
+        if (!empty($linea['producto_id'])) {
+            throw new Exception('La linea ya tiene un producto asociado.');
+        }
+        if (($linea['nota_estado'] ?? '') !== 'BORRADOR' && ($linea['nota_estado'] ?? '') !== 'APROBADA') {
+            throw new Exception('Solo se puede crear la receta de una linea de nota de pedido en borrador o aprobada.');
+        }
+        if (($linea['nota_estado'] ?? '') === 'APROBADA') {
+            if (($linea['nota_remitido'] ?? '') === 'RemitidoCompleto') {
+                throw new Exception('La Nota de Pedido ya fue remitida por completo.');
+            }
+            $ordenExistente = (new NotaPedido())->ordenProduccionDeNota((int)$linea['nota_pedido_id']);
+            if ($ordenExistente) {
+                throw new Exception('La Nota de Pedido ya tiene una Orden de Produccion generada.');
+            }
+        }
+        $descripcion = trim((string)($linea['descripcion'] ?? ''));
+        if ($descripcion === '') {
+            throw new Exception('La linea libre no tiene descripcion.');
+        }
+        return [
+            'tipo'               => 'nota',
+            'detalle_id'         => $notaDetalleId,
+            'doc_id'             => (int)$linea['nota_pedido_id'],
+            'descripcion'        => $descripcion,
+            'volver'             => 'nota-' . (int)$linea['nota_pedido_id'],
+            'receta_existente_id'=> !empty($linea['receta_id']) ? (int)$linea['receta_id'] : 0,
+        ];
+    }
+
+    /**
+     * Redirige despues de crear/editar una receta segun el origen.
+     */
+    private function redirigirOrigen(string $volver, int $recetaId): void
+    {
+        if (preg_match('/^presupuesto-(\d+)$/', $volver, $m)) {
+            header('Location: ' . BASE_URL . '/presupuestos/show/' . (int)$m[1]);
+            exit;
+        }
+        if (preg_match('/^nota-(\d+)$/', $volver, $m)) {
+            header('Location: ' . BASE_URL . '/notaspedido/show/' . (int)$m[1]);
+            exit;
+        }
+        if ($volver === 'np-pendientes') {
+            header('Location: ' . BASE_URL . '/ordenproduccion/np-pendientes');
+            exit;
+        }
+        header('Location: ' . BASE_URL . '/recetas/show/' . $recetaId);
+        exit;
+    }
+
     public function create()
     {
         $productoPreseleccionado = (int)($_POST['producto_id'] ?? $_GET['producto_id'] ?? 0);
         $volver = trim((string)($_POST['volver'] ?? $_GET['volver'] ?? ''));
+
+        try {
+            $itemLibre = $this->itemLibreDesdeRequest(
+                $_SERVER['REQUEST_METHOD'] === 'POST' ? $_POST : $_GET
+            );
+        } catch (Exception $e) {
+            $_SESSION['error'] = $e->getMessage();
+            header('Location: ' . BASE_URL . '/recetas');
+            exit;
+        }
+
+        if ($itemLibre) {
+            $volver = $itemLibre['volver'];
+            if (!empty($itemLibre['receta_existente_id'])) {
+                header('Location: ' . BASE_URL . '/recetas/show/' . (int)$itemLibre['receta_existente_id']);
+                exit;
+            }
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
@@ -92,6 +208,8 @@ class RecetasController extends Controller
                 $qs = http_build_query(array_filter([
                     'producto_id' => $productoPreseleccionado ?: null,
                     'volver' => $volver !== '' ? $volver : null,
+                    'presupuesto_detalle_id' => ($itemLibre['tipo'] ?? '') === 'presupuesto' ? $itemLibre['detalle_id'] : null,
+                    'nota_pedido_detalle_id' => ($itemLibre['tipo'] ?? '') === 'nota' ? $itemLibre['detalle_id'] : null,
                 ]));
                 header('Location: '.BASE_URL.'/recetas/create' . ($qs ? '?' . $qs : ''));
                 exit;
@@ -100,22 +218,35 @@ class RecetasController extends Controller
                 $permitirProductos = $this->permiteProductos();
                 $items = $this->itemsDesdePost($_POST['items'] ?? [], $permitirProductos);
 
+                $productoId = $itemLibre ? null : (int)($_POST['producto_id'] ?? 0);
+                if (!$itemLibre && $productoId <= 0) {
+                    throw new Exception('Debe elegir el producto final de la receta.');
+                }
+
                 $id = $this->model->crear(
-                    (int)$_POST['producto_id'],
-                    $_POST['nombre'],
+                    $productoId,
+                    (string)($_POST['nombre'] ?? ''),
                     $items,
                     $_POST['procedimiento'] ?? null,
                     (int)$_SESSION['user_id'],
-                    $_POST['procesos'] ?? []
+                    $_POST['procesos'] ?? [],
+                    $itemLibre['descripcion'] ?? null
                 );
 
-                $_SESSION['success'] = 'Receta creada correctamente';
-                if ($volver === 'np-pendientes') {
-                    header('Location: '.BASE_URL.'/ordenproduccion/np-pendientes');
-                } else {
-                    header('Location: '.BASE_URL.'/recetas/show/'.$id);
+                if ($itemLibre) {
+                    if ($itemLibre['tipo'] === 'presupuesto') {
+                        (new Presupuesto())->vincularReceta((int)$itemLibre['detalle_id'], (int)$id);
+                    } else {
+                        $npModel = new NotaPedido();
+                        $npModel->vincularReceta((int)$itemLibre['detalle_id'], (int)$id);
+                        // Si la NP ya estaba aprobada, la receta nueva la deja
+                        // lista para producir (sin OP todavia).
+                        $npModel->marcarProduccionPendiente((int)$itemLibre['doc_id']);
+                    }
                 }
-                exit;
+
+                $_SESSION['success'] = 'Receta creada correctamente';
+                $this->redirigirOrigen($volver, (int)$id);
 
             } catch (Exception $e) {
                 $_SESSION['error'] = $e->getMessage();
@@ -128,6 +259,7 @@ class RecetasController extends Controller
             'usarProductosRecetas' => $this->permiteProductos(),
             'productoPreseleccionado' => $productoPreseleccionado,
             'volver' => $volver,
+            'itemLibre' => $itemLibre,
         ]);
     }
 
@@ -186,13 +318,17 @@ class RecetasController extends Controller
         }
         $costoTotalFabricacion = $costoTotalReceta + $costoProcesos;
 
-        // Obtener costos del producto generado (si existen)
+        // Obtener costos del producto generado (si existen). Las recetas libres
+        // no tienen producto en la base, asi que no aplica.
         require_once BASE_PATH . '/app/models/Productocostos.php';
         $costosModel = new Productocostos();
-        $costosProducto = $costosModel->getByProducto($receta['producto_id']);
+        $costosProducto = null;
         $calculoProducto = null;
-        if ($costosProducto) {
-            $calculoProducto = Productocostos::calcularPrecioVenta($costosProducto, (float)($receta['precio_venta'] ?? 0));
+        if (!empty($receta['producto_id'])) {
+            $costosProducto = $costosModel->getByProducto((int)$receta['producto_id']);
+            if ($costosProducto) {
+                $calculoProducto = Productocostos::calcularPrecioVenta($costosProducto, (float)($receta['precio_venta'] ?? 0));
+            }
         }
 
         $this->view('recetas/show', [

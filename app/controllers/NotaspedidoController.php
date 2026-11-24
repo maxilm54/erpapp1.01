@@ -8,6 +8,7 @@ require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/models/Deposito.php';
 require_once BASE_PATH.'/app/models/Reservaproductonp.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
+require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 
 class NotasPedidoController extends Controller
@@ -35,6 +36,7 @@ class NotasPedidoController extends Controller
             'presupuestos' => [],
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'usarRecetasLibres' => (new Configuracion())->activa('usar_recetas_libres', false),
             'cpCampos'     => (new Campopersonalizado())->porModulo('NOTA_PEDIDO'),
             'cpValores'    => [],
         ]);
@@ -126,6 +128,9 @@ class NotasPedidoController extends Controller
             die();
         }
 
+        $usarRecetasLibres = (new Configuracion())->activa('usar_recetas_libres', false);
+        $usarNpProduccion = (new Configuracion())->activa('np_generar_produccion', false);
+
         $ordenProduccionNp = null;
         try {
             $ordenProduccionNp = $this->np->ordenProduccionDeNota((int)$id);
@@ -133,18 +138,40 @@ class NotasPedidoController extends Controller
             error_log('[NotaPedido OP] ' . $e->getMessage());
         }
 
+        $evaluacionProduccion = null;
+        if ($usarRecetasLibres || $usarNpProduccion) {
+            try {
+                $evaluacionProduccion = $this->np->evaluarProduccionNota((int)$id);
+            } catch (Exception $e) {
+                error_log('[NotaPedido produccion] ' . $e->getMessage());
+            }
+        }
+
         $npProduccion = [
-            'configActiva' => false,
-            'evaluacion'   => null,
+            'configActiva' => $usarNpProduccion
+                || ($usarRecetasLibres && !empty($evaluacionProduccion['es_libre'])),
+            'evaluacion'   => $evaluacionProduccion,
             'orden'        => $ordenProduccionNp,
         ];
-        try {
-            if ((new Configuracion())->activa('np_generar_produccion', false)) {
-                $npProduccion['configActiva'] = true;
-                $npProduccion['evaluacion']   = $this->np->evaluarProduccionNota((int)$id);
+
+        // Item libre unico con receta atada: al aprobar solo se ofrece el camino
+        // de produccion, porque no existe producto ni stock para remitir.
+        $soloRecetaLibre = $usarRecetasLibres
+            && !empty($evaluacionProduccion['es_libre'])
+            && !empty($evaluacionProduccion['elegible']);
+        $puedeProduccionLibre = $soloRecetaLibre;
+
+        $recetasLibres = [];
+        if ($usarRecetasLibres) {
+            $recetaModel = new Receta();
+            foreach ($np['detalle'] as $lineaNp) {
+                if (empty($lineaNp['producto_id']) && !empty($lineaNp['receta_id'])) {
+                    $resumen = $recetaModel->resumenCostos((int)$lineaNp['receta_id']);
+                    if ($resumen) {
+                        $recetasLibres[(int)$lineaNp['id']] = $resumen;
+                    }
+                }
             }
-        } catch (Exception $e) {
-            error_log('[NotaPedido produccion] ' . $e->getMessage());
         }
 
         $reservasNp = [];
@@ -170,13 +197,18 @@ class NotasPedidoController extends Controller
             'reservasResumen',
             'detalleReserva',
             'depositosReserva',
-            'depositoReservadoNp'
+            'depositoReservadoNp',
+            'usarRecetasLibres',
+            'soloRecetaLibre',
+            'puedeProduccionLibre',
+            'recetasLibres'
         ));
     }
 
     /**
      * Genera la Orden de Produccion desde la receta del unico producto de la NP.
-     * Solo esta disponible si la configuracion np_generar_produccion esta activa.
+     * Para NPs con producto requiere np_generar_produccion. Para un item libre
+     * con receta alcanza con usar_recetas_libres.
      */
     public function generarProduccion($id)
     {
@@ -191,7 +223,13 @@ class NotasPedidoController extends Controller
             header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
             exit;
         }
-        if (!(new Configuracion())->activa('np_generar_produccion', false)) {
+        $config = new Configuracion();
+        $permiteLibre = false;
+        if ($config->activa('usar_recetas_libres', false)) {
+            $evaluacionLibre = $this->np->evaluarProduccionNota((int)$id);
+            $permiteLibre = !empty($evaluacionLibre['es_libre']) && !empty($evaluacionLibre['elegible']);
+        }
+        if (!$config->activa('np_generar_produccion', false) && !$permiteLibre) {
             $_SESSION['error'] = 'La generación de producción desde notas de pedido no está habilitada.';
             header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
             exit;
@@ -312,11 +350,23 @@ class NotasPedidoController extends Controller
         $flujo = (string)($_POST['flujo'] ?? 'normal');
         $produccionPendiente = $flujo === 'produccion';
 
+        // Un item libre con receta no tiene producto ni stock para remitir:
+        // solo puede continuar por produccion.
+        $config = new Configuracion();
+        if ($config->activa('usar_recetas_libres', false)) {
+            $evaluacion = $this->np->evaluarProduccionNota((int)$id);
+            if (!empty($evaluacion['es_libre']) && !empty($evaluacion['elegible'])) {
+                $produccionPendiente = true;
+            }
+        }
+
         $this->np->aprobar((int)$id, $produccionPendiente);
 
-        $_SESSION['success'] = $produccionPendiente
-            ? 'Nota de Pedido aprobada y enviada a "NP pendientes de producir".'
-            : 'Nota de Pedido aprobada. Ya puede remitirse.';
+        if ($produccionPendiente) {
+            $_SESSION['success'] = 'Nota de Pedido aprobada y enviada a "NP pendientes de producir".';
+        } else {
+            $_SESSION['success'] = 'Nota de Pedido aprobada. Ya puede remitirse.';
+        }
 
         header('Location: ' . BASE_URL . '/notaspedido/show/' . $id);
         exit;

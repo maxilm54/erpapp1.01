@@ -20,6 +20,9 @@
             <div class="card-header bg-dark text-white">
                 <h5 class="mb-0">
                     <i class="bi bi-list-check"></i> Producto: <?= htmlspecialchars($receta['producto']) ?>
+                    <?php if (empty($receta['producto_id'])): ?>
+                        <span class="badge bg-info text-dark">Ítem libre</span>
+                    <?php endif; ?>
                 </h5>
             </div>
             <div class="card-body p-0">
@@ -151,11 +154,13 @@
 
         <?php
         // Adjuntos cargados en el ABM del producto (solo lectura desde la receta).
-        $adjModulo = 'PRODUCTO';
-        $adjDocId = (int)($receta['producto_id'] ?? 0);
-        $adjTitulo = 'Archivos del producto';
-        $adjSoloLectura = true;
-        require BASE_PATH . '/app/views/adjuntos/panel.php';
+        if (!empty($receta['producto_id'])) {
+            $adjModulo = 'PRODUCTO';
+            $adjDocId = (int)$receta['producto_id'];
+            $adjTitulo = 'Archivos del producto';
+            $adjSoloLectura = true;
+            require BASE_PATH . '/app/views/adjuntos/panel.php';
+        }
 
         // Adjuntos propios de la receta (no se muestran en el ABM del producto).
         $adjModulo = 'RECETA';
@@ -189,6 +194,7 @@
                     <div class="fs-4 fw-bold text-dark">$ <?= number_format($costo_total_fabricacion ?? $costo_total_receta, 2, ',', '.') ?></div>
                 </div>
 
+                <?php if (!empty($receta['producto_id'])): ?>
                 <div class="mb-3">
                     <small class="text-muted">Precio Venta Producto</small>
                     <div class="fs-4 fw-bold text-success">
@@ -210,6 +216,12 @@
                         <small>(<?= number_format($margenSimple, 1) ?>%)</small>
                     </div>
                 </div>
+                <?php else: ?>
+                <div class="alert alert-info mb-0 small">
+                    Receta de ítem libre: no está atada a un producto de la base.
+                    El costo de fabricación se usa para cotizar la línea del presupuesto o de la nota de pedido.
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -268,7 +280,7 @@
                 </div>
             </div>
         </div>
-        <?php else: ?>
+        <?php elseif (!empty($receta['producto_id'])): ?>
         <!-- Sin costos configurados -->
         <div class="card mb-4 border-warning">
             <div class="card-header bg-warning text-dark">

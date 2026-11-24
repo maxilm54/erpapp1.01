@@ -67,6 +67,7 @@ class AdminController extends Controller{
      */
     public function create(): void{
         $this->requireAdmin();
+        $this->asegurarSchemaMaster();
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!Csrf::validate($_POST['csrf_token'])) {
@@ -77,9 +78,16 @@ class AdminController extends Controller{
 
             $nombre = trim($_POST['nombre'] ?? '');
             $dbname = trim($_POST['dbname'] ?? '');
+            $email  = trim($_POST['email'] ?? '');
 
             if (empty($nombre) || empty($dbname)) {
                 $_SESSION['error'] = 'Nombre y nombre de BD son obligatorios.';
+                header('Location: ' . BASE_URL . '/admin/create');
+                exit;
+            }
+
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $_SESSION['error'] = 'El email de la empresa no es valido.';
                 header('Location: ' . BASE_URL . '/admin/create');
                 exit;
             }
@@ -110,7 +118,8 @@ class AdminController extends Controller{
             $tenantId = $tenantModel->create([
                 'nombre' => $nombre,
                 'dbname' => $dbname,
-                'host'   => 'localhost'
+                'host'   => 'localhost',
+                'email'  => $email !== '' ? $email : null,
             ]);
 
             $tenantModel->crearDirectorios($tenantId);
@@ -141,6 +150,7 @@ class AdminController extends Controller{
      */
     public function edit(int $id): void{
         $this->requireAdmin();
+        $this->asegurarSchemaMaster();
 
         $tenantModel = new Tenant();
         $tenant = $tenantModel->findById($id);
@@ -158,9 +168,17 @@ class AdminController extends Controller{
                 exit;
             }
 
+            $email = trim($_POST['email'] ?? '');
+            if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $_SESSION['error'] = 'El email de la empresa no es valido.';
+                header('Location: ' . BASE_URL . "/admin/edit/{$id}");
+                exit;
+            }
+
             $tenantModel->update($id, [
                 'nombre'  => trim($_POST['nombre']),
                 'host'    => trim($_POST['host'] ?? 'localhost'),
+                'email'   => $email !== '' ? $email : null,
                 'activo'  => (int)($_POST['activo'] ?? 1)
             ]);
 
@@ -1200,7 +1218,12 @@ class AdminController extends Controller{
             }
 
             try {
-                $model->create($this->datosCtacteDesdePost(true));
+                $id = $model->create($this->datosCtacteDesdePost(true));
+
+                $pdfError = $this->generarComprobanteDeudaPdf($id);
+                if ($pdfError !== null) {
+                    $_SESSION['warning'] = $pdfError;
+                }
 
                 $_SESSION['success'] = 'Registro de cuenta corriente creado.';
                 header('Location: ' . BASE_URL . '/admin/ctacte');
@@ -1257,6 +1280,11 @@ class AdminController extends Controller{
 
             try {
                 $model->update($id, $this->datosCtacteDesdePost(false, $registro));
+
+                $pdfError = $this->generarComprobanteDeudaPdf($id);
+                if ($pdfError !== null) {
+                    $_SESSION['warning'] = $pdfError;
+                }
 
                 $_SESSION['success'] = 'Registro de cuenta corriente actualizado.';
                 header('Location: ' . BASE_URL . '/admin/ctacte');
@@ -1316,6 +1344,15 @@ class AdminController extends Controller{
             }
 
             $model->delete($id);
+            try {
+                $pdfPath = $this->ctactePdfService()->rutaComprobanteDeuda((int)$registro['tenant_id'], $id);
+                if (is_file($pdfPath)) {
+                    @unlink($pdfPath);
+                }
+            } catch (Throwable $e) {
+                error_log('[Admin] No se pudo borrar el PDF del registro CtaCte #' . $id . ': ' . $e->getMessage());
+            }
+
             $_SESSION['success'] = 'Registro eliminado.';
         } catch (Throwable $e) {
             $_SESSION['error'] = $e->getMessage();
@@ -1437,6 +1474,23 @@ class AdminController extends Controller{
                 (int)($_SESSION['user_id'] ?? 0)
             );
 
+            // Comprobante de pago (letra X) y regeneracion de los comprobantes
+            // de deuda de los periodos alcanzados por el pago.
+            $pdfErrors = [];
+            $errorPago = $this->generarComprobantePagoPdf((int)$resultado['pago_id']);
+            if ($errorPago !== null) {
+                $pdfErrors[] = $errorPago;
+            }
+            foreach ($resultado['registros'] as $registroId) {
+                $errorDeuda = $this->generarComprobanteDeudaPdf((int)$registroId);
+                if ($errorDeuda !== null) {
+                    $pdfErrors[] = $errorDeuda;
+                }
+            }
+            if (!empty($pdfErrors)) {
+                $_SESSION['warning'] = implode(' ', array_unique($pdfErrors));
+            }
+
             $_SESSION['success'] = sprintf(
                 'Pago registrado por $%s. Se aplico a %d registro(s).',
                 number_format($resultado['aplicado'], 2, ',', '.'),
@@ -1483,11 +1537,28 @@ class AdminController extends Controller{
                 throw new InvalidArgumentException('Indica el motivo de la anulacion del pago.');
             }
 
-            $this->ctacteModel()->anularPago(
+            $afectados = $this->ctacteModel()->anularPago(
                 $id,
                 $motivo,
                 (int)($_SESSION['user_id'] ?? 0)
             );
+
+            // El comprobante de pago se regenera para que quede marcado como
+            // ANULADO, y se regeneran las deudas de los periodos afectados.
+            $pdfErrors = [];
+            $errorPago = $this->generarComprobantePagoPdf($id);
+            if ($errorPago !== null) {
+                $pdfErrors[] = $errorPago;
+            }
+            foreach ($afectados as $registroId) {
+                $errorDeuda = $this->generarComprobanteDeudaPdf((int)$registroId);
+                if ($errorDeuda !== null) {
+                    $pdfErrors[] = $errorDeuda;
+                }
+            }
+            if (!empty($pdfErrors)) {
+                $_SESSION['warning'] = implode(' ', array_unique($pdfErrors));
+            }
 
             $_SESSION['success'] = 'Pago anulado. Queda registrado en el historial y los saldos se devolvieron a los registros.';
         } catch (Throwable $e) {
@@ -1542,6 +1613,166 @@ class AdminController extends Controller{
 
         header('Location: ' . BASE_URL . '/admin/ctacte');
         exit;
+    }
+
+    /**
+     * Sirve (inline) el comprobante de deuda en PDF. Se regenera en cada
+     * pedido para que siempre refleje el estado actual del registro.
+     */
+    public function ctactePdfDeuda(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $path = $this->ctactePdfService()->generarComprobanteDeuda($id);
+            $this->servirPdf($path);
+        } catch (Throwable $e) {
+            error_log('[Admin] Error generando PDF de deuda CtaCte #' . $id . ': ' . $e->getMessage());
+            $_SESSION['error'] = 'No se pudo generar el comprobante de deuda: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+    }
+
+    /**
+     * Sirve (inline) el comprobante de pago en PDF.
+     */
+    public function ctactePdfPago(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $path = $this->ctactePdfService()->generarComprobantePago($id);
+            $this->servirPdf($path);
+        } catch (Throwable $e) {
+            error_log('[Admin] Error generando PDF de pago CtaCte #' . $id . ': ' . $e->getMessage());
+            $_SESSION['error'] = 'No se pudo generar el comprobante de pago: ' . $e->getMessage();
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+    }
+
+    /**
+     * Envia el comprobante de deuda al email de la empresa.
+     */
+    public function ctacteEnviarDeuda(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $registro = $this->ctacteModel()->findById($id);
+            if (!$registro) {
+                throw new RuntimeException('El registro de cuenta corriente no existe.');
+            }
+
+            $email = trim((string)($registro['tenant_email'] ?? ''));
+            $this->ctacteMailService()->enviarComprobanteDeuda(
+                $id,
+                $email,
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+
+            $_SESSION['success'] = 'Comprobante de deuda enviado a ' . $email . '.';
+        } catch (Throwable $e) {
+            error_log('[Admin] Error enviando comprobante de deuda CtaCte #' . $id . ': ' . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/ctacte');
+        exit;
+    }
+
+    /**
+     * Envia el comprobante de pago al email de la empresa.
+     */
+    public function ctacteEnviarPago(int $id): void{
+        $this->requireAdmin();
+        validarId($id, BASE_URL . '/admin/ctacte');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        if (!Csrf::validate($_POST['csrf_token'] ?? '')) {
+            $_SESSION['error'] = 'Token CSRF invalido.';
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        $error = $this->prepararCtacte();
+        if ($error !== null) {
+            $_SESSION['error'] = $error;
+            header('Location: ' . BASE_URL . '/admin/ctacte');
+            exit;
+        }
+
+        try {
+            $pago = $this->ctacteModel()->findPago($id);
+            if (!$pago) {
+                throw new RuntimeException('El pago no existe.');
+            }
+
+            $email = trim((string)($pago['tenant_email'] ?? ''));
+            $this->ctacteMailService()->enviarComprobantePago(
+                $id,
+                $email,
+                (int)($_SESSION['user_id'] ?? 0)
+            );
+
+            $_SESSION['success'] = 'Comprobante de pago enviado a ' . $email . '.';
+        } catch (Throwable $e) {
+            error_log('[Admin] Error enviando comprobante de pago CtaCte #' . $id . ': ' . $e->getMessage());
+            $_SESSION['error'] = $e->getMessage();
+        }
+
+        header('Location: ' . BASE_URL . '/admin/ctacte');
+        exit;
+    }
+
+    /**
+     * Aplica migraciones master pendientes sin bloquear el alta/edicion de
+     * empresas (sirve para asegurar tenants.email).
+     */
+    private function asegurarSchemaMaster(): void{
+        try {
+            require_once BASE_PATH . '/app/helpers/MasterMigrationManager.php';
+            (new MasterMigrationManager())->ensureSchema();
+        } catch (Throwable $e) {
+            error_log('[Admin] No se pudo asegurar el schema master: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -1673,6 +1904,67 @@ class AdminController extends Controller{
      */
     private function ctacteModel(): Ctactetenant{
         return new Ctactetenant();
+    }
+
+    /**
+     * Servicio de comprobantes PDF de CtaCte.
+     */
+    private function ctactePdfService(): CtactePdfService{
+        require_once BASE_PATH . '/app/services/CtactePdfService.php';
+        return new CtactePdfService();
+    }
+
+    /**
+     * Servicio de envio por email de comprobantes de CtaCte.
+     */
+    private function ctacteMailService(): CtacteMailService{
+        require_once BASE_PATH . '/app/services/CtacteMailService.php';
+        return new CtacteMailService();
+    }
+
+    /**
+     * Genera el comprobante de deuda sin cortar la operacion principal.
+     * Devuelve el mensaje de error o null si salio bien.
+     */
+    private function generarComprobanteDeudaPdf(int $registroId): ?string{
+        try {
+            $this->ctactePdfService()->generarComprobanteDeuda($registroId);
+            return null;
+        } catch (Throwable $e) {
+            error_log('[Admin] Error generando comprobante de deuda CtaCte #' . $registroId . ': ' . $e->getMessage());
+            return 'No se pudo generar el comprobante de deuda PDF: ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * Genera el comprobante de pago sin cortar la operacion principal.
+     */
+    private function generarComprobantePagoPdf(int $pagoId): ?string{
+        try {
+            $this->ctactePdfService()->generarComprobantePago($pagoId);
+            return null;
+        } catch (Throwable $e) {
+            error_log('[Admin] Error generando comprobante de pago CtaCte #' . $pagoId . ': ' . $e->getMessage());
+            return 'No se pudo generar el comprobante de pago PDF: ' . $e->getMessage();
+        }
+    }
+
+    /**
+     * Envia un PDF inline al navegador (los archivos de storage no se sirven
+     * por HTTP directo).
+     */
+    private function servirPdf(string $path): void{
+        if (!is_file($path)) {
+            throw new RuntimeException('El archivo PDF no existe.');
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($path) . '"');
+        header('Content-Length: ' . filesize($path));
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+        readfile($path);
+        exit;
     }
 
     /**

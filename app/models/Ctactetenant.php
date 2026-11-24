@@ -38,7 +38,8 @@ class Ctactetenant extends Model
     public function all(array $filters = []): array
     {
         $sql = "SELECT c.*, t.nombre AS tenant_nombre, t.dbname AS tenant_dbname,
-                       t.activo AS tenant_activo, DATE(t.created_at) AS tenant_alta,
+                       t.activo AS tenant_activo, t.email AS tenant_email,
+                       DATE(t.created_at) AS tenant_alta,
                        u.nombre AS actualizado_por_nombre
                 FROM ctacte_tenant c
                 INNER JOIN tenants t ON t.id = c.tenant_id
@@ -81,7 +82,10 @@ class Ctactetenant extends Model
     {
         $stmt = $this->db->prepare(
             "SELECT c.*, t.nombre AS tenant_nombre, t.dbname AS tenant_dbname,
-                    t.activo AS tenant_activo, DATE(t.created_at) AS tenant_alta
+                    t.host AS tenant_host, t.activo AS tenant_activo, t.email AS tenant_email,
+                    t.cuit AS tenant_cuit, t.telefono AS tenant_telefono,
+                    t.direccion AS tenant_direccion, t.created_at AS tenant_created_at,
+                    DATE(t.created_at) AS tenant_alta
              FROM ctacte_tenant c
              INNER JOIN tenants t ON t.id = c.tenant_id
              WHERE c.id = :id"
@@ -111,7 +115,7 @@ class Ctactetenant extends Model
      */
     public function pagos(array $filters = []): array
     {
-        $sql = "SELECT p.*, t.nombre AS tenant_nombre,
+        $sql = "SELECT p.*, t.nombre AS tenant_nombre, t.email AS tenant_email,
                        u.nombre AS usuario_nombre,
                        a.nombre AS anulado_por_nombre
                 FROM ctacte_tenant_pagos p
@@ -134,6 +138,65 @@ class Ctactetenant extends Model
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Un pago con todos los datos de la empresa (para el comprobante PDF).
+     */
+    public function findPago(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.*, t.nombre AS tenant_nombre, t.dbname AS tenant_dbname,
+                    t.host AS tenant_host, t.email AS tenant_email, t.cuit AS tenant_cuit,
+                    t.telefono AS tenant_telefono, t.direccion AS tenant_direccion,
+                    t.created_at AS tenant_created_at,
+                    u.nombre AS usuario_nombre,
+                    a.nombre AS anulado_por_nombre
+             FROM ctacte_tenant_pagos p
+             INNER JOIN tenants t ON t.id = p.tenant_id
+             LEFT JOIN users u ON u.id = p.usuario_id
+             LEFT JOIN users a ON a.id = p.anulado_por
+             WHERE p.id = :id"
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Reparto de un pago entre los registros mensuales.
+     */
+    public function aplicacionesDePago(int $pagoId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT ap.*, c.periodo, c.fecha_alta, c.fecha_vencimiento, c.estado
+             FROM ctacte_tenant_pago_aplicaciones ap
+             INNER JOIN ctacte_tenant c ON c.id = ap.registro_id
+             WHERE ap.pago_id = :pago_id
+             ORDER BY c.fecha_vencimiento ASC, c.periodo ASC, c.id ASC"
+        );
+        $stmt->execute([':pago_id' => $pagoId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Pagos activos aplicados a un registro (para el comprobante de deuda).
+     */
+    public function pagosAplicados(int $registroId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT p.id, p.fecha, p.monto AS monto_pago, p.obs,
+                    p.activo, p.anulado_at, p.motivo_anulacion,
+                    ap.monto AS monto_aplicado,
+                    u.nombre AS usuario_nombre
+             FROM ctacte_tenant_pago_aplicaciones ap
+             INNER JOIN ctacte_tenant_pagos p ON p.id = ap.pago_id
+             LEFT JOIN users u ON u.id = p.usuario_id
+             WHERE ap.registro_id = :registro_id AND p.activo = 1
+             ORDER BY p.fecha ASC, p.id ASC"
+        );
+        $stmt->execute([':registro_id' => $registroId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -465,6 +528,7 @@ class Ctactetenant extends Model
 
             $restanteC = $montoC;
             $aplicaciones = 0;
+            $registrosAplicados = [];
 
             foreach ($registros as $r) {
                 if ($restanteC <= 0) {
@@ -493,6 +557,7 @@ class Ctactetenant extends Model
                     ':monto'       => self::aPesos($aplicaC),
                 ]);
 
+                $registrosAplicados[] = (int)$r['id'];
                 $restanteC -= $aplicaC;
                 $aplicaciones++;
             }
@@ -501,12 +566,30 @@ class Ctactetenant extends Model
                 throw new RuntimeException('No se pudo aplicar todo el pago a los registros seleccionados.');
             }
 
+            // Snapshot para el comprobante de pago: deuda total de la empresa
+            // despues de aplicar este pago.
+            $stmtSaldo = $this->db->prepare(
+                "SELECT COALESCE(SUM(saldo_pendiente), 0) FROM ctacte_tenant WHERE tenant_id = :tenant_id"
+            );
+            $stmtSaldo->execute([':tenant_id' => $tenantId]);
+            $saldoDespues = (float)$stmtSaldo->fetchColumn();
+
+            $updPago = $this->db->prepare(
+                "UPDATE ctacte_tenant_pagos SET saldo_pendiente_despues = :saldo WHERE id = :id"
+            );
+            $updPago->execute([
+                ':saldo' => self::aPesos(self::aCentavos($saldoDespues)),
+                ':id'    => $pagoId,
+            ]);
+
             $this->db->commit();
 
             return [
                 'pago_id'      => $pagoId,
                 'aplicado'     => self::aPesos($montoC - $restanteC),
                 'aplicaciones' => $aplicaciones,
+                'registros'    => $registrosAplicados,
+                'saldo_despues' => self::aPesos(self::aCentavos($saldoDespues)),
             ];
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) {
@@ -520,8 +603,10 @@ class Ctactetenant extends Model
      * Anula un pago con baja logica: revierte los importes en cada registro,
      * pero conserva el pago (activo = 0), su reparto y los datos de la
      * anulacion (fecha/hora, usuario y motivo).
+     *
+     * @return int[] IDs de los registros afectados
      */
-    public function anularPago(int $pagoId, string $motivo, ?int $usuarioId = null): void
+    public function anularPago(int $pagoId, string $motivo, ?int $usuarioId = null): array
     {
         $motivo = trim($motivo);
         if ($motivo === '') {
@@ -557,6 +642,8 @@ class Ctactetenant extends Model
                  WHERE id = :id"
             );
 
+            $registrosAfectados = [];
+
             foreach ($aplicaciones as $a) {
                 $selRegistro->execute([':id' => (int)$a['registro_id']]);
                 $registro = $selRegistro->fetch(PDO::FETCH_ASSOC);
@@ -574,6 +661,8 @@ class Ctactetenant extends Model
                     ':estado' => $this->estadoPara(self::aPesos($pagoC), self::aPesos($saldoC)),
                     ':id'     => (int)$registro['id'],
                 ]);
+
+                $registrosAfectados[] = (int)$registro['id'];
             }
 
             // Baja logica: el pago y sus aplicaciones quedan como historial.
@@ -592,6 +681,8 @@ class Ctactetenant extends Model
             ]);
 
             $this->db->commit();
+
+            return $registrosAfectados;
         } catch (Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();

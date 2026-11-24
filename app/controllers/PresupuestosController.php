@@ -8,6 +8,7 @@ require_once BASE_PATH.'/app/models/Configuracion.php';
 require_once BASE_PATH.'/app/models/Campopersonalizado.php';
 require_once BASE_PATH.'/app/models/Adjunto.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
+require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/services/MailService.php';
 
 class PresupuestosController extends Controller
@@ -59,6 +60,7 @@ class PresupuestosController extends Controller
             'productos' => (new Producto())->all(),
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'usarRecetasLibres' => (new Configuracion())->activa('usar_recetas_libres', false),
             'cpCampos'  => (new Campopersonalizado())->porModulo('PRESUPUESTO'),
             'cpValores' => [],
         ]);
@@ -146,6 +148,7 @@ class PresupuestosController extends Controller
             'productos'   => (new Producto())->all(),
             'usarNomenclador' => (new Configuracion())->activa('usar_nomenclador', true),
             'usarAdjuntos' => (new Configuracion())->activa('usar_adjuntos', false),
+            'usarRecetasLibres' => (new Configuracion())->activa('usar_recetas_libres', false),
             'cpCampos'    => (new Campopersonalizado())->porModulo('PRESUPUESTO'),
             'cpValores'   => (new Campopersonalizado())->valoresMapa('PRESUPUESTO', (int)$id),
         ]);
@@ -221,8 +224,24 @@ class PresupuestosController extends Controller
         $pr = $this->pr->find($id);
         if (!$pr) die('Presupuesto no encontrado');
 
+        $usarRecetasLibres = (new Configuracion())->activa('usar_recetas_libres', false);
+        $recetasLibres = [];
+        if ($usarRecetasLibres) {
+            $recetaModel = new Receta();
+            foreach ($pr['detalle'] as $linea) {
+                if (!empty($linea['receta_id'])) {
+                    $resumen = $recetaModel->resumenCostos((int)$linea['receta_id']);
+                    if ($resumen) {
+                        $recetasLibres[(int)$linea['id']] = $resumen;
+                    }
+                }
+            }
+        }
+
         $this->view('presupuestos/show', [
-            'presupuesto' => $pr
+            'presupuesto' => $pr,
+            'usarRecetasLibres' => $usarRecetasLibres,
+            'recetasLibres' => $recetasLibres,
         ]);
     }
 
@@ -277,6 +296,7 @@ class PresupuestosController extends Controller
                     } elseif (!empty($d['descripcion'])) {
                         $items[$idx++] = [
                             'descripcion' => $d['descripcion'],
+                            'receta_id'   => !empty($d['receta_id']) ? (int)$d['receta_id'] : null,
                             'cantidad'    => $d['cantidad'],
                             'precio'      => $d['precio'],
                         ];
@@ -311,7 +331,17 @@ class PresupuestosController extends Controller
                 // Config Empresa -> Configuraciones: la NP automatica puede nacer aprobada
                 $aprobadaAuto = false;
                 if ($config->activa('np_automatica_aprobada', false)) {
-                    $np->aprobar($npId);
+                    // Si la NP tiene un item libre con receta, nace aprobada y
+                    // pendiente de producir: no tiene stock para remitir.
+                    $tieneRecetaLibre = false;
+                    foreach ($items as $itemNp) {
+                        if (empty($itemNp['producto_id']) && !empty($itemNp['receta_id'])) {
+                            $tieneRecetaLibre = true;
+                            break;
+                        }
+                    }
+                    $np->aprobar($npId, $tieneRecetaLibre
+                        && $config->activa('usar_recetas_libres', false));
                     $aprobadaAuto = true;
                 }
 

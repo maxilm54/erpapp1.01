@@ -178,6 +178,13 @@ $hoy = date('Y-m-d');
                             <?= htmlspecialchars($r['tenant_nombre']) ?>
                         </a>
                         <div class="small text-muted"><code><?= htmlspecialchars($r['tenant_dbname']) ?></code></div>
+                        <div class="small text-muted">
+                            <?php if (!empty($r['tenant_email'])): ?>
+                                <i class="bi bi-envelope"></i> <?= htmlspecialchars($r['tenant_email']) ?>
+                            <?php else: ?>
+                                <span class="text-danger">Sin email</span>
+                            <?php endif; ?>
+                        </div>
                     </td>
                     <td><?= date('d/m/Y', strtotime($r['fecha_alta'])) ?></td>
                     <td>
@@ -202,6 +209,20 @@ $hoy = date('Y-m-d');
                         <a href="<?= BASE_URL ?>/admin/ctacte-edit/<?= (int)$r['id'] ?>" class="btn btn-sm btn-outline-warning" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </a>
+                        <a href="<?= BASE_URL ?>/admin/ctacte-pdf-deuda/<?= (int)$r['id'] ?>" target="_blank"
+                           class="btn btn-sm btn-outline-secondary" title="Ver comprobante de deuda PDF">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </a>
+                        <?php $sinEmail = empty($r['tenant_email']); ?>
+                        <form method="POST" action="<?= BASE_URL ?>/admin/ctacte-enviar-deuda/<?= (int)$r['id'] ?>" style="display:inline"
+                              onsubmit="return confirm('¿Enviar el comprobante de deuda por email a la empresa?')">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    title="<?= $sinEmail ? 'La empresa no tiene email configurado' : 'Enviar comprobante de deuda por email' ?>"
+                                    <?= $sinEmail ? 'disabled' : '' ?>>
+                                <i class="bi bi-envelope"></i>
+                            </button>
+                        </form>
                         <form method="POST" action="<?= BASE_URL ?>/admin/ctacte-delete/<?= (int)$r['id'] ?>" style="display:inline"
                               onsubmit="return confirm('¿Eliminar este registro de cuenta corriente?')">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
@@ -280,7 +301,21 @@ $hoy = date('Y-m-d');
                     </td>
                     <td class="small"><?= htmlspecialchars($p['usuario_nombre'] ?? '-') ?></td>
                     <td class="small text-muted"><?= htmlspecialchars(substr((string)$p['created_at'], 0, 16)) ?></td>
-                    <td class="text-end">
+                    <td class="text-end text-nowrap">
+                        <a href="<?= BASE_URL ?>/admin/ctacte-pdf-pago/<?= (int)$p['id'] ?>" target="_blank"
+                           class="btn btn-sm btn-outline-secondary" title="Ver comprobante de pago PDF">
+                            <i class="bi bi-file-earmark-pdf"></i>
+                        </a>
+                        <?php $sinEmail = empty($p['tenant_email']); ?>
+                        <form method="POST" action="<?= BASE_URL ?>/admin/ctacte-enviar-pago/<?= (int)$p['id'] ?>" style="display:inline"
+                              onsubmit="return confirm('¿Enviar el comprobante de pago por email a la empresa?')">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
+                            <button class="btn btn-sm btn-outline-primary"
+                                    title="<?= $sinEmail ? 'La empresa no tiene email configurado' : 'Enviar comprobante de pago por email' ?>"
+                                    <?= $sinEmail ? 'disabled' : '' ?>>
+                                <i class="bi bi-envelope"></i>
+                            </button>
+                        </form>
                         <?php if ($activo): ?>
                             <button type="button" class="btn btn-sm btn-outline-danger" title="Anular pago"
                                     data-bs-toggle="modal" data-bs-target="#modalAnularPago"

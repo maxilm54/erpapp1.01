@@ -93,7 +93,7 @@
 <!-- AVISO LEGAL -->
 <div class="aviso-legal">
     <strong>PRESUPUESTO</strong> — Este documento <strong>no constituye comprobante fiscal</strong>.
-    Validez del presupuesto: 30 días desde la fecha de emisión.
+    El presupuesto es válido hasta: <?= !empty($presupuesto['vencimiento']) ? date('d/m/Y', strtotime($presupuesto['vencimiento'])) : '' ?>
 </div>
 
 <!-- DATOS DEL CLIENTE -->

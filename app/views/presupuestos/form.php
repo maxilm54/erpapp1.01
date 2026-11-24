@@ -83,6 +83,13 @@ $action = $isEdit
                 <small class="text-muted">— para productos que todavía no están en la base</small>
             </div>
             <div class="card-body py-2">
+                <?php if (!empty($usarRecetasLibres)): ?>
+                    <div class="alert alert-light border py-2 small mb-2">
+                        <i class="bi bi-book"></i>
+                        Si este ítem se fabrica, después de guardar el presupuesto podrá crear una
+                        <strong>receta libre</strong> desde la línea (vista del presupuesto) para cotizar su producción.
+                    </div>
+                <?php endif; ?>
                 <div class="row g-2 align-items-end">
                     <div class="col-md-5">
                         <label class="form-label">Nombre / descripción</label>
@@ -145,6 +152,13 @@ $action = $isEdit
                                     <input type="hidden" name="items[<?= $idx ?>][producto_id]" value="<?= $item['producto_id'] ?>">
                                 <?php else: ?>
                                     <span class="badge bg-info">Libre</span>
+                                    <?php if (!empty($item['receta_id'])): ?>
+                                        <?php if (!empty($usarRecetasLibres)): ?>
+                                            <a href="<?= BASE_URL ?>/recetas/show/<?= (int)$item['receta_id'] ?>"
+                                               class="badge bg-primary text-decoration-none">Receta #<?= (int)$item['receta_id'] ?></a>
+                                        <?php endif; ?>
+                                        <input type="hidden" name="items[<?= $idx ?>][receta_id]" value="<?= (int)$item['receta_id'] ?>">
+                                    <?php endif; ?>
                                     <input type="hidden" name="items[<?= $idx ?>][descripcion]" value="<?= htmlspecialchars($item['descripcion'] ?? $item['nombre']) ?>">
                                 <?php endif; ?>
                             </td>

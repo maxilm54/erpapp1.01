@@ -169,6 +169,27 @@ $aprobadoVencido = !empty($presupuesto['aprobado_at'])
                     <td>$<?= number_format($sub, 2) ?></td>
                     <td>
                         <?php if (empty($d['producto_id'])): ?>
+                            <?php if (!empty($usarRecetasLibres)): ?>
+                                <?php if (!empty($d['receta_id']) && !empty($recetasLibres[(int)$d['id']])): ?>
+                                    <a href="<?= BASE_URL ?>/recetas/show/<?= (int)$d['receta_id'] ?>"
+                                       class="btn btn-sm btn-outline-info">
+                                        <i class="bi bi-book"></i> Ver receta
+                                    </a>
+                                    <?php if ($presupuesto['estado'] === 'BORRADOR'): ?>
+                                        <a href="<?= BASE_URL ?>/recetas/edit/<?= (int)$d['receta_id'] ?>"
+                                           class="btn btn-sm btn-outline-warning">
+                                            <i class="bi bi-pencil"></i> Editar receta
+                                        </a>
+                                    <?php endif; ?>
+                                <?php elseif (empty($d['receta_id']) && $presupuesto['estado'] === 'BORRADOR'): ?>
+                                    <a href="<?= BASE_URL ?>/recetas/create?presupuesto_detalle_id=<?= (int)$d['id'] ?>&amp;volver=presupuesto-<?= (int)$presupuesto['id'] ?>"
+                                       class="btn btn-sm btn-outline-info">
+                                        <i class="bi bi-plus-circle"></i> Crear receta
+                                    </a>
+                                <?php elseif (!empty($d['receta_id'])): ?>
+                                    <span class="badge bg-secondary" title="La receta está inactiva o no disponible">Receta inactiva</span>
+                                <?php endif; ?>
+                            <?php endif; ?>
                             <?php if ($presupuesto['estado'] !== 'ANULADO'): ?>
                                 <form method="POST"
                                       action="<?= BASE_URL ?>/presupuestos/agregar-producto/<?= $presupuesto['id'] ?>/<?= $d['id'] ?>"
@@ -200,6 +221,20 @@ $aprobadoVencido = !empty($presupuesto['aprobado_at'])
             </tfoot>
         </table>
     </div>
+
+    <?php if (!empty($usarRecetasLibres) && !empty($recetasLibres)): ?>
+        <?php foreach ($presupuesto['detalle'] as $linea): ?>
+            <?php if (empty($linea['producto_id']) && !empty($recetasLibres[(int)$linea['id']])): ?>
+                <?php
+                $resumen = $recetasLibres[(int)$linea['id']];
+                $titulo = 'Receta del ítem libre';
+                $precioLinea = (float)$linea['precio'];
+                $volverUrl = null;
+                require BASE_PATH . '/app/views/recetas/_resumen_card.php';
+                ?>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    <?php endif; ?>
 </div>
 
 <script>

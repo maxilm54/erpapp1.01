@@ -206,9 +206,10 @@ class Notificacion extends Model
     private function filasOrdenesProduccion(int $dias): array
     {
         $rows = Database::getInstance()->query("
-            SELECT op.id, op.fecha_entrega, op.estado, op.cantidad, p.nombre AS producto
+            SELECT op.id, op.fecha_entrega, op.estado, op.cantidad,
+                   COALESCE(p.nombre, op.producto_libre, 'Item libre') AS producto
             FROM ordenes_produccion op
-            JOIN productos p ON p.id = op.producto_id
+            LEFT JOIN productos p ON p.id = op.producto_id
             WHERE op.fecha_entrega IS NOT NULL
               AND op.estado IN ('PENDIENTE','EN_PRODUCCION')
               AND DATE(op.fecha_entrega) <= DATE_ADD(CURDATE(), INTERVAL {$dias} DAY)

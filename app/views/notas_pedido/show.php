@@ -9,6 +9,11 @@ foreach (($np['detalle'] ?? []) as $dNp) {
     }
 }
 $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprobacion === 0;
+// Fallback: si el controlador no envio la bandera, se deduce de la evaluacion.
+if (!isset($soloRecetaLibre)) {
+    $soloRecetaLibre = !empty($npProduccion['evaluacion']['es_libre'])
+        && !empty($npProduccion['evaluacion']['elegible']);
+}
 ?>
 <h1>Nota de Pedido #<?= $np['id'] ?></h1>
 
@@ -92,6 +97,30 @@ $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprob
                 <td><?= number_format($sub, 2) ?></td>
                 <td>
                     <?php if (empty($d['producto_id'])): ?>
+                        <?php if (!empty($usarRecetasLibres)): ?>
+                            <?php if (!empty($d['receta_id']) && !empty($recetasLibres[(int)$d['id']])): ?>
+                                <a href="<?= BASE_URL ?>/recetas/show/<?= (int)$d['receta_id'] ?>"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-book"></i> Ver receta
+                                </a>
+                                <?php if ($np['estado'] === 'BORRADOR'): ?>
+                                    <a href="<?= BASE_URL ?>/recetas/edit/<?= (int)$d['receta_id'] ?>"
+                                       class="btn btn-sm btn-outline-warning">
+                                        <i class="bi bi-pencil"></i> Editar receta
+                                    </a>
+                                <?php endif; ?>
+                            <?php elseif (empty($d['receta_id']) && ($np['estado'] === 'BORRADOR'
+                                || ($np['estado'] === 'APROBADA'
+                                    && empty($npProduccion['orden'])
+                                    && ($np['remitido'] ?? '') !== 'RemitidoCompleto'))): ?>
+                                <a href="<?= BASE_URL ?>/recetas/create?nota_pedido_detalle_id=<?= (int)$d['id'] ?>&amp;volver=nota-<?= (int)$np['id'] ?>"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-plus-circle"></i> Crear receta
+                                </a>
+                            <?php elseif (!empty($d['receta_id'])): ?>
+                                <span class="badge bg-secondary" title="La receta está inactiva o no disponible">Receta inactiva</span>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <form method="POST"
                               action="<?= BASE_URL ?>/notaspedido/agregar-producto/<?= $np['id'] ?>/<?= $d['id'] ?>"
                               class="d-inline"
@@ -120,6 +149,20 @@ $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprob
     </table>
 </div>
 
+<?php if (!empty($usarRecetasLibres) && !empty($recetasLibres)): ?>
+    <?php foreach ($np['detalle'] as $lineaNp): ?>
+        <?php if (empty($lineaNp['producto_id']) && !empty($recetasLibres[(int)$lineaNp['id']])): ?>
+            <?php
+            $resumen = $recetasLibres[(int)$lineaNp['id']];
+            $titulo = 'Receta del ítem libre';
+            $precioLinea = (float)$lineaNp['precio'];
+            $volverUrl = null;
+            require BASE_PATH . '/app/views/recetas/_resumen_card.php';
+            ?>
+        <?php endif; ?>
+    <?php endforeach; ?>
+<?php endif; ?>
+
 <?php if (!empty($npProduccion['configActiva'])): ?>
     <div class="card mb-3 border-warning">
         <div class="card-header bg-warning-subtle">
@@ -127,12 +170,45 @@ $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprob
         </div>
         <div class="card-body">
             <?php if (!empty($npProduccion['orden'])): ?>
+                <?php
+                $producidoOp = (float)($npProduccion['orden']['producido'] ?? 0);
+                $pedidoOp = (float)($npProduccion['orden']['cantidad'] ?? 0);
+                $pendienteOp = max(0, $pedidoOp - $producidoOp);
+                $remitidoOp = 0.0;
+                foreach (($detalleReserva ?? []) as $lineaRemitida) {
+                    $remitidoOp += (float)($lineaRemitida['remitida'] ?? 0);
+                }
+                $producidoPendienteRemitir = max(0, $producidoOp - $remitidoOp);
+                $puedeRemitirProduccion = $np['estado'] === 'APROBADA'
+                    && ($np['remitido'] ?? '') !== 'RemitidoCompleto'
+                    && $producidoPendienteRemitir > 0;
+                ?>
                 <div class="alert alert-success mb-0">
-                    Esta Nota de Pedido ya generó la
-                    <a href="<?= BASE_URL ?>/ordenproduccion/show/<?= (int)$npProduccion['orden']['id'] ?>">
-                        Orden de Producción #<?= (int)$npProduccion['orden']['id'] ?>
-                    </a>
-                    <span class="badge bg-success"><?= htmlspecialchars($npProduccion['orden']['estado']) ?></span>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            Esta Nota de Pedido ya generó la
+                            <a href="<?= BASE_URL ?>/ordenproduccion/show/<?= (int)$npProduccion['orden']['id'] ?>">
+                                Orden de Producción #<?= (int)$npProduccion['orden']['id'] ?>
+                            </a>
+                            <span class="badge bg-success"><?= htmlspecialchars($npProduccion['orden']['estado']) ?></span>
+                            <div class="small mt-1">
+                                Producido: <strong><?= number_format($producidoOp, 3, ',', '.') ?></strong>
+                                / <?= number_format($pedidoOp, 3, ',', '.') ?>
+                                <?php if ($remitidoOp > 0): ?>
+                                    &mdash; Remitido: <strong><?= number_format($remitidoOp, 3, ',', '.') ?></strong>
+                                <?php endif; ?>
+                                <?php if ($pendienteOp > 0): ?>
+                                    &mdash; Pendiente de producir: <strong><?= number_format($pendienteOp, 3, ',', '.') ?></strong>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($puedeRemitirProduccion): ?>
+                            <a href="<?= BASE_URL ?>/remitossalida/create/<?= (int)$np['id'] ?>"
+                               class="btn btn-primary btn-sm">
+                                <i class="bi bi-truck"></i> Remitir producidas (<?= number_format($producidoPendienteRemitir, 3, ',', '.') ?>)
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 </div>
             <?php elseif (($np['remitido'] ?? '') === 'RemitidoCompleto'): ?>
                 <p class="text-muted mb-0 small">
@@ -144,7 +220,12 @@ $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprob
                 </p>
             <?php elseif (!empty($npProduccion['evaluacion']['elegible'])): ?>
                 <p class="mb-2 small">
-                    <strong>Producto:</strong> <?= htmlspecialchars($npProduccion['evaluacion']['producto']) ?> &mdash;
+                    <strong><?= !empty($npProduccion['evaluacion']['es_libre']) ? 'Ítem libre' : 'Producto' ?>:</strong>
+                    <?= htmlspecialchars($npProduccion['evaluacion']['producto']) ?>
+                    <?php if (!empty($npProduccion['evaluacion']['es_libre'])): ?>
+                        <span class="badge bg-info text-dark">No genera stock de producto</span>
+                    <?php endif; ?>
+                    &mdash;
                     <strong>Cantidad:</strong> <?= number_format((float)$npProduccion['evaluacion']['cantidad'], 3, ',', '.') ?> &mdash;
                     <strong>Receta:</strong> <?= htmlspecialchars($npProduccion['evaluacion']['receta']['nombre']) ?>
                 </p>
@@ -345,16 +426,29 @@ $puedeProduccionNp = count($productosNpAprobacion) === 1 && $lineasLibresNpAprob
 <?php endif; ?>
 
 <?php if ($np['estado'] === 'BORRADOR'): ?>
-    <form id="formAprobarNp" method="POST"
-          action="<?= BASE_URL ?>/notaspedido/approve/<?= (int)$np['id'] ?>"
-          class="d-inline">
-        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
-        <input type="hidden" name="flujo" id="flujoAprobacionNp" value="normal">
-        <button type="button" class="btn btn-success"
-                onclick="confirmarAprobacionNP(<?= (int)$np['id'] ?>)">
-            Aprobar
-        </button>
-    </form>
+    <?php if (!empty($soloRecetaLibre)): ?>
+        <form method="POST"
+              action="<?= BASE_URL ?>/notaspedido/approve/<?= (int)$np['id'] ?>"
+              class="d-inline"
+              onsubmit="return confirm('¿Aprobar la NP y enviarla a producción con su receta?');">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="flujo" value="produccion">
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-gear"></i> Aprobar y enviar a producción
+            </button>
+        </form>
+    <?php else: ?>
+        <form id="formAprobarNp" method="POST"
+              action="<?= BASE_URL ?>/notaspedido/approve/<?= (int)$np['id'] ?>"
+              class="d-inline">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+            <input type="hidden" name="flujo" id="flujoAprobacionNp" value="normal">
+            <button type="button" class="btn btn-success"
+                    onclick="confirmarAprobacionNP(<?= (int)$np['id'] ?>)">
+                Aprobar
+            </button>
+        </form>
+    <?php endif; ?>
 <?php endif ?>
 
 <?php if ($np['estado'] !== 'ANULADA' && ($np['remitido'] ?? '') !== 'RemitidoCompleto'): ?>
@@ -417,7 +511,7 @@ function confirmarAnulacionNP(id) {
 function confirmarRemito(id) {
     Swal.fire({
         title: 'Generar Remito',
-        text: 'Se descontará stock de los productos',
+        text: <?= !empty($soloRecetaLibre) ? "'Se remitirán las piezas producidas del ítem libre.'" : "'Se descontará stock de los productos'" ?>,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#0d6efd',
@@ -432,19 +526,25 @@ function confirmarRemito(id) {
 }
 </script>
 <script>
-const puedeProduccionNp = <?= $puedeProduccionNp ? 'true' : 'false' ?>;
+const puedeProduccionNp = <?= ($puedeProduccionNp || !empty($puedeProduccionLibre)) ? 'true' : 'false' ?>;
+const soloRecetaLibre = <?= !empty($soloRecetaLibre) ? 'true' : 'false' ?>;
 
 function confirmarAprobacionNP(id) {
-    const opcionesAprobacion = {
-        normal: 'Camino normal: aprobar para remitir'
-    };
-    if (puedeProduccionNp) {
-        opcionesAprobacion.produccion = 'Procesar mediante receta en producción';
+    const opcionesAprobacion = {};
+    if (soloRecetaLibre) {
+        opcionesAprobacion.produccion = 'Procesar mediante la receta del ítem libre';
+    } else {
+        opcionesAprobacion.normal = 'Camino normal: aprobar para remitir';
+        if (puedeProduccionNp) {
+            opcionesAprobacion.produccion = 'Procesar mediante receta en producción';
+        }
     }
 
     Swal.fire({
         title: '¿Aprobar Nota de Pedido?',
-        text: 'Elegí cómo va a continuar esta NP',
+        text: soloRecetaLibre
+            ? 'El ítem libre no tiene stock: se enviará a producción con su receta.'
+            : 'Elegí cómo va a continuar esta NP',
         input: 'select',
         inputOptions: opcionesAprobacion,
         inputPlaceholder: 'Elegí una opción...',

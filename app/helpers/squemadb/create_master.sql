@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS `ctacte_tenant_pagos` (
   `tenant_id`  INT NOT NULL,
   `fecha`      DATE NOT NULL,
   `monto`      DECIMAL(12,2) NOT NULL,
+  `saldo_pendiente_despues` DECIMAL(12,2) DEFAULT NULL,
   `obs`        VARCHAR(500) DEFAULT NULL,
   `usuario_id` INT DEFAULT NULL,
   `activo`     TINYINT(1) NOT NULL DEFAULT 1,

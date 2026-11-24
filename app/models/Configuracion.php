@@ -15,6 +15,9 @@ require_once BASE_PATH . '/app/core/Model.php';
  *     Pedido en la receta de su producto: las NPs aprobadas con un solo
  *     producto que tiene receta activa muestran un boton para generar la
  *     Orden de Produccion desde esa receta.
+ *   - usar_recetas_libres: '1' | '0' — permite crear recetas para lineas
+ *     libres (sin producto) de presupuestos y notas de pedido. La receta
+ *     queda atada a la linea y se usa como cotizador y para producir el item.
  */
 class Configuracion extends Model
 {

@@ -4,6 +4,7 @@ require_once BASE_PATH.'/app/models/Ordenproduccion.php';
 require_once BASE_PATH.'/app/models/Receta.php';
 require_once BASE_PATH.'/app/models/Producto.php';
 require_once BASE_PATH.'/app/models/Notapedido.php';
+require_once BASE_PATH.'/app/models/Configuracion.php';
 class OrdenproduccionController extends Controller
 {
     private OrdenProduccion $model;
@@ -29,14 +30,22 @@ class OrdenproduccionController extends Controller
         $recetaModel = new Receta();
 
         $pendientes = $npModel->npPendientesProduccion();
-        foreach ($pendientes as &$pendiente) {
+        $usarRecetasLibres = (new Configuracion())->activa('usar_recetas_libres', false);
+        foreach ($pendientes as $indice => &$pendiente) {
             $evaluacion = $npModel->evaluarProduccionNota((int)$pendiente['id']);
+            // Si la empresa deshabilito las recetas libres, no mostrar NPs de
+            // items libres que quedaron pendientes de una config anterior.
+            if (!empty($evaluacion['es_libre']) && !$usarRecetasLibres) {
+                unset($pendientes[$indice]);
+                continue;
+            }
             $pendiente['evaluacion'] = $evaluacion;
             $pendiente['recetas_producto'] = !empty($evaluacion['producto_id'])
                 ? $recetaModel->activasPorProducto((int)$evaluacion['producto_id'])
                 : [];
         }
         unset($pendiente);
+        $pendientes = array_values($pendientes);
 
         $this->view('produccion/np_pendientes', [
             'pendientes' => $pendientes,

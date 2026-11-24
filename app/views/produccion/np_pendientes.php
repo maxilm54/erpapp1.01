@@ -41,8 +41,11 @@
                         <td><?= htmlspecialchars($p['razon_social']) ?></td>
                         <td><?= htmlspecialchars($p['productos'] ?? '—') ?></td>
                         <td>
-                            <?php if (!empty($eval['producto_id'])): ?>
+                            <?php if (!empty($eval['producto'])): ?>
                                 <strong><?= htmlspecialchars($eval['producto']) ?></strong>
+                                <?php if (!empty($eval['es_libre'])): ?>
+                                    <span class="badge bg-info text-dark">Ítem libre</span>
+                                <?php endif; ?>
                                 <div class="small text-muted">
                                     Cantidad: <?= number_format((float)$eval['cantidad'], 3, ',', '.') ?>
                                 </div>
@@ -51,10 +54,32 @@
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if (empty($eval['producto_id'])): ?>
+                            <?php if (empty($eval['producto'])): ?>
                                 <div class="alert alert-warning py-1 px-2 mb-0 small">
                                     <?= htmlspecialchars($eval['motivo'] ?: 'La NP no se puede procesar automáticamente desde una receta.') ?>
                                 </div>
+                            <?php elseif (!empty($eval['es_libre'])): ?>
+                                <?php if (!empty($eval['receta'])): ?>
+                                    <div class="small mb-1">
+                                        Receta: <strong><?= htmlspecialchars($eval['receta']['nombre']) ?></strong>
+                                        <span class="badge bg-info text-dark">Ítem libre</span>
+                                    </div>
+                                    <form method="POST"
+                                          action="<?= BASE_URL ?>/ordenproduccion/crear-desde-np/<?= (int)$p['id'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::generate()) ?>">
+                                        <input type="hidden" name="receta_id" value="<?= (int)$eval['receta']['id'] ?>">
+                                        <button class="btn btn-success btn-sm">
+                                            <i class="bi bi-play-fill"></i> Iniciar producción
+                                        </button>
+                                    </form>
+                                    <div class="small text-muted mt-1">
+                                        No genera stock de producto terminado: solo consume materias primas.
+                                    </div>
+                                <?php else: ?>
+                                    <div class="alert alert-warning py-1 px-2 mb-0 small">
+                                        El ítem libre no tiene una receta activa.
+                                    </div>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <?php $recetasProducto = $p['recetas_producto']; ?>
 
