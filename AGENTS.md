@@ -33,7 +33,7 @@
   La verificación real es manual en el navegador contra el tenant.
 - `APP_DEBUG` **nunca se define** → `display_errors` está siempre off. Los errores PHP van al `error_log` de Apache (archivo `error_log` en la raíz, sin trackear). Log por tenant: `storage/empresa_{tenantId}/logs/YYYY-MM-DD.log` vía `empresaLog($msg, $nivel)`.
 - **Para validar SQL contra la BD real sin tocar datos**: abrir un PDO con `PDO::ATTR_EMULATE_PREPARES => false` y llamar `$pdo->prepare($sql)` **sin ejecutar**. El server parsea la sentencia (COM_STMT_PREPARE) y devuelve error si la tabla o columna no existe, sin modificar nada. Es la única forma de chequear referencias a columnas en este repo (no hay tests). Ojo: el SQL armado por interpolación (`$placeholders`, `{$depositoFilter}`, `" . $var`) no se puede validar así.
-- La BD de desarrollo está viva: master `app_master` + tenants `tenant_pistachos` (#2) y `tenant_dmtech` (#8), ambos en `schema_version = 20`.
+- La BD de desarrollo está viva: master `app_master` + tenants `tenant_pistachos` (#2), `tenant_dmtech` (#8) y `gefamec` (#14, BD `tenant_gerfamec`), todos en `schema_version = 49`.
 
 ## Arquitectura: lo no obvio
 
@@ -138,7 +138,8 @@
 - Los `.sql` se ejecutan con `PDO::exec` partido por `;` (respeta comillas). **No usar `DELIMITER`** ni rutinas. El splitter **no interpreta comentarios `--`**: un `;` dentro de un comentario corta el statement y rompe la migración. No usar `;` en comentarios. Si un statement falla, el loop corta y `schema_version` queda en la última migración aplicada.
 - **Compatibilidad MySQL/MariaDB**: el host puede ser MySQL y el local MariaDB. MySQL **no acepta `ADD COLUMN IF NOT EXISTS`** (MariaDB sí), así que una migración idempotente se hace con una guarda sobre `information_schema.COLUMNS` + `PREPARE`/`EXECUTE` (ver `005_ctacte_pagos_anulados.sql`). En la rama "no hay nada que hacer" usar `SET @var := 0`, **no `SELECT 1`**: el SELECT deja un result set abierto y el siguiente `PDO::exec` falla con "Cannot execute queries while other unbuffered queries are active".
 - Se aplican **por tenant** desde Admin → Migraciones (`/admin/migrations`, `/admin/migrations-run/{tenantId}`, `/admin/migrations-run-all`); el estado vive en `tenants.schema_version` (master). **Al agregar una migración hay que correrla en todos los tenants**: el archivo no basta.
-- Un tenant nuevo arranca con `schema_version = 0` y corre 003..N. Si el schema base de `tenant_schema.sql` ya incluye una tabla, no volver a crearla sin `IF NOT EXISTS`.
+- **Un tenant nuevo arranca con `schema_version = 0`** y corre 003..N, pero `Tenant::createDatabase()` primero carga `tenant_schema.sql`, que **no es el schema original**: ya trae tablas y columnas de varias migraciones (p. ej. `descripcion` en `presupuestos_detalle`/`notas_pedido_detalle`, `clientes.nomenclador`, `configuraciones`). Por eso **todo `ADD COLUMN`/`ADD KEY` de una migración tiene que ir con la guarda de `information_schema` + `PREPARE`**: si no, la instalación limpia muere con `1060 Duplicate column name` / `1061 Duplicate key name` (le pasó a la 022 y a la 028). `CREATE TABLE IF NOT EXISTS` e `INSERT IGNORE` ya son seguros.
+- Un tenant nuevo arranca con `schema_version = 0` y corre 003..N. Si el schema base de `tenant_schema.sql` ya incluye una tabla o columna, no volver a crearla sin `IF NOT EXISTS` / la guarda de `information_schema`.
 - Los scripts PHP sueltos de `app/migrations/` (carpeta gitignored) usan `BASE_PATH`, que solo se define en `app/bootstrap.php`: **no corren con `php app/migrations/x.php`** aunque el README lo diga.
 
 ## Archivos, PDFs y emails
